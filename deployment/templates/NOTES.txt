@@ -1,0 +1,21 @@
+fusion-spectra has been deployed.
+
+  Release:   {{ .Release.Name }}
+  Namespace: {{ .Values.namespace }}
+  Auth mode: {{ .Values.ui.authMode }}
+
+{{- if .Values.ingress.enabled }}
+
+UI:
+  http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.host }}
+
+  If using minikube, add to /etc/hosts:
+    $(minikube ip)  {{ .Values.ingress.host }}
+{{- end }}
+
+Runtime config is injected via ConfigMap mount at /usr/share/nginx/html/config.js.
+To change auth mode or OIDC settings without rebuilding:
+
+  helm upgrade fusion-spectra ./deployment \
+    --set ui.authMode=token \
+    --set ui.devToken=<jwt>

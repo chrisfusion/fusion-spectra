@@ -1,0 +1,58 @@
+# =============================================================================
+# fusion-spectra — Helm Values (production defaults)
+# =============================================================================
+
+# Kubernetes namespace — must match the fusion platform namespace.
+# fusion-spectra owns namespace creation; other charts set createNamespace: false.
+namespace: fusion
+createNamespace: true
+
+# -----------------------------------------------------------------------------
+# UI — nginx serving the pre-built Vue SPA (port 80)
+# -----------------------------------------------------------------------------
+ui:
+  image:
+    repository: fusion-spectra
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+
+  replicas: 1
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+  # ---------------------------------------------------------------------------
+  # Runtime configuration — injected as /config.js via ConfigMap mount.
+  # These override Vite build-time env vars without requiring an image rebuild.
+  # ---------------------------------------------------------------------------
+
+  # authMode: oidc | bypass | token
+  authMode: oidc
+
+  # OIDC issuer URL (e.g. https://keycloak.example.com/realms/fusion)
+  oidcAuthority: ""
+
+  oidcClientId: fusion-spectra
+
+  # Optional: defaults to <origin>/auth/callback
+  oidcRedirectUri: ""
+
+  # Required only when authMode=token — long-lived JWT for dev/staging
+  devToken: ""
+
+# -----------------------------------------------------------------------------
+# Ingress
+# -----------------------------------------------------------------------------
+ingress:
+  enabled: true
+  className: nginx
+  host: spectra.fusion.local
+  annotations: {}
+  tls:
+    enabled: false
+    secretName: fusion-spectra-tls

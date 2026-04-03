@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 70">
+  <!-- Prism body — apex top-center, base at bottom -->
+  <polygon points="50,6 8,64 92,64"
+    fill="none" stroke="#6c5ce7" stroke-width="2.5" stroke-linejoin="round"/>
+  <!-- Incident ray entering left face at its midpoint (29,35) -->
+  <line x1="0" y1="24" x2="29" y2="35"
+    stroke="#6c5ce7" stroke-width="2" stroke-linecap="round"/>
+  <!-- Spectrum rays fanning out from right-face midpoint (71,35) -->
+  <line x1="71" y1="35" x2="100" y2="20" stroke="#ef5350" stroke-width="2" stroke-linecap="round"/>
+  <line x1="71" y1="35" x2="100" y2="31" stroke="#ff9800" stroke-width="2" stroke-linecap="round"/>
+  <line x1="71" y1="35" x2="100" y2="42" stroke="#fdd835" stroke-width="2" stroke-linecap="round"/>
+  <line x1="71" y1="35" x2="100" y2="54" stroke="#43a047" stroke-width="2" stroke-linecap="round"/>
+  <line x1="71" y1="35" x2="100" y2="66" stroke="#1e88e5" stroke-width="2" stroke-linecap="round"/>
+</svg>

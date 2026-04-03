@@ -1,0 +1,26 @@
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Environment — keep .env.development committed (dev-only settings, no real secrets)
+.env
+.env.production
+.env.*.local
+!.env.development
+!.env.example
+
+# Editor
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*~
+\#*\#
+.DS_Store
+
+# Build artifacts
+*.tsbuildinfo

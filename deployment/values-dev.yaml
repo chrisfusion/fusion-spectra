@@ -1,0 +1,32 @@
+# =============================================================================
+# fusion-spectra — Dev overrides for minikube
+#
+# Usage:
+#   eval $(minikube docker-env)
+#   docker build -t fusion-spectra:latest .
+#   helm upgrade --install fusion-spectra ./deployment \
+#     -f ./deployment/values-dev.yaml \
+#     --namespace fusion --create-namespace
+#
+# Prerequisites:
+#   minikube addons enable ingress
+#   echo "$(minikube ip)  spectra.fusion.local" | sudo tee -a /etc/hosts
+# =============================================================================
+
+# fusion-spectra owns the namespace; create it here in dev
+createNamespace: false
+
+ui:
+  image:
+    pullPolicy: Never   # image loaded directly into minikube — no registry pull
+    tag: latest
+
+  # Auth — bypass for dev (no Keycloak required).
+  # Switch to 'token' and set devToken for integration testing with a real IdP.
+  authMode: bypass
+  oidcAuthority: http://keycloak.fusion.svc.cluster.local:8080/realms/fusion
+  oidcClientId: fusion-spectra
+  # devToken: ""   # set via --set ui.devToken=<jwt> when authMode=token
+
+ingress:
+  host: spectra.fusion.local   # requires: echo "$(minikube ip)  spectra.fusion.local" | sudo tee -a /etc/hosts

@@ -1,0 +1,11 @@
+apiVersion: v2
+name: fusion-spectra
+description: Fusion Spectra — Data Lake Platform UI (Vue 3 host shell)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords:
+  - fusion
+  - data-lake
+  - ui
