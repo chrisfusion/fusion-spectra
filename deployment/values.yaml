@@ -46,6 +46,44 @@ ui:
   devToken: ""
 
 # -----------------------------------------------------------------------------
+# Plugins — optional MFE remotes
+#
+# Each plugin is an independent Deployment + NodePort Service deployed into the
+# same namespace as the shell.  The plugin's nginx proxies /api/v1/ to
+# backend services using Kubernetes DNS, so no ingress is required for API
+# traffic.
+#
+# The shell SPA must have been built with the matching VITE_<PLUGIN>_PLUGIN_URL
+# env var so that Module Federation resolves the remoteEntry.js at startup.
+# -----------------------------------------------------------------------------
+plugins:
+  indexPlugin:
+    # Set to true to deploy fusion-index-plugin alongside the shell.
+    enabled: false
+
+    image:
+      repository: fusion-index-plugin
+      tag: "0.1.0"
+      pullPolicy: IfNotPresent
+
+    # NodePort exposed to the browser — must be free in the cluster.
+    nodePort: 30083
+
+    # Browser-accessible base URL of this plugin's NodePort service.
+    # The plugin's nginx proxies /api/v1/ → index-backend:8080 internally.
+    # Example (minikube):  http://<minikube-ip>:30083
+    # Leave empty to skip injecting indexBaseUrl into the shell ConfigMap.
+    baseUrl: ""
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+
+# -----------------------------------------------------------------------------
 # Ingress
 # -----------------------------------------------------------------------------
 ingress:

@@ -30,3 +30,14 @@ ui:
 
 ingress:
   host: spectra.fusion.local   # requires: echo "$(minikube ip)  spectra.fusion.local" | sudo tee -a /etc/hosts
+
+# Plugins
+plugins:
+  indexPlugin:
+    enabled: true
+    image:
+      pullPolicy: Never
+      tag: local
+    nodePort: 30083
+    # Set via --set plugins.indexPlugin.baseUrl=http://$(minikube ip):30083
+    baseUrl: ""

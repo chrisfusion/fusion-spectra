@@ -11,20 +11,25 @@ export default defineConfig({
       sassVariables: resolve(__dirname, 'src/quasar-variables.scss'),
     }),
     federation({
-      name: 'fusion-spectra',
-      remotes: {
-        'fusion-index-plugin': `${process.env['VITE_INDEX_PLUGIN_URL'] || 'http://localhost:3001'}/assets/remoteEntry.js`,
+      name: 'fusion-index-plugin',
+      filename: 'remoteEntry.js',
+      exposes: {
+        './TemplatesView':      './src/views/TemplatesView.vue',
+        './JobsView':           './src/views/JobsView.vue',
+        './TemplateDetailView': './src/views/TemplateDetailView.vue',
       },
       shared: ['vue', 'pinia', 'vue-router'],
     }),
   ],
+  server: {
+    port: 3001,
+  },
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
     },
   },
   build: {
-    // Required by @originjs/vite-plugin-federation
     target: 'esnext',
     minify: false,
     cssCodeSplit: false,

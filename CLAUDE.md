@@ -7,14 +7,24 @@ Vue 3 + Quasar 2 + Vite + Module Federation host shell for the Fusion data lake 
 ```bash
 npm run dev           # dev server (bypass auth — no Keycloak needed)
 npm run build         # type-check + vite build
-docker build -t fusion-spectra:local .
 
-# Minikube deploy
-eval $(minikube docker-env)
-kubectl apply -f deploy/k8s/
-kubectl set image deployment/fusion-spectra spectra=fusion-spectra:local -n fusion
-kubectl patch deployment fusion-spectra -n fusion --type=json \
-  -p='[{"op":"replace","path":"/spec/template/spec/containers/0/imagePullPolicy","value":"Never"}]'
+# Shell image — pass plugin URL as build-arg so federation bakes the right remote entry
+docker build --build-arg VITE_INDEX_PLUGIN_URL=http://$(minikube ip):30083 -t fusion-spectra:local .
+
+# Plugin image
+docker build -t fusion-index-plugin:local plugins/fusion-index-plugin/
+
+# Helm deploy (preferred — manages ConfigMap, plugin Deployment/Service)
+helm upgrade --install fusion-spectra ./deployment \
+  -f ./deployment/values-dev.yaml \
+  --set plugins.indexPlugin.baseUrl=http://$(minikube ip):30083 \
+  --namespace fusion --create-namespace
+
+# Verify running pod uses the image you just built (SHA must match)
+docker inspect fusion-spectra:1.0.0 --format '{{.Id}}'   # expected
+kubectl get pod -n fusion -l app=fusion-spectra \
+  -o jsonpath='{.items[0].status.containerStatuses[0].imageID}'  # actual
+# If they differ: kubectl rollout restart deployment/fusion-spectra -n fusion
 ```
 
 ## Auth Modes
@@ -28,6 +38,10 @@ Set `VITE_AUTH_MODE` in env:
 
 ## Build Gotchas
 
+- `values-dev.yaml` pins `ui.image.tag: 1.0.0` — build images with that exact tag or Helm silently runs the old image (`imagePullPolicy: Never` never re-pulls by digest)
+- After a pod restart, do a hard refresh (`Ctrl+Shift+R`) — the shell's JS assets are cached `immutable` for 1 year in the browser
+- `Dockerfile` must declare `ARG VITE_*` before `RUN npm run build` for each Vite build-time env var — without it Docker ignores the `--build-arg` and the fallback is used
+- All `process.env['VITE_*']` reads in `vite.config.ts` must use `||` not `??` — same reason as VITE_AUTH_MODE: Vite injects `"undefined"` string, not JS `undefined`
 - `sass-embedded` must be in `devDependencies` — Quasar SASS requires it
 - `sassVariables` in `@quasar/vite-plugin` must be an **absolute path**: `resolve(__dirname, 'src/...')`
 - `build.target: 'esnext'` required by `@originjs/vite-plugin-federation`
@@ -36,10 +50,16 @@ Set `VITE_AUTH_MODE` in env:
 
 ## Plugin Expansion (Module Federation)
 
+Plugins live in `plugins/<name>/` subfolder. Each is a standalone Vite app with its own Dockerfile + nginx that proxies `/api/v1/` to the backend via k8s DNS. NodePorts start at 30083.
+
 To add a plugin remote:
-1. Register in `vite.config.ts` under `federation.remotes`
-2. Add ambient `declare module` to `src/types/federation.d.ts`
+1. Register in `vite.config.ts` under `federation.remotes` — use `||` not `??` for URL fallback
+2. Add ambient `declare module` to `src/types/federation.d.ts` — use inline `import('vue').DefineComponent`, never `import type` inside the block
 3. Add a route to `src/router/index.ts`
+4. Add nav item to `src/stores/navigation.ts`
+5. Add plugin section to `deployment/values.yaml` under `plugins`; enable in `values-dev.yaml`
+
+Auth: plugin stores define the same store ID `'auth'` — shared Pinia returns the shell's instance at runtime.
 
 ## Platform Context
 

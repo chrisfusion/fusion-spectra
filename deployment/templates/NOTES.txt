@@ -19,3 +19,23 @@ To change auth mode or OIDC settings without rebuilding:
   helm upgrade fusion-spectra ./deployment \
     --set ui.authMode=token \
     --set ui.devToken=<jwt>
+{{- if .Values.plugins.indexPlugin.enabled }}
+
+Plugin: fusion-index-plugin
+  NodePort: {{ .Values.plugins.indexPlugin.nodePort }}
+  {{- if .Values.plugins.indexPlugin.baseUrl }}
+  Base URL: {{ .Values.plugins.indexPlugin.baseUrl }}
+  {{- else }}
+
+  WARNING: plugins.indexPlugin.baseUrl is not set.
+  The shell cannot call the fusion-index API from the browser.
+  Set it to http://<node-ip>:{{ .Values.plugins.indexPlugin.nodePort }} and upgrade:
+
+    helm upgrade fusion-spectra ./deployment \
+      --set plugins.indexPlugin.baseUrl=http://$(minikube ip):{{ .Values.plugins.indexPlugin.nodePort }}
+  {{- end }}
+
+  NOTE: The shell image must have been built with:
+    VITE_INDEX_PLUGIN_URL=http://<node-ip>:{{ .Values.plugins.indexPlugin.nodePort }}
+  so that Module Federation resolves remoteEntry.js at startup.
+{{- end }}

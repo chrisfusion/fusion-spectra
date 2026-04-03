@@ -8,6 +8,9 @@ export interface RuntimeConfig {
   oidcClientId?: string
   oidcRedirectUri?: string
   devToken?: string
+  // Base URL of the fusion-index-plugin NodePort (browser-accessible).
+  // The plugin's nginx proxies /api/v1/ to index-backend via k8s hostname.
+  indexBaseUrl?: string
 }
 
 declare global {

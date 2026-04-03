@@ -17,4 +17,7 @@ data:
       {{- if .Values.ui.devToken }}
       devToken: {{ .Values.ui.devToken | quote }},
       {{- end }}
+      {{- if and .Values.plugins.indexPlugin.enabled .Values.plugins.indexPlugin.baseUrl }}
+      indexBaseUrl: {{ .Values.plugins.indexPlugin.baseUrl | quote }},
+      {{- end }}
     };
