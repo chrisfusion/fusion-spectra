@@ -19,7 +19,7 @@ createNamespace: false
 ui:
   image:
     pullPolicy: Never   # image loaded directly into minikube — no registry pull
-    tag: latest
+    tag: 1.0.0
 
   # Auth — bypass for dev (no Keycloak required).
   # Switch to 'token' and set devToken for integration testing with a real IdP.
