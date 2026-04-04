@@ -17,3 +17,8 @@ declare module 'fusion-index-plugin/TemplateDetailView' {
   const component: import('vue').DefineComponent
   export default component
 }
+
+declare module 'fusion-index-plugin/ArtifactsView' {
+  const component: import('vue').DefineComponent
+  export default component
+}

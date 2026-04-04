@@ -14,8 +14,9 @@ export const useNavigationStore = defineStore('navigation', () => {
     { label: 'Venvs',     to: '/venvs',     icon: 'inventory_2' },
     { label: 'Admin',     to: '/admin',     icon: 'admin_panel_settings' },
     { label: 'Help',      to: '/help',      icon: 'help_outline' },
-    { label: 'Templates', to: '/index/templates', icon: 'category' },
-    { label: 'Index Jobs', to: '/index/jobs',     icon: 'work_history' },
+    { label: 'Templates',  to: '/index/templates', icon: 'category' },
+    { label: 'Index Jobs', to: '/index/jobs',      icon: 'work_history' },
+    { label: 'Artifacts',  to: '/index/artifacts', icon: 'folder_open' },
   ]
 
   return { items }

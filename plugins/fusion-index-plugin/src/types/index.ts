@@ -48,3 +48,16 @@ export interface JobVersion {
   createdAt: string
   artifactCount: number
 }
+
+export interface Artifact {
+  id: number
+  jobVersionId: number
+  name: string
+  contentType: string | null
+  sizeBytes: number | null
+  storageBackend: 'FILESYSTEM' | 'S3'
+  status: 'PENDING' | 'AVAILABLE' | 'ERROR'
+  downloadUrl: string
+  createdAt: string
+  updatedAt: string
+}

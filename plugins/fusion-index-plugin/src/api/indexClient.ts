@@ -1,5 +1,5 @@
 import { useAuthStore } from '@/stores/auth'
-import type { PageResponse, JobTemplate, JobTemplateVersion, Job, JobVersion } from '@/types'
+import type { PageResponse, JobTemplate, JobTemplateVersion, Job, JobVersion, Artifact } from '@/types'
 
 // In k8s: window.FUSION_CONFIG.indexBaseUrl = plugin NodePort URL;
 //         nginx in the plugin container proxies /api/v1/ to index-backend:8080.
@@ -41,4 +41,9 @@ export const indexClient = {
 
   listJobVersions: (id: number) =>
     apiFetch<JobVersion[]>(`/jobs/${id}/versions`),
+
+  listArtifacts: (page = 0, pageSize = 20) =>
+    apiFetch<PageResponse<Artifact>>(`/artifacts?page=${page}&pageSize=${pageSize}`),
+
+  artifactDownloadUrl: (id: number) => `${apiBase()}/api/v1/artifacts/${id}/download`,
 }

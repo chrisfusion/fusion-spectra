@@ -17,6 +17,7 @@ export default defineConfig({
         './TemplatesView':      './src/views/TemplatesView.vue',
         './JobsView':           './src/views/JobsView.vue',
         './TemplateDetailView': './src/views/TemplateDetailView.vue',
+        './ArtifactsView':      './src/views/ArtifactsView.vue',
       },
       shared: ['vue', 'pinia', 'vue-router'],
     }),

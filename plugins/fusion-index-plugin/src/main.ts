@@ -10,6 +10,7 @@ import { useAuthStore } from './stores/auth'
 import TemplatesView from './views/TemplatesView.vue'
 import JobsView from './views/JobsView.vue'
 import TemplateDetailView from './views/TemplateDetailView.vue'
+import ArtifactsView from './views/ArtifactsView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -18,6 +19,7 @@ const router = createRouter({
     { path: '/index/templates',        component: TemplatesView },
     { path: '/index/templates/:id',    component: TemplateDetailView },
     { path: '/index/jobs',             component: JobsView },
+    { path: '/index/artifacts',        component: ArtifactsView },
   ],
 })
 
