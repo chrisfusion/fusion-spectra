@@ -32,6 +32,7 @@ const router = createRouter({
         { path: 'index/templates/:id', name: 'index-template-detail', component: () => import('fusion-index-plugin/TemplateDetailView') },
         { path: 'index/jobs',          name: 'index-jobs',            component: () => import('fusion-index-plugin/JobsView') },
         { path: 'index/artifacts',     name: 'index-artifacts',       component: () => import('fusion-index-plugin/ArtifactsView') },
+        { path: 'forge/venvs',         name: 'forge-venvs',           component: () => import('fusion-forge-plugin/VenvsView') },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },

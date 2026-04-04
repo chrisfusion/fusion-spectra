@@ -20,4 +20,7 @@ data:
       {{- if and .Values.plugins.indexPlugin.enabled .Values.plugins.indexPlugin.baseUrl }}
       indexBaseUrl: {{ .Values.plugins.indexPlugin.baseUrl | quote }},
       {{- end }}
+      {{- if and .Values.plugins.forgePlugin.enabled .Values.plugins.forgePlugin.baseUrl }}
+      forgeBaseUrl: {{ .Values.plugins.forgePlugin.baseUrl | quote }},
+      {{- end }}
     };

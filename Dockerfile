@@ -1,9 +1,10 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 COPY . .
 ARG VITE_INDEX_PLUGIN_URL
+ARG VITE_FORGE_PLUGIN_URL
 RUN npm run build
 
 FROM nginx:alpine

@@ -11,21 +11,23 @@ export default defineConfig({
       sassVariables: resolve(__dirname, 'src/quasar-variables.scss'),
     }),
     federation({
-      name: 'fusion-spectra',
-      remotes: {
-        'fusion-index-plugin': `${process.env['VITE_INDEX_PLUGIN_URL'] || 'http://localhost:3001'}/assets/remoteEntry.js`,
-        'fusion-forge-plugin': `${process.env['VITE_FORGE_PLUGIN_URL'] || 'http://localhost:3002'}/assets/remoteEntry.js`,
+      name: 'fusion-forge-plugin',
+      filename: 'remoteEntry.js',
+      exposes: {
+        './VenvsView': './src/views/VenvsView.vue',
       },
       shared: ['vue', 'pinia', 'vue-router'],
     }),
   ],
+  server: {
+    port: 3002,
+  },
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
     },
   },
   build: {
-    // Required by @originjs/vite-plugin-federation
     target: 'esnext',
     minify: false,
     cssCodeSplit: false,

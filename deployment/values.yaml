@@ -83,6 +83,32 @@ plugins:
         cpu: 100m
         memory: 64Mi
 
+  forgePlugin:
+    # Set to true to deploy fusion-forge-plugin alongside the shell.
+    enabled: false
+
+    image:
+      repository: fusion-forge-plugin
+      tag: "0.1.0"
+      pullPolicy: IfNotPresent
+
+    # NodePort exposed to the browser — must be free in the cluster.
+    nodePort: 30084
+
+    # Browser-accessible base URL of this plugin's NodePort service.
+    # The plugin's nginx proxies /api/v1/ → fusion-forge:8080 internally.
+    # Example (minikube):  http://<minikube-ip>:30084
+    # Leave empty to skip injecting forgeBaseUrl into the shell ConfigMap.
+    baseUrl: ""
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+
 # -----------------------------------------------------------------------------
 # Ingress
 # -----------------------------------------------------------------------------

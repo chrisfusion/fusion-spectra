@@ -8,16 +8,21 @@ Vue 3 + Quasar 2 + Vite + Module Federation host shell for the Fusion data lake 
 npm run dev           # dev server (bypass auth — no Keycloak needed)
 npm run build         # type-check + vite build
 
-# Shell image — pass plugin URL as build-arg so federation bakes the right remote entry
-docker build --build-arg VITE_INDEX_PLUGIN_URL=http://$(minikube ip):30083 -t fusion-spectra:local .
+# Shell image — pass plugin URLs as build-args so federation bakes the right remote entries
+docker build \
+  --build-arg VITE_INDEX_PLUGIN_URL=http://$(minikube ip):30083 \
+  --build-arg VITE_FORGE_PLUGIN_URL=http://$(minikube ip):30084 \
+  -t fusion-spectra:local .
 
-# Plugin image
+# Plugin images
 docker build -t fusion-index-plugin:local plugins/fusion-index-plugin/
+docker build -t fusion-forge-plugin:local plugins/fusion-forge-plugin/
 
 # Helm deploy (preferred — manages ConfigMap, plugin Deployment/Service)
 helm upgrade --install fusion-spectra ./deployment \
   -f ./deployment/values-dev.yaml \
   --set plugins.indexPlugin.baseUrl=http://$(minikube ip):30083 \
+  --set plugins.forgePlugin.baseUrl=http://$(minikube ip):30084 \
   --namespace fusion --create-namespace
 
 # Verify running pod uses the image you just built (SHA must match)
@@ -27,7 +32,7 @@ kubectl get pod -n fusion -l app=fusion-spectra \
 # If they differ: kubectl rollout restart deployment/fusion-spectra -n fusion
 
 # Same-tag rebuild: helm upgrade won't restart pods — always follow with:
-kubectl rollout restart deployment/fusion-index-plugin deployment/fusion-spectra -n fusion
+kubectl rollout restart deployment/fusion-index-plugin deployment/fusion-forge-plugin deployment/fusion-spectra -n fusion
 
 # Playwright headless validation (MCP plugin broken — chrome not at /opt/google/chrome/chrome)
 # Write a validate.mjs and run: node validate.mjs
@@ -49,7 +54,8 @@ Set `VITE_AUTH_MODE` in env:
 - `values-dev.yaml` pins `ui.image.tag: 1.0.0` — build images with that exact tag or Helm silently runs the old image (`imagePullPolicy: Never` never re-pulls by digest)
 - After a pod restart, do a hard refresh (`Ctrl+Shift+R`) — the shell's JS assets are cached `immutable` for 1 year in the browser
 - `Dockerfile` must declare `ARG VITE_*` before `RUN npm run build` for each Vite build-time env var — without it Docker ignores the `--build-arg` and the fallback is used
-- All `process.env['VITE_*']` reads in `vite.config.ts` must use `||` not `??` — same reason as VITE_AUTH_MODE: Vite injects `"undefined"` string, not JS `undefined`
+- Shell `Dockerfile` uses `npm ci --legacy-peer-deps` — vite@^8 conflicts with `@vitejs/plugin-vue@5` peer dep; plain `npm ci` fails in Docker
+- All `process.env['VITE_*']` reads in `vite.config.ts` AND all `import.meta.env.VITE_*` reads in plugin source must use `||` not `??` — Vite injects `"undefined"` string, not JS `undefined`; `??` passes the string through unchanged
 - All URL construction goes through `indexClient` methods — never duplicate `apiBase()` in views (same `"undefined"` string risk)
 - QTable virtual/action columns: use `field: () => ''` (function), not `field: 'actions'` (no such field on the row type)
 - `sass-embedded` must be in `devDependencies` — Quasar SASS requires it
@@ -68,6 +74,9 @@ To add a plugin remote:
 3. Add a route to `src/router/index.ts`
 4. Add nav item to `src/stores/navigation.ts`
 5. Add plugin section to `deployment/values.yaml` under `plugins`; enable in `values-dev.yaml`
+6. Add `ARG VITE_<NAME>_PLUGIN_URL` to shell `Dockerfile` before `RUN npm run build`
+7. Add `{{- if and .Values.plugins.<name>Plugin.enabled .Values.plugins.<name>Plugin.baseUrl }}` block to `deployment/templates/configmap.yaml`
+8. Create `deployment/templates/plugin-<name>-deployment.yaml` and `plugin-<name>-service.yaml` (copy from index plugin templates)
 
 Auth: plugin stores define the same store ID `'auth'` — shared Pinia returns the shell's instance at runtime.
 

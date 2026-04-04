@@ -41,3 +41,11 @@ plugins:
     nodePort: 30083
     # Set via --set plugins.indexPlugin.baseUrl=http://$(minikube ip):30083
     baseUrl: ""
+  forgePlugin:
+    enabled: true
+    image:
+      pullPolicy: Never
+      tag: local
+    nodePort: 30084
+    # Set via --set plugins.forgePlugin.baseUrl=http://$(minikube ip):30084
+    baseUrl: ""

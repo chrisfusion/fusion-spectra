@@ -16,7 +16,8 @@ export const useNavigationStore = defineStore('navigation', () => {
     { label: 'Help',      to: '/help',      icon: 'help_outline' },
     { label: 'Templates',  to: '/index/templates', icon: 'category' },
     { label: 'Index Jobs', to: '/index/jobs',      icon: 'work_history' },
-    { label: 'Artifacts',  to: '/index/artifacts', icon: 'folder_open' },
+    { label: 'Artifacts',    to: '/index/artifacts', icon: 'folder_open' },
+    { label: 'Forge Venvs', to: '/forge/venvs',     icon: 'build_circle' },
   ]
 
   return { items }

@@ -22,3 +22,8 @@ declare module 'fusion-index-plugin/ArtifactsView' {
   const component: import('vue').DefineComponent
   export default component
 }
+
+declare module 'fusion-forge-plugin/VenvsView' {
+  const component: import('vue').DefineComponent
+  export default component
+}
