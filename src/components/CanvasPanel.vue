@@ -2,9 +2,11 @@
 import { ref } from 'vue'
 
 defineProps<{
-  title: string
-  icon: string
-  wide?: boolean
+  title:   string
+  icon:    string
+  wide?:   boolean
+  loading?: boolean
+  error?:  string | null
 }>()
 
 const emit = defineEmits<{ refresh: [] }>()
@@ -32,7 +34,15 @@ const expanded = ref(false)
       </div>
     </div>
     <div class="panel__body">
-      <slot />
+      <div v-if="loading" class="panel__state">
+        <q-spinner size="20px" color="primary" />
+      </div>
+      <div v-else-if="error" class="panel__state panel__state--error">
+        <q-icon name="mdi-alert-circle-outline" size="18px" />
+        <span>{{ error }}</span>
+        <button class="panel__retry" @click="emit('refresh')">retry</button>
+      </div>
+      <slot v-else />
     </div>
   </div>
 </template>
@@ -101,4 +111,29 @@ const expanded = ref(false)
   overflow: auto;
   padding: 12px;
 }
+
+.panel__state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 80px;
+  color: var(--fs-text-muted);
+  font-size: 12px;
+}
+
+.panel__state--error { color: var(--fs-red); }
+
+.panel__retry {
+  background: none;
+  border: 1px solid var(--fs-red);
+  border-radius: 3px;
+  color: var(--fs-red);
+  font-size: 11px;
+  font-family: var(--fs-font-mono);
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: background var(--fs-ease);
+}
+.panel__retry:hover { background: rgba(239,68,68,0.1); }
 </style>

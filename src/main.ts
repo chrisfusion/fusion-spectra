@@ -11,8 +11,12 @@ const app = createApp(App)
 
 app.use(Quasar, {
   plugins: { Notify },
-  config: { dark: true }
 })
-app.use(createPinia())
+const pinia = createPinia()
+app.use(pinia)
 app.use(router)
+
+// Apply persisted theme before first paint
+import('@/stores/theme').then(({ useThemeStore }) => useThemeStore(pinia))
+
 app.mount('#app')

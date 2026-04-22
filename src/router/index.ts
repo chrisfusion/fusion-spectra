@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import MainLayout from '@/layouts/MainLayout.vue'
+import { useAuthStore } from '@/stores/auth'
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -17,6 +18,15 @@ const router = createRouter({
       ]
     }
   ]
+})
+
+router.beforeEach(async () => {
+  const auth = useAuthStore()
+  const authenticated = await auth.init()
+  if (!authenticated) {
+    auth.loginRedirect()
+    return false
+  }
 })
 
 export default router

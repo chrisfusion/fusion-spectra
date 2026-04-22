@@ -1,8 +1,23 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+import { useThemeStore, THEMES } from '@/stores/theme'
 
-const userMenuOpen = ref(false)
-const searchQuery  = ref('')
+const auth            = useAuthStore()
+const themeStore      = useThemeStore()
+const userMenuOpen    = ref(false)
+const searchQuery     = ref('')
+
+const displayName = computed(() => auth.user?.name  ?? auth.user?.email ?? '—')
+const displayEmail = computed(() => auth.user?.email ?? '')
+const initials     = computed(() =>
+  displayName.value.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+)
+
+async function handleLogout() {
+  userMenuOpen.value = false
+  await auth.logout()
+}
 </script>
 
 <template>
@@ -64,10 +79,27 @@ const searchQuery  = ref('')
         <q-tooltip anchor="bottom middle" self="top middle" :offset="[0, 6]">Notifications</q-tooltip>
       </button>
 
-      <!-- Docs -->
+      <!-- Theme picker -->
       <button class="topbar__icon-btn">
-        <q-icon name="mdi-book-open-outline" size="18px" />
-        <q-tooltip anchor="bottom middle" self="top middle" :offset="[0, 6]">Documentation</q-tooltip>
+        <q-icon name="mdi-palette-outline" size="18px" />
+        <q-menu anchor="bottom right" self="top right" :offset="[0, 8]" class="theme-picker-menu">
+          <div class="theme-picker">
+            <div class="theme-picker__title">Theme</div>
+            <button
+              v-for="t in THEMES"
+              :key="t.id"
+              class="theme-picker__item"
+              :class="{ 'theme-picker__item--active': themeStore.theme === t.id }"
+              @click="themeStore.set(t.id)"
+            >
+              <span class="theme-picker__swatch"
+                :style="{ background: t.bg, '--sw-accent': t.swatch }" />
+              <span class="theme-picker__label">{{ t.label }}</span>
+              <q-icon v-if="themeStore.theme === t.id" name="mdi-check" size="13px"
+                class="theme-picker__check" />
+            </button>
+          </div>
+        </q-menu>
       </button>
 
       <div class="topbar__divider" />
@@ -75,11 +107,11 @@ const searchQuery  = ref('')
       <!-- User menu -->
       <div class="topbar__user" @click="userMenuOpen = !userMenuOpen">
         <div class="topbar__avatar">
-          <span>JD</span>
+          <span>{{ initials }}</span>
         </div>
         <div class="topbar__user-info">
-          <span class="topbar__user-name">Jane Doe</span>
-          <span class="topbar__user-role">Admin</span>
+          <span class="topbar__user-name">{{ displayName }}</span>
+          <span class="topbar__user-role fs-mono">{{ displayEmail }}</span>
         </div>
         <q-icon name="mdi-chevron-down" size="14px" class="topbar__user-chevron"
           :class="{ 'topbar__user-chevron--open': userMenuOpen }" />
@@ -88,10 +120,10 @@ const searchQuery  = ref('')
           class="topbar__user-menu">
           <div class="usermenu">
             <div class="usermenu__header">
-              <div class="usermenu__avatar-lg"><span>JD</span></div>
+              <div class="usermenu__avatar-lg"><span>{{ initials }}</span></div>
               <div>
-                <div class="usermenu__name">Jane Doe</div>
-                <div class="usermenu__email fs-mono">jane@fusion.local</div>
+                <div class="usermenu__name">{{ displayName }}</div>
+                <div class="usermenu__email fs-mono">{{ displayEmail }}</div>
               </div>
             </div>
             <div class="usermenu__sep" />
@@ -108,7 +140,7 @@ const searchQuery  = ref('')
               <span>Appearance</span>
             </button>
             <div class="usermenu__sep" />
-            <button class="usermenu__item usermenu__item--danger">
+            <button class="usermenu__item usermenu__item--danger" @click="handleLogout">
               <q-icon name="mdi-logout" size="15px" />
               <span>Sign out</span>
             </button>
@@ -379,4 +411,62 @@ const searchQuery  = ref('')
 
 .usermenu__item--danger { color: var(--fs-red); }
 .usermenu__item--danger:hover { background: rgba(239, 68, 68, 0.08); color: var(--fs-red); }
+
+/* Theme picker */
+:deep(.theme-picker-menu .q-menu) {
+  background: var(--fs-bg-elevated) !important;
+  border: 1px solid var(--fs-border-bright) !important;
+  border-radius: 6px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+}
+
+.theme-picker {
+  padding: 6px;
+  min-width: 170px;
+}
+
+.theme-picker__title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fs-text-muted);
+  padding: 4px 8px 8px;
+}
+
+.theme-picker__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 8px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background var(--fs-ease);
+}
+
+.theme-picker__item:hover { background: var(--fs-bg-hover); }
+
+.theme-picker__item--active { background: var(--fs-bg-active); }
+
+.theme-picker__swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  border: 2px solid var(--sw-accent, #888);
+  position: relative;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.06);
+}
+
+.theme-picker__label {
+  flex: 1;
+  font-size: 12.5px;
+  color: var(--fs-text-primary);
+  text-align: left;
+}
+
+.theme-picker__check { color: var(--fs-accent); flex-shrink: 0; }
 </style>

@@ -1,83 +1,148 @@
 <script setup lang="ts">
+import { ref, onMounted } from 'vue'
 import CanvasPanel from '@/components/CanvasPanel.vue'
+import * as indexApi from '@/api/indexApi'
+import type { Artifact, ArtifactVersion } from '@/api/indexApi'
 
-const packages = [
-  { name: 'fusion-spectra',  version: '0.3.1', type: 'ui',      published: '2 days ago',  downloads: 14 },
-  { name: 'fusion-forge',    version: '1.2.0', type: 'plugin',   published: '5 days ago',  downloads: 31 },
-  { name: 'fusion-etl',      version: '2.0.4', type: 'runtime',  published: '1 day ago',   downloads: 88 },
-  { name: 'fusion-index',    version: '0.9.2', type: 'service',  published: '3 days ago',  downloads: 22 },
-  { name: 'fusion-operator', version: '0.1.0', type: 'operator', published: '8 days ago',  downloads: 7 },
-]
+// ─── Artifacts ────────────────────────────────────────────────────────────────
+const artifacts        = ref<Artifact[]>([])
+const artifactsLoading = ref(true)
+const artifactsError   = ref<string | null>(null)
 
-const recentArtifacts = [
-  { name: 'fusion-etl-2.0.4.tar.gz',       size: '48.2 MB', uploaded: '1 day ago',  hash: 'sha256:a4f2…' },
-  { name: 'fusion-forge-1.2.0-linux.tar.gz', size: '32.8 MB', uploaded: '5 days ago', hash: 'sha256:b1d9…' },
-  { name: 'fusion-spectra-0.3.1.tar.gz',    size: '8.4 MB',  uploaded: '2 days ago', hash: 'sha256:c7e1…' },
-  { name: 'fusion-index-0.9.2.tar.gz',      size: '12.1 MB', uploaded: '3 days ago', hash: 'sha256:d3a8…' },
-]
-
-const typeVariant: Record<string, string> = {
-  ui: 'accent', plugin: 'info', runtime: 'pos', service: 'warn', operator: 'accent'
+async function loadArtifacts() {
+  artifactsLoading.value = true
+  artifactsError.value   = null
+  try {
+    artifacts.value = await indexApi.listArtifacts()
+  } catch (e) {
+    artifactsError.value = e instanceof Error ? e.message : 'Failed to load artifacts'
+  } finally {
+    artifactsLoading.value = false
+  }
 }
 
-const searchQuery = ''
+// ─── Recent versions (first 5 artifacts, latest version each) ─────────────────
+const recentVersions        = ref<(ArtifactVersion & { artifactName: string })[]>([])
+const recentVersionsLoading = ref(true)
+const recentVersionsError   = ref<string | null>(null)
+
+async function loadRecentVersions() {
+  recentVersionsLoading.value = true
+  recentVersionsError.value   = null
+  try {
+    const slice  = artifacts.value.slice(0, 5)
+    const results = await Promise.all(
+      slice.map(a =>
+        indexApi.listVersions(a.id)
+          .then(vs => vs.map(v => ({ ...v, artifactName: a.fullName })))
+          .catch(() => [])
+      )
+    )
+    recentVersions.value = results
+      .flat()
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 8)
+  } catch (e) {
+    recentVersionsError.value = e instanceof Error ? e.message : 'Failed to load versions'
+  } finally {
+    recentVersionsLoading.value = false
+  }
+}
+
+onMounted(async () => {
+  await loadArtifacts()
+  await loadRecentVersions()
+})
+
+const searchQuery = ref('')
+
+async function onSearchInput(e: Event) {
+  searchQuery.value = (e.target as HTMLInputElement).value
+  await loadArtifacts()
+  if (searchQuery.value) {
+    artifacts.value = artifacts.value.filter(a => a.fullName.includes(searchQuery.value))
+  }
+}
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1)  return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  return `${Math.floor(h / 24)}d ago`
+}
 </script>
 
 <template>
   <div class="page-grid">
-    <!-- Package registry -->
-    <CanvasPanel title="Package Registry" icon="mdi-package-variant" :wide="true">
+    <!-- Artifact registry -->
+    <CanvasPanel
+      title="Artifact Registry"
+      icon="mdi-package-variant"
+      :wide="true"
+      :loading="artifactsLoading"
+      :error="artifactsError"
+      @refresh="loadArtifacts"
+    >
       <table class="data-table">
         <thead>
           <tr>
-            <th>Package</th>
-            <th>Version</th>
-            <th>Type</th>
-            <th>Published</th>
-            <th>Downloads</th>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Created</th>
+            <th>Updated</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="p in packages" :key="p.name">
-            <td class="fs-mono accent-text">{{ p.name }}</td>
-            <td><span class="fs-badge fs-badge--accent fs-mono">{{ p.version }}</span></td>
-            <td><span class="fs-badge" :class="`fs-badge--${typeVariant[p.type]}`">{{ p.type }}</span></td>
-            <td class="muted-text">{{ p.published }}</td>
-            <td class="fs-mono">{{ p.downloads }}</td>
+          <tr v-if="artifacts.length === 0">
+            <td colspan="4" class="empty-row">No artifacts yet</td>
+          </tr>
+          <tr v-for="a in artifacts" :key="a.id">
+            <td class="fs-mono accent-text">{{ a.fullName }}</td>
+            <td class="muted-text">{{ a.description ?? '—' }}</td>
+            <td class="muted-text fs-mono">{{ relativeTime(a.createdAt) }}</td>
+            <td class="muted-text fs-mono">{{ relativeTime(a.updatedAt) }}</td>
           </tr>
         </tbody>
       </table>
     </CanvasPanel>
 
-    <!-- Recent artifacts -->
-    <CanvasPanel title="Recent Artifacts" icon="mdi-archive-outline">
-      <div class="artifact-list">
-        <div v-for="a in recentArtifacts" :key="a.name" class="artifact-item">
-          <q-icon name="mdi-file-outline" size="14px" class="muted-icon" />
-          <div class="artifact-item__info">
-            <span class="artifact-item__name fs-mono">{{ a.name }}</span>
-            <span class="artifact-item__meta muted-text fs-mono">{{ a.size }} · {{ a.uploaded }}</span>
-          </div>
-          <span class="artifact-item__hash fs-mono muted-text">{{ a.hash }}</span>
+    <!-- Recent versions -->
+    <CanvasPanel
+      title="Recent Versions"
+      icon="mdi-tag-outline"
+      :loading="recentVersionsLoading"
+      :error="recentVersionsError"
+      @refresh="loadRecentVersions"
+    >
+      <div class="version-list">
+        <div v-if="recentVersions.length === 0" class="empty-row">No versions yet</div>
+        <div v-for="v in recentVersions" :key="v.id" class="version-item">
+          <q-icon name="mdi-tag-outline" size="13px" class="muted-icon" />
+          <span class="version-item__name fs-mono">{{ v.artifactName }}</span>
+          <span class="fs-badge fs-badge--accent fs-mono">{{ v.version }}</span>
+          <span class="version-item__time muted-text fs-mono">{{ relativeTime(v.createdAt) }}</span>
         </div>
       </div>
     </CanvasPanel>
 
-    <!-- Search -->
+    <!-- Quick search -->
     <CanvasPanel title="Quick Search" icon="mdi-magnify">
       <div class="search-panel">
         <div class="search-panel__input-wrap">
           <q-icon name="mdi-magnify" size="15px" class="muted-icon" />
           <input
             class="search-panel__input fs-mono"
-            :value="searchQuery"
-            placeholder="Search packages, tags, artifacts…"
+            placeholder="Filter by name prefix…"
             type="text"
+            @input="onSearchInput"
           />
         </div>
         <div class="search-panel__hint muted-text">
           <q-icon name="mdi-information-outline" size="13px" />
-          <span>Mock — connect to Fusion Index API to enable live search</span>
+          <span>Connected to fusion-index · {{ artifacts.length }} artifact{{ artifacts.length === 1 ? '' : 's' }}</span>
         </div>
       </div>
     </CanvasPanel>
@@ -119,22 +184,21 @@ const searchQuery = ''
 .accent-text { color: var(--fs-accent) !important; }
 .muted-text  { color: var(--fs-text-muted) !important; font-size: 11.5px; }
 .muted-icon  { color: var(--fs-text-muted); flex-shrink: 0; }
+.empty-row   { color: var(--fs-text-muted); font-size: 12px; padding: 16px 10px !important; }
 
-/* Artifacts */
-.artifact-list { display: flex; flex-direction: column; gap: 2px; }
-.artifact-item {
+/* Versions */
+.version-list { display: flex; flex-direction: column; gap: 2px; }
+.version-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 6px;
+  gap: 7px;
+  padding: 7px 6px;
   border-radius: 3px;
   transition: background var(--fs-ease);
 }
-.artifact-item:hover { background: var(--fs-bg-hover); }
-.artifact-item__info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.artifact-item__name { font-size: 12px; color: var(--fs-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.artifact-item__meta { font-size: 10.5px; }
-.artifact-item__hash { font-size: 10.5px; flex-shrink: 0; }
+.version-item:hover { background: var(--fs-bg-hover); }
+.version-item__name { flex: 1; font-size: 12px; color: var(--fs-text-primary); }
+.version-item__time { flex-shrink: 0; }
 
 /* Search */
 .search-panel { display: flex; flex-direction: column; gap: 12px; }
