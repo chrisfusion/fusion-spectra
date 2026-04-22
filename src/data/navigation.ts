@@ -155,7 +155,8 @@ export const contexts: Context[] = [
         icon: 'mdi-package-variant',
         children: [
           { id: 'fi-dashboard',     label: 'Dashboard',     icon: 'mdi-view-dashboard-outline',   route: '/fusion-index' },
-          { id: 'fi-artifact-list', label: 'Artifact List', icon: 'mdi-package-variant-closed',   route: '/fusion-index/artifacts' },
+          { id: 'fi-artifact-list',   label: 'Artifact List',   icon: 'mdi-package-variant-closed', route: '/fusion-index/artifacts' },
+          { id: 'fi-artifact-create', label: 'Create Artifact', icon: 'mdi-upload-outline',         route: '/fusion-index/artifacts/create' },
         ]
       },
       {

@@ -21,11 +21,23 @@ minikube start
 minikube addons enable ingress
 ```
 
-### 2. Add /etc/hosts entry
+### 2. Add /etc/hosts entries
+
+Two sets of entries are required:
 
 ```bash
-echo "$(minikube ip)  spectra.fusion.local" | sudo tee -a /etc/hosts
+# minikube-hosted services (frontend + BFF ingress)
+echo "$(minikube ip)  spectra.fusion.local bff.fusion.local" | sudo tee -a /etc/hosts
+
+# local dev server (must use a named host — localhost breaks SameSite=Lax cookies)
+echo "127.0.0.1  dev.fusion.local" | sudo tee -a /etc/hosts
 ```
+
+| Host | Purpose |
+|------|---------|
+| `spectra.fusion.local` | Deployed frontend (minikube ingress) |
+| `bff.fusion.local` | BFF session cookie domain (minikube ingress) |
+| `dev.fusion.local` | Vite dev server — must NOT be `localhost` |
 
 ### 3. Run the dev server (hot reload)
 
@@ -33,8 +45,9 @@ echo "$(minikube ip)  spectra.fusion.local" | sudo tee -a /etc/hosts
 npm install
 npm run dev
 # → http://dev.fusion.local:5174
-# Requires: 127.0.0.1 dev.fusion.local in /etc/hosts
 ```
+
+The BFF is accessed via `http://bff.fusion.local` (minikube). The dev server proxies nothing — API calls go directly from the browser to the BFF, which is why the `bff.fusion.local` cookie domain must resolve.
 
 ### 4. Build and load image into minikube
 
@@ -54,7 +67,16 @@ helm upgrade --install fusion-spectra ./deployment \
   --namespace fusion --create-namespace
 ```
 
-### 6. Open
+### 6. Force pod restart after rebuild
+
+When the image tag stays `latest`, Kubernetes will not restart pods automatically after `helm upgrade`. Force a rollout:
+
+```bash
+kubectl rollout restart deployment/fusion-spectra -n fusion
+kubectl rollout status  deployment/fusion-spectra -n fusion
+```
+
+### 7. Open
 
 ```
 http://spectra.fusion.local
@@ -69,6 +91,12 @@ helm upgrade fusion-spectra ./deployment \
 ```
 
 The pod restarts automatically — the `checksum/config` annotation detects the ConfigMap change.
+
+### Type checking
+
+```bash
+npm run typecheck
+```
 
 ---
 

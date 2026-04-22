@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import * as indexApi from '@/api/indexApi'
 import type { Artifact, ArtifactVersion, ArtifactFile } from '@/api/indexApi'
+import { formatSize } from '@/utils/format'
 
 const route  = useRoute()
 const router = useRouter()
@@ -79,13 +80,6 @@ function versionFiles(semver: string): ArtifactFile[] {
   return filesMap.value[semver] ?? []
 }
 
-function formatSize(bytes: number | null | undefined): string {
-  if (!bytes) return '—'
-  if (bytes < 1024)       return `${bytes} B`
-  if (bytes < 1048576)    return `${(bytes / 1024).toFixed(1)} KB`
-  if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(1)} MB`
-  return `${(bytes / 1073741824).toFixed(2)} GB`
-}
 
 function totalSize(files: ArtifactFile[]): string {
   if (!files.length) return '—'
@@ -181,6 +175,12 @@ function formatDate(iso: string): string {
       :error="versionsError"
       @refresh="loadVersions"
     >
+      <template #actions>
+        <button class="add-version-btn" @click="router.push(`/fusion-index/artifacts/${artifactId}/versions/create`)">
+          <q-icon name="mdi-plus" size="13px" />
+          Add Version
+        </button>
+      </template>
       <table class="data-table">
         <thead>
           <tr>
@@ -436,4 +436,25 @@ function formatDate(iso: string): string {
 
 .type-chips,
 .tag-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.add-version-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 11.5px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--fs-accent);
+  background: none;
+  border: 1px solid var(--fs-border-bright);
+  transition: background var(--fs-ease), border-color var(--fs-ease);
+  white-space: nowrap;
+}
+.add-version-btn:hover {
+  background: var(--fs-bg-hover);
+  border-color: var(--fs-accent);
+}
 </style>

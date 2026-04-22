@@ -1,4 +1,4 @@
-import { bffGet, bffPost, bffPut, bffDelete } from './bffClient'
+import { bffGet, bffPost, bffPut, bffDelete, bffFetch } from './bffClient'
 import { getBffUrl } from '@/config/runtime'
 
 const BASE = '/api/index/api/v1'
@@ -130,6 +130,15 @@ export function createVersion(artifactId: number, body: CreateVersionRequest): P
 
 export function listFiles(artifactId: number, semver: string): Promise<ArtifactFile[]> {
   return bffGet<ArtifactFile[]>(`${BASE}/artifacts/${artifactId}/versions/${semver}/files`)
+}
+
+export function uploadFile(artifactId: number, semver: string, file: File): Promise<ArtifactFile> {
+  const form = new FormData()
+  form.append('file', file)
+  return bffFetch(`${BASE}/artifacts/${artifactId}/versions/${semver}/files`, {
+    method: 'POST',
+    body: form,
+  }).then(r => r.json() as Promise<ArtifactFile>)
 }
 
 export function getFileDownloadUrl(artifactId: number, semver: string, fileId: number): string {

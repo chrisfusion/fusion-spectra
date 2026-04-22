@@ -41,11 +41,15 @@ No footer slot — add pagination below the table inside the default slot.
 
 ## API clients
 - `src/api/bffClient.ts` — base fetch with `credentials:'include'`; 401 auto-redirects to BFF login
+  - FormData detection: skips `Content-Type: application/json` when `body instanceof FormData` (multipart uploads)
 - `src/api/indexApi.ts` — typed methods for fusion-index via BFF proxy path `/api/index/api/v1/*`
 
 ## fusion-index API shape
 - `listArtifacts(params?)` — params: `name`, `tag`, `type[]`, `page` (0-based), `pageSize`; returns `ArtifactsPage { items, total, page, pageSize }`
 - `getArtifact(id)` — returns single `Artifact`
+- `createArtifact(payload)` — `POST /artifacts`; payload: `{ fullName, description? }`
+- `createVersion(artifactId, payload)` — `POST /artifacts/:id/versions`; payload: `{ version, config? }`
+- `uploadFile(artifactId, semver, file)` — `POST /artifacts/:id/versions/:semver/files`; multipart, field name `file`
 - `listVersions(artifactId)` — returns bare `ArtifactVersion[]` (no wrapper), newest first
 - `listFiles(artifactId, semver)` — returns bare `ArtifactFile[]`; each file has `sizeBytes`, `downloadUrl` (relative path), `contentType`, `status`
 - `getFileDownloadUrl(artifactId, semver, fileId)` — constructs full BFF download URL
@@ -53,16 +57,38 @@ No footer slot — add pagination below the table inside the default slot.
 - `Artifact` has `types: TypeResponse[]` (may be empty; guard with `?? []`)
 - `ArtifactVersion` has `major/minor/patch`, `tags: ArtifactTag[]` (may be missing; guard with `?? []`)
 
+## Shared utilities
+- `src/utils/format.ts` — `formatSize(bytes)`: human-readable file size (B / KB / MB / GB)
+
+## Components
+- `src/components/JsonEditor.vue` — CodeMirror 6 JSON editor
+  - Props: `modelValue: string`, `placeholder?`, `minHeight?`, `maxHeight?`
+  - Emits: `update:modelValue`, `valid` (false when non-empty invalid JSON; empty = valid)
+  - `{ } Format` button pretty-prints via `JSON.stringify(JSON.parse(...), null, 2)`
+  - Theme uses `--fs-*` CSS vars; syntax highlight via `@lezer/highlight` tags
+  - `defineExpose({ format })` for programmatic formatting
+
 ## Fusion Index pages
 - `src/pages/FusionIndexPage.vue` — dashboard: artifact table, recent versions, quick search (loads page 0, size 20)
 - `src/pages/index/ArtifactListPage.vue` — paginated list (20/page), debounced name search, clickable rows → detail
 - `src/pages/index/ArtifactDetailPage.vue` — metadata panel + versions table with size + download button per version
   - Single file: direct `<a>` download link
   - Multiple files: `q-btn-dropdown` listing each file with name, size, content-type
+  - "Add Version" button in Versions panel `actions` slot → navigates to `ArtifactVersionCreatePage`
+- `src/pages/index/ArtifactCreatePage.vue` — 3-step wizard: Artifact → Version → Files
+  - Step 1: `fullName` (required) + `description`; async name-availability check on Next (exact match via `listArtifacts`)
+  - Step 2: semver `version` (required, validated) + optional `config` (JsonEditor)
+  - Step 3: drag-and-drop multi-file upload; duplicate name warning; orphan recovery if upload fails after artifact/version created
+  - Semver regex allows pre-release/build: `/^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$/`
+- `src/pages/index/ArtifactVersionCreatePage.vue` — 2-step wizard: Version → Files
+  - NaN guard: redirects to artifact list if `:id` param is not a valid number
+  - Loads artifact name for 3-level breadcrumb
+  - Step 1: semver `version` + optional `config` (JsonEditor)
+  - Step 2: drag-and-drop multi-file upload; same orphan recovery pattern (`createdVersion` ref locks Back/Submit once version exists)
 
 ## Fusion Index navigation (navigation.ts)
 Context `fusion-index` has two groups:
-- **Registry**: Dashboard → `/fusion-index`, Artifact List → `/fusion-index/artifacts`
+- **Registry**: Dashboard → `/fusion-index`, Artifact List → `/fusion-index/artifacts`, Create Artifact → `/fusion-index/artifacts/create`
 - **Monitoring**: Overview → `/fusion-index/monitoring` (placeholder)
 
 ## Router (router/index.ts)
@@ -70,8 +96,11 @@ All routes are flat children under the `/` MainLayout route.
 Fusion Index uses explicit routes (not a wildcard):
 - `/fusion-index` → `FusionIndexPage`
 - `/fusion-index/artifacts` → `ArtifactListPage`
+- `/fusion-index/artifacts/create` → `ArtifactCreatePage`
+- `/fusion-index/artifacts/:id/versions/create` → `ArtifactVersionCreatePage`
 - `/fusion-index/artifacts/:id` → `ArtifactDetailPage`
 - `/fusion-index/:pathMatch(.*)*` → `FusionIndexPage` (catch-all for unimplemented leaves)
+- Route ordering matters: `create` literals must appear before `/:id` dynamic segments
 
 ## Themes
 - `src/stores/theme.ts` — 5 themes: midnight, azure, matrix, light, synthwave; persisted to localStorage
@@ -92,3 +121,7 @@ Fusion Index uses explicit routes (not a wildcard):
 - Import mdi css before quasar css in `main.ts`
 - Do NOT set `config: { dark: true }` in main.ts — let the theme store call `Dark.set()` instead; otherwise light theme still renders dark Quasar components
 - API fields like `types[]` and `tags[]` may be absent from responses even when typed — always guard with `?? []`
+- After `helm upgrade` with a fixed image tag (`latest`), pods won't restart automatically — run `kubectl rollout restart deployment/<name> -n <ns>`
+
+## Screenshots
+`screenshots/` — UI screenshots named `YYYY-MM-DD_<description>.png`

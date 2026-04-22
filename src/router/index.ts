@@ -15,7 +15,9 @@ const router = createRouter({
         { path: '/monitoring/:pathMatch(.*)*',    component: () => import('@/pages/MonitoringPage.vue'),  meta: { context: 'monitoring' } },
         { path: '/fusion-index',                   component: () => import('@/pages/FusionIndexPage.vue'),              meta: { context: 'fusion-index' } },
         { path: '/fusion-index/artifacts',         component: () => import('@/pages/index/ArtifactListPage.vue'),       meta: { context: 'fusion-index' } },
-        { path: '/fusion-index/artifacts/:id',     component: () => import('@/pages/index/ArtifactDetailPage.vue'),     meta: { context: 'fusion-index' } },
+        { path: '/fusion-index/artifacts/create',              component: () => import('@/pages/index/ArtifactCreatePage.vue'),        meta: { context: 'fusion-index' } },
+        { path: '/fusion-index/artifacts/:id/versions/create', component: () => import('@/pages/index/ArtifactVersionCreatePage.vue'), meta: { context: 'fusion-index' } },
+        { path: '/fusion-index/artifacts/:id',                 component: () => import('@/pages/index/ArtifactDetailPage.vue'),         meta: { context: 'fusion-index' } },
         { path: '/fusion-index/:pathMatch(.*)*',   component: () => import('@/pages/FusionIndexPage.vue'),              meta: { context: 'fusion-index' } },
         { path: '/admin/:pathMatch(.*)*',         component: () => import('@/pages/AdminPage.vue'),       meta: { context: 'admin' } },
       ]

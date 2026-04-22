@@ -10,7 +10,9 @@ export async function bffFetch(path: string, init: RequestInit = {}): Promise<Re
   const res = await fetch(`${getBffUrl()}${path}`, {
     ...init,
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...init.headers }
+    headers: init.body instanceof FormData
+      ? (init.headers ?? {})
+      : { 'Content-Type': 'application/json', ...init.headers }
   })
 
   if (res.status === 401) {
