@@ -1,0 +1,28 @@
+# =============================================================================
+# fusion-spectra — Dev overrides for minikube
+#
+# Prerequisites:
+#   minikube addons enable ingress
+#   echo "$(minikube ip)  spectra.fusion.local" | sudo tee -a /etc/hosts
+#
+# Build and deploy:
+#   eval $(minikube docker-env)
+#   docker build -t fusion-spectra:latest .
+#   helm upgrade --install fusion-spectra ./deployment \
+#     -f ./deployment/values-dev.yaml \
+#     --namespace fusion --create-namespace
+#
+# Change BFF URL without rebuilding:
+#   helm upgrade fusion-spectra ./deployment \
+#     -f ./deployment/values-dev.yaml \
+#     --set config.bffUrl=http://bff.fusion.local
+# =============================================================================
+
+image:
+  repository: fusion-spectra   # local minikube image — no registry prefix
+  tag: latest
+  pullPolicy: Never            # image loaded directly into minikube — no registry pull
+
+ingress:
+  tls:
+    enabled: false

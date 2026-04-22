@@ -1,0 +1,12 @@
+apiVersion: v2
+name: fusion-spectra
+description: Fusion Spectra — micro-frontend shell (Vue 3 + Quasar 2 + Module Federation host)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords:
+  - fusion
+  - frontend
+  - vue
+  - quasar

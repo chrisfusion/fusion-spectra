@@ -150,33 +150,20 @@ export const contexts: Context[] = [
     rootPath: '/fusion-index',
     groups: [
       {
-        id: 'registry',
+        id: 'fi-registry',
         label: 'Registry',
         icon: 'mdi-package-variant',
         children: [
-          { id: 'packages',  label: 'Packages',  icon: 'mdi-package-up',           route: '/fusion-index/packages' },
-          { id: 'versions',  label: 'Versions',  icon: 'mdi-tag-outline',          route: '/fusion-index/versions' },
-          { id: 'idx-tags',  label: 'Tags',       icon: 'mdi-bookmark-multiple-outline', route: '/fusion-index/tags' },
+          { id: 'fi-dashboard',     label: 'Dashboard',     icon: 'mdi-view-dashboard-outline',   route: '/fusion-index' },
+          { id: 'fi-artifact-list', label: 'Artifact List', icon: 'mdi-package-variant-closed',   route: '/fusion-index/artifacts' },
         ]
       },
       {
-        id: 'artifacts',
-        label: 'Artifacts',
-        icon: 'mdi-archive-outline',
+        id: 'fi-monitoring',
+        label: 'Monitoring',
+        icon: 'mdi-monitor-dashboard',
         children: [
-          { id: 'art-spectra', label: 'fusion-spectra', icon: 'mdi-folder-outline', route: '/fusion-index/artifacts/spectra' },
-          { id: 'art-forge',   label: 'fusion-forge',   icon: 'mdi-folder-outline', route: '/fusion-index/artifacts/forge' },
-          { id: 'art-etl',     label: 'fusion-etl',     icon: 'mdi-folder-outline', route: '/fusion-index/artifacts/etl' },
-          { id: 'art-index',   label: 'fusion-index',   icon: 'mdi-folder-outline', route: '/fusion-index/artifacts/index' },
-        ]
-      },
-      {
-        id: 'idx-search',
-        label: 'Search',
-        icon: 'mdi-magnify',
-        children: [
-          { id: 'search-fulltext', label: 'Full-text', icon: 'mdi-text-search',  route: '/fusion-index/search/fulltext' },
-          { id: 'search-tag',      label: 'By Tag',    icon: 'mdi-tag-search',   route: '/fusion-index/search/tags' },
+          { id: 'fi-mon-overview', label: 'Overview', icon: 'mdi-chart-box-outline', route: '/fusion-index/monitoring' },
         ]
       }
     ]

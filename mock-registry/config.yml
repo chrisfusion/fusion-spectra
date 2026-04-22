@@ -1,0 +1,52 @@
+# =============================================================================
+# Verdaccio — mock npm registry
+#
+# Proxies all packages from npmjs.org and caches them locally.
+# Use this to simulate a private registry during development and CI,
+# or to seed an air-gapped internal registry.
+#
+# Start:
+#   docker compose up -d
+#
+# Build against it:
+#   docker build --build-arg NPM_REGISTRY=http://host.docker.internal:4873 \
+#     -t fusion-spectra:latest ..
+# =============================================================================
+
+storage: /verdaccio/storage
+auth:
+  htpasswd:
+    file: /verdaccio/storage/htpasswd
+    max_users: -1   # open read access; writes require login
+
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org
+    cache: true
+    timeout: 30s
+    maxage: 10m
+
+packages:
+  # Scoped packages — proxy and cache from npmjs.org
+  "@*/*":
+    access: $all
+    publish: $authenticated
+    proxy: npmjs
+
+  # All other packages
+  "**":
+    access: $all
+    publish: $authenticated
+    proxy: npmjs
+
+server:
+  keepAliveTimeout: 60
+
+middlewares:
+  audit:
+    enabled: true
+
+log:
+  type: stdout
+  format: pretty
+  level: http

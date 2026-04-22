@@ -1,0 +1,36 @@
+Fusion Spectra is available at:
+  http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.host }}
+
+========================================================================
+Quick start (minikube)
+========================================================================
+  minikube addons enable ingress
+  echo "$(minikube ip)  spectra.fusion.local" | sudo tee -a /etc/hosts
+
+  eval $(minikube docker-env)
+  docker build -t fusion-spectra:latest .
+
+  helm upgrade --install fusion-spectra ./deployment \
+    -f ./deployment/values-dev.yaml \
+    --namespace fusion --create-namespace
+
+========================================================================
+Production build (private/internal registry, no internet)
+========================================================================
+  # 1. Start mock registry for local testing:
+  docker compose -f mock-registry/docker-compose.yml up -d
+
+  # 2. Build against mock (or replace with your internal registry URL):
+  docker build \
+    --build-arg NPM_REGISTRY=http://host.docker.internal:4873 \
+    -t {{ .Values.image.repository }}:{{ include "fusion-spectra.imageTag" . }} .
+
+  # 3. Deploy:
+  helm upgrade --install fusion-spectra ./deployment \
+    --namespace fusion
+
+========================================================================
+Update runtime config without rebuilding
+========================================================================
+  helm upgrade fusion-spectra ./deployment \
+    --set config.bffUrl=https://bff.example.com

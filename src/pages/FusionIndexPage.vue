@@ -13,7 +13,8 @@ async function loadArtifacts() {
   artifactsLoading.value = true
   artifactsError.value   = null
   try {
-    artifacts.value = await indexApi.listArtifacts()
+    const page = await indexApi.listArtifacts({ pageSize: 20 })
+    artifacts.value = page.items
   } catch (e) {
     artifactsError.value = e instanceof Error ? e.message : 'Failed to load artifacts'
   } finally {
@@ -58,9 +59,18 @@ const searchQuery = ref('')
 
 async function onSearchInput(e: Event) {
   searchQuery.value = (e.target as HTMLInputElement).value
-  await loadArtifacts()
-  if (searchQuery.value) {
-    artifacts.value = artifacts.value.filter(a => a.fullName.includes(searchQuery.value))
+  artifactsLoading.value = true
+  artifactsError.value   = null
+  try {
+    const page = await indexApi.listArtifacts({
+      name:     searchQuery.value || undefined,
+      pageSize: 20
+    })
+    artifacts.value = page.items
+  } catch (err) {
+    artifactsError.value = err instanceof Error ? err.message : 'Failed to search'
+  } finally {
+    artifactsLoading.value = false
   }
 }
 

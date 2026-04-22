@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-ui-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "fusion-spectra.labels" . | nindent 4 }}
+data:
+  config.js: |
+    window.FUSION_CONFIG = {
+      bffUrl: {{ .Values.config.bffUrl | quote }}
+    };

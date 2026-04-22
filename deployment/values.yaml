@@ -1,0 +1,78 @@
+# =============================================================================
+# fusion-spectra — Helm Values (production defaults)
+# =============================================================================
+
+# Kubernetes namespace
+namespace: fusion
+
+# Set to true only if fusion-spectra is the first chart installed in this namespace
+createNamespace: false
+
+# -----------------------------------------------------------------------------
+# Image
+# -----------------------------------------------------------------------------
+image:
+  repository: registry.fusion.local/fusion-platform/fusion-spectra
+  tag: ""          # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# -----------------------------------------------------------------------------
+# Deployment
+# -----------------------------------------------------------------------------
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+  # runAsNonRoot: true
+  # runAsUser: 101       # nginx user
+
+containerSecurityContext: {}
+  # allowPrivilegeEscalation: false
+  # readOnlyRootFilesystem: true
+  # capabilities:
+  #   drop: [ALL]
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 70
+
+# -----------------------------------------------------------------------------
+# Service
+# -----------------------------------------------------------------------------
+service:
+  type: ClusterIP
+  port: 80
+
+# -----------------------------------------------------------------------------
+# Ingress
+# -----------------------------------------------------------------------------
+ingress:
+  enabled: true
+  className: nginx
+  host: spectra.fusion.local
+  annotations: {}
+    # nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  tls:
+    enabled: true
+    secretName: fusion-spectra-tls
+
+# -----------------------------------------------------------------------------
+# Runtime config — injected as /usr/share/nginx/html/config.js via ConfigMap.
+# Override with --set config.bffUrl=... to change without rebuilding the image.
+# -----------------------------------------------------------------------------
+config:
+  bffUrl: "http://bff.fusion.local"

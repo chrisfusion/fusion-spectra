@@ -1,0 +1,14 @@
+services:
+  registry:
+    image: verdaccio/verdaccio:5
+    container_name: fusion-npm-registry
+    ports:
+      - "4873:4873"
+    volumes:
+      - ./config.yml:/verdaccio/conf/config.yaml:ro
+      - verdaccio-storage:/verdaccio/storage
+    environment:
+      VERDACCIO_PORT: "4873"
+
+volumes:
+  verdaccio-storage:

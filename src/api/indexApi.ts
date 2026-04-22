@@ -5,31 +5,21 @@ const BASE = '/api/index/api/v1'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface Artifact {
+export interface TypeResponse {
   id:          number
-  fullName:    string
+  name:        string
   description: string | null
   createdAt:   string
   updatedAt:   string
 }
 
-export interface ArtifactVersion {
-  id:         number
-  artifactId: number
-  version:    string
-  config:     string | null
-  createdAt:  string
-}
-
-export interface ArtifactFile {
-  id:              number
-  versionId:       number
-  name:            string
-  contentType:     string
-  sizeBytes:       number
-  storageBackend:  string
-  status:          string
-  createdAt:       string
+export interface Artifact {
+  id:          number
+  fullName:    string
+  description: string | null
+  types:       TypeResponse[]
+  createdAt:   string
+  updatedAt:   string
 }
 
 export interface ArtifactTag {
@@ -37,7 +27,33 @@ export interface ArtifactTag {
   artifactId: number
   tag:        string
   versionId:  number
+  createdAt:  string
+  updatedAt:  string
+}
+
+export interface ArtifactVersion {
+  id:         number
+  artifactId: number
   version:    string
+  major:      number
+  minor:      number
+  patch:      number
+  config:     string | null
+  tags:       ArtifactTag[]
+  createdAt:  string
+}
+
+export interface ArtifactFile {
+  id:             number
+  versionId:      number
+  name:           string
+  contentType:    string | null
+  sizeBytes:      number | null
+  storageBackend: string
+  status:         string
+  downloadUrl:    string
+  createdAt:      string
+  updatedAt:      string
 }
 
 export interface CreateArtifactRequest {
@@ -51,20 +67,37 @@ export interface CreateVersionRequest {
   tags?:   string[]
 }
 
+export interface ArtifactsPage {
+  items:    Artifact[]
+  total:    number
+  page:     number
+  pageSize: number
+}
+
 interface PagedResponse<T> {
-  items: T[]
-  total: number
-  page:  number
+  items:    T[]
+  total:    number
+  page:     number
+  pageSize: number
 }
 
 // ─── Artifacts ────────────────────────────────────────────────────────────────
 
-export function listArtifacts(params?: { name?: string; tag?: string }): Promise<Artifact[]> {
+export function listArtifacts(params?: {
+  name?:     string
+  tag?:      string
+  type?:     string[]
+  page?:     number
+  pageSize?: number
+}): Promise<ArtifactsPage> {
   const q = new URLSearchParams()
-  if (params?.name) q.set('name', params.name)
-  if (params?.tag)  q.set('tag',  params.tag)
+  if (params?.name)               q.set('name',     params.name)
+  if (params?.tag)                q.set('tag',      params.tag)
+  if (params?.page !== undefined) q.set('page',     String(params.page))
+  if (params?.pageSize)           q.set('pageSize', String(params.pageSize))
+  params?.type?.forEach(t =>      q.append('type',  t))
   const qs = q.toString()
-  return bffGet<PagedResponse<Artifact>>(`${BASE}/artifacts${qs ? '?' + qs : ''}`).then(r => r.items)
+  return bffGet<PagedResponse<Artifact>>(`${BASE}/artifacts${qs ? '?' + qs : ''}`)
 }
 
 export function getArtifact(id: number): Promise<Artifact> {
