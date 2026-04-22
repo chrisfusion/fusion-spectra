@@ -3,24 +3,65 @@ dist/
 dist-ssr/
 *.local
 
-# Environment — keep .env.development committed (dev-only settings, no real secrets)
+# Environment
 .env
 .env.production
 .env.*.local
 !.env.development
 !.env.example
 
-# Editor
-.vscode/
+# Editor — VS Code
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Editor — JetBrains (IntelliJ, WebStorm, etc.)
 .idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+*.iml
+*.ipr
+*.iws
+out/
+
+# Editor — Emacs
 *~
 \#*\#
+.\#*
+.emacs.desktop
+.emacs.desktop.lock
+
+# Editor — Vim / Neovim
+*.sw?
+*.swp
+*.swo
+Session.vim
+.netrwhist
+tags
+
+# OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V8
+.Trashes
+Thumbs.db
+ehthumbs.db
+desktop.ini
 
 # Build artifacts
 *.tsbuildinfo
+*.map
+
+# Python virtual environments (if any tooling scripts added)
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Playwright / test output
+.playwright-mcp/
+test-results/
+playwright-report/
+
+# Logs
+*.log
+logs/

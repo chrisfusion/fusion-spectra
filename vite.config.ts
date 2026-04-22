@@ -1,33 +1,19 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { quasar, transformAssetUrls } from '@quasar/vite-plugin'
-import federation from '@originjs/vite-plugin-federation'
 import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [
     vue({ template: { transformAssetUrls } }),
     quasar({
-      sassVariables: resolve(__dirname, 'src/quasar-variables.scss'),
-    }),
-    federation({
-      name: 'fusion-spectra',
-      remotes: {
-        'fusion-index-plugin': `${process.env['VITE_INDEX_PLUGIN_URL'] || 'http://localhost:3001'}/assets/remoteEntry.js`,
-        'fusion-forge-plugin': `${process.env['VITE_FORGE_PLUGIN_URL'] || 'http://localhost:3002'}/assets/remoteEntry.js`,
-      },
-      shared: ['vue', 'pinia', 'vue-router'],
-    }),
+      sassVariables: resolve(__dirname, 'src/css/quasar-variables.scss')
+    })
   ],
   resolve: {
-    alias: {
-      '@': resolve(__dirname, 'src'),
-    },
+    alias: { '@': resolve(__dirname, 'src') }
   },
   build: {
-    // Required by @originjs/vite-plugin-federation
-    target: 'esnext',
-    minify: false,
-    cssCodeSplit: false,
-  },
+    target: 'esnext'
+  }
 })

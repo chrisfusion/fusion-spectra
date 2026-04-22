@@ -1,0 +1,144 @@
+:root {
+  // Backgrounds
+  --fs-bg-deep:     #060c1a;
+  --fs-bg-base:     #0b1220;
+  --fs-bg-surface:  #0f1a2e;
+  --fs-bg-elevated: #142238;
+  --fs-bg-hover:    rgba(0, 212, 255, 0.05);
+  --fs-bg-active:   rgba(0, 212, 255, 0.09);
+
+  // Borders
+  --fs-border:        #182840;
+  --fs-border-dim:    #0d1a2e;
+  --fs-border-bright: #1f3558;
+
+  // Accents
+  --fs-accent:      #00d4ff;
+  --fs-accent-glow: rgba(0, 212, 255, 0.18);
+  --fs-accent-soft: rgba(0, 212, 255, 0.08);
+
+  // Spectrum palette
+  --fs-violet:  #8b5cf6;
+  --fs-blue:    #3b82f6;
+  --fs-cyan:    #00d4ff;
+  --fs-emerald: #10b981;
+  --fs-amber:   #f59e0b;
+  --fs-red:     #ef4444;
+
+  // Text
+  --fs-text-primary:   #c8deff;
+  --fs-text-secondary: #5e7aaa;
+  --fs-text-muted:     #344d73;
+  --fs-text-accent:    #00d4ff;
+  --fs-text-disabled:  #243550;
+
+  // Typography
+  --fs-font-ui:   'DM Sans', system-ui, sans-serif;
+  --fs-font-mono: 'JetBrains Mono', 'Cascadia Code', monospace;
+
+  // Layout
+  --fs-rail-w:    48px;
+  --fs-sidebar-w: 240px;
+  --fs-topbar-h:  52px;
+
+  // Motion
+  --fs-ease: 0.18s ease;
+  --fs-ease-slow: 0.3s ease;
+}
+
+// ─── Reset ────────────────────────────────────────────────────────────────────
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #app {
+  height: 100%;
+  overflow: hidden;
+  background: var(--fs-bg-deep);
+  color: var(--fs-text-primary);
+  font-family: var(--fs-font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// ─── Scrollbars ───────────────────────────────────────────────────────────────
+::-webkit-scrollbar        { width: 4px; height: 4px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: var(--fs-border-bright); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--fs-text-muted); }
+
+// ─── Quasar overrides ─────────────────────────────────────────────────────────
+.q-layout { background: var(--fs-bg-deep) !important; }
+
+// ─── Spectrum gradient helpers ────────────────────────────────────────────────
+.fs-gradient-bar {
+  background: linear-gradient(90deg, var(--fs-violet), var(--fs-blue), var(--fs-cyan), var(--fs-emerald));
+}
+
+.fs-gradient-text {
+  background: linear-gradient(90deg, var(--fs-violet) 0%, var(--fs-blue) 30%, var(--fs-cyan) 65%, var(--fs-emerald) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+// ─── Blueprint canvas background ──────────────────────────────────────────────
+.fs-canvas-bg {
+  background-color: var(--fs-bg-base);
+  background-image:
+    linear-gradient(var(--fs-border-dim) 1px, transparent 1px),
+    linear-gradient(90deg, var(--fs-border-dim) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+// ─── Status dots ──────────────────────────────────────────────────────────────
+.fs-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+
+  &--running { background: var(--fs-emerald); box-shadow: 0 0 6px var(--fs-emerald); animation: fs-pulse 2s ease infinite; }
+  &--failed  { background: var(--fs-red); }
+  &--pending { background: var(--fs-amber); }
+  &--idle    { background: var(--fs-text-muted); }
+  &--ok      { background: var(--fs-emerald); }
+}
+
+@keyframes fs-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+
+// ─── Badges ───────────────────────────────────────────────────────────────────
+.fs-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-family: var(--fs-font-mono);
+  font-weight: 500;
+  line-height: 1;
+
+  &--pos { background: rgba(16, 185, 129, 0.18); color: var(--fs-emerald); }
+  &--neg { background: rgba(239, 68, 68, 0.18);  color: var(--fs-red); }
+  &--warn { background: rgba(245, 158, 11, 0.18); color: var(--fs-amber); }
+  &--info { background: rgba(59, 130, 246, 0.18); color: var(--fs-blue); }
+  &--accent { background: var(--fs-accent-soft);  color: var(--fs-accent); }
+}
+
+// ─── Mono data ────────────────────────────────────────────────────────────────
+.fs-mono {
+  font-family: var(--fs-font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.01em;
+}
+
+// ─── Fade transition ──────────────────────────────────────────────────────────
+.fs-fade-enter-active, .fs-fade-leave-active { transition: opacity var(--fs-ease); }
+.fs-fade-enter-from, .fs-fade-leave-to       { opacity: 0; }
