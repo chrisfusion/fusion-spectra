@@ -7,9 +7,10 @@
 #
 # Build and deploy:
 #   eval $(minikube docker-env)
-#   docker build -t fusion-spectra:latest .
+#   docker build -t fusion-spectra:0.1.0 .
 #   helm upgrade --install fusion-spectra ./deployment \
 #     -f ./deployment/values-dev.yaml \
+#     --set image.tag=0.1.0 \
 #     --namespace fusion --create-namespace
 #
 # Change BFF URL without rebuilding:
@@ -20,7 +21,7 @@
 
 image:
   repository: fusion-spectra   # local minikube image — no registry prefix
-  tag: latest
+  tag: 0.2.0
   pullPolicy: Never            # image loaded directly into minikube — no registry pull
 
 ingress:

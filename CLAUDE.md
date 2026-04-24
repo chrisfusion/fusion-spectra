@@ -29,8 +29,9 @@ No footer slot — add pagination below the table inside the default slot.
 1. Data → `/data`
 2. Pipelines & Jobs → `/pipelines`
 3. Monitoring → `/monitoring`
-4. Fusion Index → `/fusion-index` — live registry UI backed by fusion-index API
-5. Admin → `/admin` (admin-only, amber accent, bottom of rail)
+4. Forge → `/forge` — async Python venv builder (fusion-forge backend)
+5. Fusion Index → `/fusion-index` — live registry UI backed by fusion-index API
+6. Admin → `/admin` (admin-only, amber accent, bottom of rail)
 
 ## Auth
 - BFF owns all OIDC — frontend knows nothing about Keycloak or tokens
@@ -113,6 +114,9 @@ Fusion Index uses explicit routes (not a wildcard):
 - Helm chart: `deployment/` — `values.yaml` (prod) + `values-dev.yaml` (minikube, `pullPolicy:Never`, `image.repository:fusion-spectra`)
 - Runtime config injected via ConfigMap → `/usr/share/nginx/html/config.js` (only `bffUrl` for now)
 - `mock-registry/` — Verdaccio docker-compose for offline npm builds
+- Always use semver image tags (never `latest`/`local`): `eval $(minikube docker-env) && docker build -t fusion-spectra:X.Y.Z .`
+- Docker build MUST run inside minikube's daemon (`eval $(minikube docker-env)` first) — otherwise pod gets `ErrImageNeverPull`
+- After building, update `image.tag` in `values-dev.yaml` and run `helm upgrade`; tag change triggers pod replacement automatically
 
 ## Quasar + Vite gotchas
 - `sass-embedded` must be in `devDependencies` (not `dependencies`)
@@ -121,7 +125,6 @@ Fusion Index uses explicit routes (not a wildcard):
 - Import mdi css before quasar css in `main.ts`
 - Do NOT set `config: { dark: true }` in main.ts — let the theme store call `Dark.set()` instead; otherwise light theme still renders dark Quasar components
 - API fields like `types[]` and `tags[]` may be absent from responses even when typed — always guard with `?? []`
-- After `helm upgrade` with a fixed image tag (`latest`), pods won't restart automatically — run `kubectl rollout restart deployment/<name> -n <ns>`
 
 ## Screenshots
 `screenshots/` — UI screenshots named `YYYY-MM-DD_<description>.png`
@@ -143,6 +146,24 @@ Used in `ArtifactCreatePage` and `ArtifactVersionCreatePage`:
 - Use `browser_snapshot` (not screenshot) to get element `ref` values for clicks/fills
 - Use `browser_take_screenshot` with `fullPage: true` to save to `screenshots/`
 - After pod restart, browser may serve cached JS — hard-reload or open a new tab
+
+## Fusion Forge pages
+- `src/api/forgeApi.ts` — typed forge API via BFF proxy path `/api/forge/api/v1/*`
+- `src/pages/forge/ForgeIndexPage.vue` — placeholder dashboard
+- `src/pages/forge/VenvCreatePage.vue` — 2-step wizard: package info → requirements.txt upload + live validation
+- `src/pages/forge/VenvListPage.vue` — paginated table, chip-based multi-status filter, debounced name search
+- `src/pages/forge/VenvDetailPage.vue` — two-panel: metadata (left) + logs (right); auto-polls every 5s while PENDING/BUILDING; stops on terminal status or unmount; auto-scrolls logs to bottom
+
+## fusion-forge API quirks
+- Backend returns `SUCCESS` not `SUCCEEDED` — `normalizeStatus()` in `forgeApi.ts` normalizes on read; `denormalizeStatus()` converts back for filter query params
+- `validateVenv` uses raw `fetch` (not `bffFetch`) — forge returns meaningful `ValidationResult` JSON on 422, but `bffFetch` throws and consumes the body
+- Multi-value query params: use `q.append('status', s)` per value, not `q.set()`
+
+## Forge navigation (navigation.ts)
+Context `forge` has one group:
+- **Venv Builder**: Overview → `/forge`, Venv Builds → `/forge/venvs`, Create Venv → `/forge/venvs/create`
+
+Forge routes (`router/index.ts`): `/forge` → `ForgeIndexPage`, `/forge/venvs` → `VenvListPage`, `/forge/venvs/create` → `VenvCreatePage`, `/forge/venvs/:id` → `VenvDetailPage`, `/forge/:pathMatch(.*)*` → `ForgeIndexPage`
 
 ## CodeMirror 6 gotchas
 - `@codemirror/lint` is a separate npm package (not bundled with `@codemirror/language`) — install explicitly

@@ -8,10 +8,11 @@ Quick start (minikube)
   echo "$(minikube ip)  spectra.fusion.local" | sudo tee -a /etc/hosts
 
   eval $(minikube docker-env)
-  docker build -t fusion-spectra:latest .
+  docker build -t fusion-spectra:0.1.0 .
 
   helm upgrade --install fusion-spectra ./deployment \
     -f ./deployment/values-dev.yaml \
+    --set image.tag=0.1.0 \
     --namespace fusion --create-namespace
 
 ========================================================================

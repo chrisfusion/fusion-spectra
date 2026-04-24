@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { Dark } from 'quasar'
 
-export type Theme = 'midnight' | 'azure' | 'matrix' | 'light' | 'synthwave'
+export type Theme = 'midnight' | 'azure' | 'matrix' | 'light' | 'synthwave' | 'darcula'
 
 export interface ThemeMeta {
   id:     Theme
@@ -14,9 +14,10 @@ export interface ThemeMeta {
 export const THEMES: ThemeMeta[] = [
   { id: 'midnight',  label: 'Midnight',  swatch: '#00d4ff', bg: '#0f1a2e' },
   { id: 'azure',     label: 'Azure',     swatch: '#29b6f6', bg: '#0a2040' },
+  { id: 'darcula',   label: 'Darcula',   swatch: '#6897bb', bg: '#313335' },
   { id: 'matrix',    label: 'Matrix',    swatch: '#00ff41', bg: '#071407' },
-  { id: 'light',     label: 'Light',     swatch: '#0066cc', bg: '#ffffff' },
   { id: 'synthwave', label: 'Synthwave', swatch: '#ff2d9b', bg: '#1a0030' },
+  { id: 'light',     label: 'Light',     swatch: '#0066cc', bg: '#ffffff' },
 ]
 
 export const useThemeStore = defineStore('theme', () => {

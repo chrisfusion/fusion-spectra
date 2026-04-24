@@ -1,4 +1,4 @@
-export type ContextId = 'data' | 'pipelines' | 'monitoring' | 'fusion-index' | 'admin'
+export type ContextId = 'data' | 'pipelines' | 'monitoring' | 'forge' | 'fusion-index' | 'admin'
 
 export interface NavLeaf {
   id: string
@@ -138,6 +138,25 @@ export const contexts: Context[] = [
           { id: 'alerts-active',  label: 'Active',  icon: 'mdi-bell-ring-outline', route: '/monitoring/alerts/active',  badge: { text: '3', variant: 'neg' } },
           { id: 'alerts-rules',   label: 'Rules',   icon: 'mdi-cog-outline',       route: '/monitoring/alerts/rules' },
           { id: 'alerts-history', label: 'History', icon: 'mdi-history',           route: '/monitoring/alerts/history' },
+        ]
+      }
+    ]
+  },
+
+  {
+    id: 'forge',
+    label: 'Forge',
+    icon: 'mdi-hammer-wrench',
+    rootPath: '/forge',
+    groups: [
+      {
+        id: 'forge-venv',
+        label: 'Venv Builder',
+        icon: 'mdi-language-python',
+        children: [
+          { id: 'forge-overview',    label: 'Overview',    icon: 'mdi-view-dashboard-outline', route: '/forge' },
+          { id: 'forge-venv-list',   label: 'Venv Builds', icon: 'mdi-list-box-outline',       route: '/forge/venvs' },
+          { id: 'forge-venv-create', label: 'Create Venv', icon: 'mdi-plus-circle-outline',    route: '/forge/venvs/create' },
         ]
       }
     ]
