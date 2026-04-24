@@ -125,3 +125,25 @@ Fusion Index uses explicit routes (not a wildcard):
 
 ## Screenshots
 `screenshots/` — UI screenshots named `YYYY-MM-DD_<description>.png`
+
+## Adding a new page / feature
+1. Add leaf to `src/data/navigation.ts` under the correct group
+2. Add route to `src/router/index.ts` — literal paths (`/create`) before dynamic (`/:id`)
+3. Create page component under `src/pages/` (or `src/pages/<context>/`)
+Both navigation.ts and router must be updated together — neither works without the other.
+
+## Multi-step wizard pattern
+Used in `ArtifactCreatePage` and `ArtifactVersionCreatePage`:
+- `step` ref (number), `v-if="step === N"` per section inside one CanvasPanel
+- Validate on Next click; only advance if valid
+- Track partially-created resources in a ref (e.g. `createdId`) — prevents duplicate creation on retry and enables orphan recovery UI
+
+## UI testing (Playwright)
+- Test against minikube at `http://spectra.fusion.local`, not the dev server
+- Use `browser_snapshot` (not screenshot) to get element `ref` values for clicks/fills
+- Use `browser_take_screenshot` with `fullPage: true` to save to `screenshots/`
+- After pod restart, browser may serve cached JS — hard-reload or open a new tab
+
+## CodeMirror 6 gotchas
+- `@codemirror/lint` is a separate npm package (not bundled with `@codemirror/language`) — install explicitly
+- `lintGutter` lives in `@codemirror/lint`, not `@codemirror/language`
