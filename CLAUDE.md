@@ -62,6 +62,12 @@ No footer slot — add pagination below the table inside the default slot.
 - `src/utils/format.ts` — `formatSize(bytes)`: human-readable file size (B / KB / MB / GB)
 
 ## Components
+- `src/components/TagChipInput.vue` — v-model `string[]` chip input for tag lists
+  - Props: `modelValue: string[]`, `placeholder?`, `disabled?`
+  - Emits: `update:modelValue`
+  - Enter or comma adds a chip; Backspace removes last; × removes specific chip
+  - Validation: `/^[a-zA-Z0-9-]+$/`, max 64 chars; trailing commas stripped before validation
+  - Used in: `ArtifactVersionCreatePage` step 1, `ArtifactCreatePage` step 2
 - `src/components/JsonEditor.vue` — CodeMirror 6 JSON editor
   - Props: `modelValue: string`, `placeholder?`, `minHeight?`, `maxHeight?`
   - Emits: `update:modelValue`, `valid` (false when non-empty invalid JSON; empty = valid)
@@ -118,6 +124,13 @@ Fusion Index uses explicit routes (not a wildcard):
 - Docker build MUST run inside minikube's daemon (`eval $(minikube docker-env)` first) — otherwise pod gets `ErrImageNeverPull`
 - After building, update `image.tag` in `values-dev.yaml` and run `helm upgrade`; tag change triggers pod replacement automatically
 
+## Tag model (fusion-index)
+- A tag (e.g. `stable`, `latest`) is an **artifact-level named pointer** to one semver at a time — like a git tag
+- `putTag(artifactId, tagName, semver)` upserts: if the tag already exists on another version it **moves** (old version silently loses it)
+- `deleteTag(artifactId, tagName)` removes the tag globally — no version has it afterwards
+- Inline tag editing on `ArtifactDetailPage`: `tagMutating: ref<Set<number>>` tracks in-flight version IDs; `tagAddingFor: ref<number|null>` is the row in add mode
+- `ArtifactTag` shape: `{ id, artifactId, tag, versionId, createdAt, updatedAt }`
+
 ## Quasar + Vite gotchas
 - `sass-embedded` must be in `devDependencies` (not `dependencies`)
 - `sassVariables` path in `@quasar/vite-plugin` must be absolute (`resolve(__dirname, ...)`)
@@ -125,6 +138,8 @@ Fusion Index uses explicit routes (not a wildcard):
 - Import mdi css before quasar css in `main.ts`
 - Do NOT set `config: { dark: true }` in main.ts — let the theme store call `Dark.set()` instead; otherwise light theme still renders dark Quasar components
 - API fields like `types[]` and `tags[]` may be absent from responses even when typed — always guard with `?? []`
+- Vue 3: `ref` inside `v-for` resolves to an **array** — declare as `ref<El[]>([])` and access `[0]`; a `ref<El|null>(null)` silently becomes an array and `.focus()` fails
+- Vue 3: `Set.add()` / `Set.delete()` are NOT reactive — replace the whole ref: `s.value = new Set([...s.value, x])`
 
 ## Screenshots
 `screenshots/` — UI screenshots named `YYYY-MM-DD_<description>.png`

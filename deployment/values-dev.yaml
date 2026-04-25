@@ -21,7 +21,7 @@
 
 image:
   repository: fusion-spectra   # local minikube image — no registry prefix
-  tag: 0.2.0
+  tag: 0.4.0
   pullPolicy: Never            # image loaded directly into minikube — no registry pull
 
 ingress:

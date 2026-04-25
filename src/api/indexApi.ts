@@ -1,4 +1,4 @@
-import { bffGet, bffPost, bffPut, bffDelete, bffFetch } from './bffClient'
+import { bffGet, bffPost, bffPut, bffDelete, ApiError } from './bffClient'
 import { getBffUrl } from '@/config/runtime'
 
 const BASE = '/api/index/api/v1'
@@ -132,13 +132,36 @@ export function listFiles(artifactId: number, semver: string): Promise<ArtifactF
   return bffGet<ArtifactFile[]>(`${BASE}/artifacts/${artifactId}/versions/${semver}/files`)
 }
 
-export function uploadFile(artifactId: number, semver: string, file: File): Promise<ArtifactFile> {
-  const form = new FormData()
-  form.append('file', file)
-  return bffFetch(`${BASE}/artifacts/${artifactId}/versions/${semver}/files`, {
-    method: 'POST',
-    body: form,
-  }).then(r => r.json() as Promise<ArtifactFile>)
+export function uploadFile(
+  artifactId: number,
+  semver: string,
+  file: File,
+  onProgress?: (pct: number) => void
+): Promise<ArtifactFile> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `${getBffUrl()}${BASE}/artifacts/${artifactId}/versions/${semver}/files`)
+    xhr.withCredentials = true
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress?.(Math.round((e.loaded / e.total) * 100))
+    }
+    xhr.onload = () => {
+      if (xhr.status === 401) {
+        window.location.href = `${getBffUrl()}/bff/login`
+        return
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(JSON.parse(xhr.responseText) as ArtifactFile)
+      } else {
+        const body = JSON.parse(xhr.responseText || '{}') as { error?: string }
+        reject(new ApiError(xhr.status, body.error ?? xhr.statusText))
+      }
+    }
+    xhr.onerror = () => reject(new ApiError(0, 'Network error'))
+    const form = new FormData()
+    form.append('file', file)
+    xhr.send(form)
+  })
 }
 
 export function getFileDownloadUrl(artifactId: number, semver: string, fileId: number): string {

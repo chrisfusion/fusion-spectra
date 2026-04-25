@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, nextTick, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import * as indexApi from '@/api/indexApi'
-import type { Artifact, ArtifactVersion, ArtifactFile } from '@/api/indexApi'
+import type { Artifact, ArtifactVersion, ArtifactFile, ArtifactTag } from '@/api/indexApi'
 import { formatSize } from '@/utils/format'
 
 const route  = useRoute()
@@ -27,6 +27,14 @@ const versionsError   = ref<string | null>(null)
 
 const filesMap   = ref<Record<string, ArtifactFile[]>>({})
 const filesReady = ref(false)
+
+// ─── Tag editing state ────────────────────────────────────────────────────────
+
+const tagAddingFor   = ref<number | null>(null)
+const tagInput       = ref('')
+const tagInlineInput = ref<HTMLInputElement[]>([])
+const tagMutating    = ref<Set<number>>(new Set())
+const tagError       = ref<Record<number, string>>({})
 
 // ─── Load ─────────────────────────────────────────────────────────────────────
 
@@ -106,6 +114,77 @@ function formatDate(iso: string): string {
     day: '2-digit', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit'
   })
+}
+
+// ─── Tag management ───────────────────────────────────────────────────────────
+
+const TAG_RE = /^[a-zA-Z0-9-]+$/
+
+function startTagAdd(versionId: number) {
+  tagAddingFor.value = versionId
+  tagInput.value     = ''
+  const e = { ...tagError.value }
+  delete e[versionId]
+  tagError.value = e
+  nextTick(() => tagInlineInput.value[0]?.focus())
+}
+
+function cancelTagAdd() {
+  tagAddingFor.value = null
+  tagInput.value     = ''
+}
+
+async function confirmTagAdd(v: ArtifactVersion) {
+  const val = tagInput.value.trim()
+  if (!val) { cancelTagAdd(); return }
+  if (!TAG_RE.test(val)) {
+    tagError.value = { ...tagError.value, [v.id]: 'Alphanumeric and hyphens only' }
+    return
+  }
+  cancelTagAdd()
+  tagMutating.value = new Set([...tagMutating.value, v.id])
+
+  const row      = versions.value.find(ver => ver.id === v.id)
+  const snapshot = [...(row?.tags ?? [])]
+  if (row) {
+    row.tags = [...snapshot, { id: -1, artifactId, tag: val, versionId: v.id, createdAt: '', updatedAt: '' } as ArtifactTag]
+  }
+
+  try {
+    const created = await indexApi.putTag(artifactId, val, v.version)
+    if (row) {
+      const idx = row.tags.findIndex(t => t.tag === val && t.id === -1)
+      if (idx !== -1) row.tags[idx] = created
+    }
+    const e = { ...tagError.value }
+    delete e[v.id]
+    tagError.value = e
+  } catch (err) {
+    if (row) row.tags = snapshot
+    tagError.value = { ...tagError.value, [v.id]: err instanceof Error ? err.message : 'Failed to add tag' }
+  } finally {
+    tagMutating.value = new Set([...tagMutating.value].filter(id => id !== v.id))
+  }
+}
+
+async function removeTag(v: ArtifactVersion, tag: string) {
+  tagMutating.value = new Set([...tagMutating.value, v.id])
+
+  const row      = versions.value.find(ver => ver.id === v.id)
+  const snapshot = [...(row?.tags ?? [])]
+  if (row) row.tags = snapshot.filter(t => t.tag !== tag)
+
+  try {
+    await indexApi.deleteTag(artifactId, tag)
+    const e = { ...tagError.value }
+    delete e[v.id]
+    tagError.value = e
+  } catch (err) {
+    if (row) row.tags = snapshot
+    tagError.value = { ...tagError.value, [v.id]: err instanceof Error ? err.message : 'Failed to remove tag' }
+  } finally {
+    tagMutating.value = new Set([...tagMutating.value].filter(id => id !== v.id))
+  }
 }
 </script>
 
@@ -203,15 +282,52 @@ function formatDate(iso: string): string {
             </td>
 
             <!-- Tags -->
-            <td>
-              <div class="tag-chips">
+            <td class="tags-cell">
+              <div class="tag-cell">
                 <span
                   v-for="t in (v.tags ?? [])"
-                  :key="t.id"
-                  class="fs-badge fs-badge--pos fs-mono"
-                >{{ t.tag }}</span>
-                <span v-if="!(v.tags?.length)" class="muted-text">—</span>
+                  :key="t.tag"
+                  class="fs-badge fs-badge--pos fs-mono tag-chip"
+                >
+                  {{ t.tag }}
+                  <button
+                    type="button"
+                    class="tag-chip__x"
+                    :disabled="tagMutating.has(v.id)"
+                    @click.stop="removeTag(v, t.tag)"
+                    title="Remove tag"
+                  ><q-icon name="mdi-close" size="9px" /></button>
+                </span>
+                <template v-if="tagAddingFor === v.id">
+                  <input
+                    ref="tagInlineInput"
+                    v-model="tagInput"
+                    class="tag-inline-input fs-mono"
+                    placeholder="tag-name"
+                    maxlength="64"
+                    @keydown.enter.prevent="confirmTagAdd(v)"
+                    @keydown.escape.prevent="cancelTagAdd"
+                  />
+                  <button type="button" class="tag-action-btn tag-action-btn--ok" @click="confirmTagAdd(v)" title="Add tag">
+                    <q-icon name="mdi-check" size="11px" />
+                  </button>
+                  <button type="button" class="tag-action-btn tag-action-btn--cancel" @click="cancelTagAdd" title="Cancel">
+                    <q-icon name="mdi-close" size="11px" />
+                  </button>
+                </template>
+                <button
+                  v-else
+                  type="button"
+                  class="tag-add-btn"
+                  :disabled="tagMutating.has(v.id)"
+                  @click.stop="startTagAdd(v.id)"
+                  title="Add tag"
+                >
+                  <q-spinner v-if="tagMutating.has(v.id)" size="10px" />
+                  <q-icon v-else name="mdi-plus" size="12px" />
+                </button>
               </div>
+              <span v-if="tagError[v.id]" class="tag-row-error">{{ tagError[v.id] }}</span>
             </td>
 
             <!-- Total size -->
@@ -434,8 +550,100 @@ function formatDate(iso: string): string {
 .muted-icon  { color: var(--fs-text-muted); }
 .empty-row   { color: var(--fs-text-muted); font-size: 12px; padding: 24px 10px !important; text-align: center; }
 
-.type-chips,
-.tag-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.type-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.tags-cell { min-width: 180px; }
+
+.tag-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding-right: 4px;
+}
+.tag-chip__x {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  opacity: 0.6;
+  line-height: 1;
+  transition: opacity var(--fs-ease);
+}
+.tag-chip__x:hover:not(:disabled) { opacity: 1; }
+.tag-chip__x:disabled             { opacity: 0.3; cursor: not-allowed; }
+
+.tag-inline-input {
+  width: 100px;
+  background: var(--fs-bg-input, var(--fs-bg-hover));
+  border: 1px solid var(--fs-accent);
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: 11.5px;
+  color: var(--fs-text-primary);
+  outline: none;
+  height: 22px;
+  box-sizing: border-box;
+}
+
+.tag-add-btn {
+  background: none;
+  border: 1px solid var(--fs-border);
+  border-radius: 3px;
+  padding: 2px 5px;
+  cursor: pointer;
+  color: var(--fs-text-muted);
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+  transition: color var(--fs-ease), border-color var(--fs-ease);
+}
+.tag-add-btn:hover:not(:disabled) {
+  color: var(--fs-accent);
+  border-color: var(--fs-accent);
+}
+.tag-add-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.tag-action-btn {
+  background: none;
+  border: 1px solid var(--fs-border);
+  border-radius: 3px;
+  padding: 2px 5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+  height: 22px;
+  transition: color var(--fs-ease), border-color var(--fs-ease), background var(--fs-ease);
+}
+.tag-action-btn--ok {
+  color: var(--fs-pos, #4caf50);
+  border-color: var(--fs-pos, #4caf50);
+}
+.tag-action-btn--ok:hover {
+  background: color-mix(in srgb, var(--fs-pos, #4caf50) 12%, transparent);
+}
+.tag-action-btn--cancel { color: var(--fs-text-muted); }
+.tag-action-btn--cancel:hover {
+  color: var(--fs-neg, #e57373);
+  border-color: var(--fs-neg, #e57373);
+}
+
+.tag-row-error {
+  display: block;
+  font-size: 10.5px;
+  color: var(--fs-neg, #e57373);
+  margin-top: 3px;
+}
 
 .add-version-btn {
   display: inline-flex;

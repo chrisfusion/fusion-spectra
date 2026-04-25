@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import JsonEditor from '@/components/JsonEditor.vue'
+import TagChipInput from '@/components/TagChipInput.vue'
 import * as indexApi from '@/api/indexApi'
 import { formatSize } from '@/utils/format'
 
@@ -52,6 +53,7 @@ const version      = ref('')
 const versionError = ref<string | null>(null)
 const config       = ref('')
 const configValid  = ref(true)
+const tags         = ref<string[]>([])
 
 const SEMVER_RE = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$/
 
@@ -118,10 +120,11 @@ function removeFile(index: number) {
 
 // ─── Submit ───────────────────────────────────────────────────────────────────
 
-const submitting      = ref(false)
-const submitError     = ref<string | null>(null)
-const submitStatus    = ref('')
-const createdId       = ref<number | null>(null)
+const submitting        = ref(false)
+const submitError       = ref<string | null>(null)
+const submitStatus      = ref('')
+const createdId         = ref<number | null>(null)
+const uploadProgress    = ref<number[]>([])
 
 async function submit() {
   submitting.value  = true
@@ -140,12 +143,16 @@ async function submit() {
     const ver = await indexApi.createVersion(artifact.id, {
       version: version.value.trim(),
       config:  config.value.trim() || undefined,
+      tags:    tags.value.length ? tags.value : undefined,
     })
 
     if (files.value.length > 0) {
+      uploadProgress.value = files.value.map(() => 0)
       for (let i = 0; i < files.value.length; i++) {
         submitStatus.value = `Uploading file ${i + 1} of ${files.value.length}…`
-        await indexApi.uploadFile(artifact.id, ver.version, files.value[i])
+        await indexApi.uploadFile(artifact.id, ver.version, files.value[i], (pct) => {
+          uploadProgress.value[i] = pct
+        })
       }
     }
 
@@ -262,6 +269,13 @@ const canSubmit = computed(() => !submitting.value)
             <span v-if="!configValid" class="field-error">Invalid JSON</span>
           </div>
         </div>
+        <div class="form-row form-row--top">
+          <label class="form-label">Tags <span class="optional">optional</span></label>
+          <div class="field-wrap">
+            <TagChipInput v-model="tags" placeholder="Add tag…" />
+            <span class="field-hint">Enter or comma to add · letters, digits, hyphens</span>
+          </div>
+        </div>
         <div class="form-actions">
           <button class="fs-btn fs-btn--ghost" @click="step = 1">
             <q-icon name="mdi-arrow-left" size="14px" />
@@ -306,17 +320,23 @@ const canSubmit = computed(() => !submitting.value)
 
         <!-- File list -->
         <div v-if="files.length" class="file-list">
-          <div
-            v-for="(f, i) in files"
-            :key="f.name"
-            class="file-item"
-          >
+          <div v-for="(f, i) in files" :key="f.name" class="file-item">
             <q-icon name="mdi-file-outline" size="15px" class="file-item__icon" />
-            <span class="file-item__name fs-mono">{{ f.name }}</span>
-            <span class="file-item__size muted-text">{{ formatSize(f.size) }}</span>
-            <button class="file-item__remove" @click="removeFile(i)" title="Remove">
-              <q-icon name="mdi-close" size="13px" />
-            </button>
+            <div class="file-item__body">
+              <div class="file-item__row">
+                <span class="file-item__name fs-mono">{{ f.name }}</span>
+                <span class="file-item__size muted-text">{{ formatSize(f.size) }}</span>
+                <button v-if="!submitting" class="file-item__remove" @click="removeFile(i)" title="Remove">
+                  <q-icon name="mdi-close" size="13px" />
+                </button>
+              </div>
+              <div v-if="submitting" class="file-progress">
+                <div class="file-progress__track">
+                  <div class="file-progress__bar" :style="{ width: (uploadProgress[i] ?? 0) + '%' }" />
+                </div>
+                <span class="file-progress__pct">{{ uploadProgress[i] ?? 0 }}%</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -555,7 +575,7 @@ const canSubmit = computed(() => !submitting.value)
 }
 .file-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   padding: 6px 10px;
   border-radius: 4px;
@@ -585,6 +605,33 @@ const canSubmit = computed(() => !submitting.value)
 .file-item__remove:hover {
   color: var(--fs-neg, #e57373);
   background: var(--fs-bg-panel);
+}
+.file-item__body { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.file-item__row  { display: flex; align-items: center; gap: 8px; }
+.file-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.file-progress__track {
+  flex: 1;
+  height: 4px;
+  background: var(--fs-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.file-progress__bar {
+  height: 100%;
+  background: var(--fs-accent);
+  border-radius: 2px;
+  transition: width 0.2s ease;
+}
+.file-progress__pct {
+  font-size: 10px;
+  color: var(--fs-text-muted);
+  white-space: nowrap;
+  min-width: 28px;
+  text-align: right;
 }
 
 /* Duplicate file warning */
@@ -674,6 +721,7 @@ const canSubmit = computed(() => !submitting.value)
   border-color: var(--fs-border-bright);
 }
 
+.field-hint { font-size: 10.5px; color: var(--fs-text-muted); }
 .muted-text { color: var(--fs-text-muted); }
 .muted-icon { color: var(--fs-text-muted); }
 .fs-mono    { font-family: var(--fs-font-mono); }
