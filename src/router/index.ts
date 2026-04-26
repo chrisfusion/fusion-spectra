@@ -24,7 +24,10 @@ const router = createRouter({
         { path: '/fusion-index/artifacts/:id/versions/create', component: () => import('@/pages/index/ArtifactVersionCreatePage.vue'), meta: { context: 'fusion-index' } },
         { path: '/fusion-index/artifacts/:id',                 component: () => import('@/pages/index/ArtifactDetailPage.vue'),         meta: { context: 'fusion-index' } },
         { path: '/fusion-index/:pathMatch(.*)*',   component: () => import('@/pages/FusionIndexPage.vue'),              meta: { context: 'fusion-index' } },
-        { path: '/admin/:pathMatch(.*)*',         component: () => import('@/pages/AdminPage.vue'),       meta: { context: 'admin', adminOnly: true } },
+        { path: '/admin/roles',       component: () => import('@/pages/admin/RoleAssignmentsPage.vue'),     meta: { context: 'admin', adminOnly: true } },
+        { path: '/admin/permissions', component: () => import('@/pages/admin/ResourcePermissionsPage.vue'), meta: { context: 'admin', adminOnly: true } },
+        { path: '/admin/types',       component: () => import('@/pages/admin/ArtifactTypesPage.vue'),       meta: { context: 'admin', adminOnly: true } },
+        { path: '/admin/:pathMatch(.*)*', component: () => import('@/pages/AdminPage.vue'),                 meta: { context: 'admin', adminOnly: true } },
       ]
     }
   ]

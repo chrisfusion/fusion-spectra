@@ -224,6 +224,14 @@ export const contexts: Context[] = [
           { id: 'services', label: 'Services', icon: 'mdi-server-network-outline', route: '/admin/platform/services' },
           { id: 'database', label: 'Database', icon: 'mdi-database-cog-outline',   route: '/admin/platform/database' },
         ]
+      },
+      {
+        id: 'index-group',
+        label: 'Index',
+        icon: 'mdi-package-variant-closed',
+        children: [
+          { id: 'artifact-types', label: 'Artifact Types', icon: 'mdi-tag-multiple-outline', route: '/admin/types' },
+        ]
       }
     ]
   }

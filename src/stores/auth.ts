@@ -2,12 +2,19 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { getBffUrl } from '@/config/runtime'
 
+export interface ResourcePermission {
+  permission:    string
+  resource_type: string
+  resource_id:   string
+}
+
 export interface UserInfo {
-  sub:         string
-  email:       string
-  name:        string
-  roles:       string[]
-  permissions: string[]
+  sub:                  string
+  email:                string
+  name:                 string
+  roles:                string[]
+  permissions:          string[]
+  resource_permissions: ResourcePermission[]
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -22,7 +29,9 @@ export const useAuthStore = defineStore('auth', () => {
         credentials: 'include'
       })
       if (res.ok) {
-        user.value = await res.json() as UserInfo
+        const data = await res.json() as UserInfo
+        data.resource_permissions ??= []
+        user.value = data
         initialised.value = true
         return true
       }

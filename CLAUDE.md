@@ -36,17 +36,20 @@ No footer slot — add pagination below the table inside the default slot.
 ## Auth
 - BFF owns all OIDC — frontend knows nothing about Keycloak or tokens
 - Auth store (`src/stores/auth.ts`): `init()` calls `GET /bff/userinfo` with `credentials:'include'`; 401 → `window.location.href = bffUrl + '/bff/login'`
-- `UserInfo` shape: `{ sub, email, name, roles: string[], permissions: string[] }` — populated from BFF session
+- `UserInfo` shape: `{ sub, email, name, roles: string[], permissions: string[], resource_permissions: ResourcePermission[] }` — populated from BFF session
+- `ResourcePermission` shape: `{ permission: string, resource_type: string, resource_id: string }` — resource-scoped grants (Stage 3)
 - Router guard in `src/router/index.ts` calls `auth.init()` on every navigation; routes with `meta.adminOnly: true` redirect non-admins to `/data`
 - BFF URL from `src/config/runtime.ts` → `window.FUSION_CONFIG.bffUrl` → `VITE_BFF_URL` → `http://bff.fusion.local`
 - Runtime config file: `public/config.js` (overridden by ConfigMap mount in K8s)
 
 ## RBAC (permissions)
 - `src/composables/usePermission.ts` — call `usePermission()` in any component that needs access control
-  - `can(permission: string)` — true if `auth.user.permissions` contains the permission string
+  - `can(permission: string, resourceId?: number | string)` — true if user has global permission OR a resource-scoped grant for that ID
   - `hasRole(role: string)` — true if `auth.user.roles` contains the role
   - `isAdmin` — computed: `hasRole('admin')`
 - Gate UI elements with `v-if="can('index:artifacts:delete')"` etc., NOT with role checks — roles are too coarse for UI gates
+- Resource-scoped gating: `v-if="can('index:artifacts:delete', artifact.id)"` — true only if user has global perm OR a specific grant for that resource
+- Resource permissions are loaded at login and stored in `auth.user.resource_permissions`; no async call needed in components
 - Admin icon in ActivityRail is hidden via `v-if="isAdmin"` — no admin entry renders for non-admin users
 - Admin routes (`/admin/*`) have `meta.adminOnly: true`; the router guard redirects to `/data` if user lacks `admin` role
 - Permission strings mirror the BFF `rbac.yaml` (e.g. `index:artifacts:read`, `index:versions:delete`, `forge:builds:create`, `admin:roles:manage`)
@@ -119,11 +122,23 @@ Context `fusion-index` has two groups:
 - **Monitoring**: Overview → `/fusion-index/monitoring` (placeholder)
 
 ## Admin page
-- `src/pages/AdminPage.vue` — two sections in a 2-column grid:
-  - **Platform panels**: Users (placeholder), Platform Services (placeholder), System Config (placeholder)
-  - **Global Settings** section header (spans both columns) followed by:
-    - **Artifact Types** panel — live CRUD backed by `indexApi` types endpoints; inline create row, inline edit per row, delete with `$q.dialog` confirmation; requires `index:types:manage` permission on the BFF (enforced server-side); page itself requires `admin` role (router guard)
-- The section-header divider pattern (`grid-column: span 2`, uppercase label + icon) is reusable for future Global Settings panels
+- `src/pages/AdminPage.vue` — navigation hub: 2-column card grid, one card per admin section; live cards navigate on click, placeholder cards show "soon" badge
+  - Live: Role Assignments (`/admin/roles`), Resource Permissions (`/admin/permissions`), Artifact Types (`/admin/types`)
+  - Placeholder: All Users, Platform Services, Configuration, Integrations, Audit Log
+
+## Admin sub-pages (Stage 3)
+- `src/pages/admin/ArtifactTypesPage.vue` — Artifact Types CRUD; inline create row, inline edit, delete with `$q.dialog`; backed by `indexApi` types endpoints
+- `src/pages/admin/ResourcePermissionsPage.vue` — Resource Permissions CRUD at `/admin/permissions`
+  - Table: subject_type | subject | permission | resource_type | resource_id | created_by | actions
+  - Filter bar: resource_type dropdown + resource_id text (client-side)
+  - "Add Grant" create form: subject_type select → subject (select for role/group, text for user) + permission select + resource_type select + resource_id input
+  - Subjects, permissions, groups loaded from `GET /bff/admin/rbac-config`
+  - Delete with `$q.dialog` confirmation
+
+## BFF admin API (Stage 3)
+- `src/api/bffAdminApi.ts` — typed admin API client
+  - `listResourcePermissions()` / `createResourcePermission()` / `deleteResourcePermission()` → `/bff/admin/resource-permissions`
+  - `getRBACConfig()` → `/bff/admin/rbac-config` returns `{roles, groups, permissions}` for dropdown population
 
 ## Router (router/index.ts)
 All routes are flat children under the `/` MainLayout route.
@@ -136,6 +151,7 @@ Fusion Index uses explicit routes (not a wildcard):
 - `/fusion-index/:pathMatch(.*)*` → `FusionIndexPage` (catch-all for unimplemented leaves)
 - Route ordering matters: `create` literals must appear before `/:id` dynamic segments
 - Admin routes use `meta: { adminOnly: true }`; `beforeEach` guard redirects non-admin users to `/data`
+- Admin sub-pages (all with `adminOnly: true`): `/admin/roles` → `RoleAssignmentsPage`, `/admin/permissions` → `ResourcePermissionsPage`, `/admin/types` → `ArtifactTypesPage`, `/admin/:pathMatch(.*)*` → `AdminPage` (hub catch-all)
 
 ## Themes
 - `src/stores/theme.ts` — 5 themes: midnight, azure, matrix, light, synthwave; persisted to localStorage
