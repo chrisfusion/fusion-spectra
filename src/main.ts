@@ -1,5 +1,5 @@
 import { createApp } from 'vue'
-import { Quasar, Notify } from 'quasar'
+import { Quasar, Notify, Dialog } from 'quasar'
 import { createPinia } from 'pinia'
 import '@quasar/extras/mdi-v7/mdi-v7.css'
 import 'quasar/src/css/index.sass'
@@ -10,7 +10,7 @@ import router from './router'
 const app = createApp(App)
 
 app.use(Quasar, {
-  plugins: { Notify },
+  plugins: { Notify, Dialog },
 })
 const pinia = createPinia()
 app.use(pinia)

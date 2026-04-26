@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Context, ContextId } from '@/data/navigation'
+import { usePermission } from '@/composables/usePermission'
 
 const props = defineProps<{
   contexts: Context[]
@@ -10,6 +11,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [id: ContextId]
 }>()
+
+const { isAdmin } = usePermission()
 
 const regularContexts = props.contexts.filter(c => !c.adminOnly)
 const adminContexts   = props.contexts.filter(c =>  c.adminOnly)
@@ -37,7 +40,7 @@ const adminContexts   = props.contexts.filter(c =>  c.adminOnly)
 
     <div class="rail__sep" />
 
-    <div class="rail__bottom">
+    <div v-if="isAdmin && adminContexts.length" class="rail__bottom">
       <button
         v-for="ctx in adminContexts"
         :key="ctx.id"

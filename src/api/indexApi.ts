@@ -112,6 +112,10 @@ export function deleteArtifact(id: number): Promise<void> {
   return bffDelete(`${BASE}/artifacts/${id}`)
 }
 
+export function deleteVersion(artifactId: number, semver: string): Promise<void> {
+  return bffDelete(`${BASE}/artifacts/${artifactId}/versions/${semver}`)
+}
+
 // ─── Versions ─────────────────────────────────────────────────────────────────
 
 export function listVersions(artifactId: number): Promise<ArtifactVersion[]> {
@@ -166,6 +170,24 @@ export function uploadFile(
 
 export function getFileDownloadUrl(artifactId: number, semver: string, fileId: number): string {
   return `${getBffUrl()}/api/index/api/v1/artifacts/${artifactId}/versions/${semver}/files/${fileId}/download`
+}
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export function listTypes(): Promise<TypeResponse[]> {
+  return bffGet<TypeResponse[]>(`${BASE}/types`)
+}
+
+export function createType(body: { name: string; description?: string }): Promise<TypeResponse> {
+  return bffPost<TypeResponse>(`${BASE}/types`, body)
+}
+
+export function updateType(id: number, body: { name: string; description?: string }): Promise<TypeResponse> {
+  return bffPut<TypeResponse>(`${BASE}/types/${id}`, body)
+}
+
+export function deleteType(id: number): Promise<void> {
+  return bffDelete(`${BASE}/types/${id}`)
 }
 
 // ─── Tags ─────────────────────────────────────────────────────────────────────

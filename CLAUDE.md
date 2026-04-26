@@ -15,7 +15,7 @@ Type check: `npm run typecheck`
 
 ## Layout architecture
 - `src/layouts/MainLayout.vue` — shell: topbar + activity rail + sidebar + canvas
-- Activity rail (`src/components/ActivityRail.vue`) — 5 contexts; click active = toggle sidebar
+- Activity rail (`src/components/ActivityRail.vue`) — contexts split into regular (top) and admin (bottom); admin section rendered only when `isAdmin` is true
 - Sidebar (`src/components/AppSidebar.vue`) — IDE-style tree, 2-level (group → leaf)
 - Canvas panels use `src/components/CanvasPanel.vue`
 - Context/nav data: `src/data/navigation.ts` — single source of truth
@@ -36,9 +36,20 @@ No footer slot — add pagination below the table inside the default slot.
 ## Auth
 - BFF owns all OIDC — frontend knows nothing about Keycloak or tokens
 - Auth store (`src/stores/auth.ts`): `init()` calls `GET /bff/userinfo` with `credentials:'include'`; 401 → `window.location.href = bffUrl + '/bff/login'`
-- Router guard in `src/router/index.ts` calls `auth.init()` on every navigation
+- `UserInfo` shape: `{ sub, email, name, roles: string[], permissions: string[] }` — populated from BFF session
+- Router guard in `src/router/index.ts` calls `auth.init()` on every navigation; routes with `meta.adminOnly: true` redirect non-admins to `/data`
 - BFF URL from `src/config/runtime.ts` → `window.FUSION_CONFIG.bffUrl` → `VITE_BFF_URL` → `http://bff.fusion.local`
 - Runtime config file: `public/config.js` (overridden by ConfigMap mount in K8s)
+
+## RBAC (permissions)
+- `src/composables/usePermission.ts` — call `usePermission()` in any component that needs access control
+  - `can(permission: string)` — true if `auth.user.permissions` contains the permission string
+  - `hasRole(role: string)` — true if `auth.user.roles` contains the role
+  - `isAdmin` — computed: `hasRole('admin')`
+- Gate UI elements with `v-if="can('index:artifacts:delete')"` etc., NOT with role checks — roles are too coarse for UI gates
+- Admin icon in ActivityRail is hidden via `v-if="isAdmin"` — no admin entry renders for non-admin users
+- Admin routes (`/admin/*`) have `meta.adminOnly: true`; the router guard redirects to `/data` if user lacks `admin` role
+- Permission strings mirror the BFF `rbac.yaml` (e.g. `index:artifacts:read`, `index:versions:delete`, `forge:builds:create`, `admin:roles:manage`)
 
 ## API clients
 - `src/api/bffClient.ts` — base fetch with `credentials:'include'`; 401 auto-redirects to BFF login
@@ -49,11 +60,17 @@ No footer slot — add pagination below the table inside the default slot.
 - `listArtifacts(params?)` — params: `name`, `tag`, `type[]`, `page` (0-based), `pageSize`; returns `ArtifactsPage { items, total, page, pageSize }`
 - `getArtifact(id)` — returns single `Artifact`
 - `createArtifact(payload)` — `POST /artifacts`; payload: `{ fullName, description? }`
+- `deleteArtifact(id)` — `DELETE /artifacts/:id`; cascades all versions
 - `createVersion(artifactId, payload)` — `POST /artifacts/:id/versions`; payload: `{ version, config? }`
+- `deleteVersion(artifactId, semver)` — `DELETE /artifacts/:id/versions/:semver`; backend does best-effort file storage cleanup before DB cascade — frontend does NOT need to delete files individually
 - `uploadFile(artifactId, semver, file)` — `POST /artifacts/:id/versions/:semver/files`; multipart, field name `file`
 - `listVersions(artifactId)` — returns bare `ArtifactVersion[]` (no wrapper), newest first
 - `listFiles(artifactId, semver)` — returns bare `ArtifactFile[]`; each file has `sizeBytes`, `downloadUrl` (relative path), `contentType`, `status`
 - `getFileDownloadUrl(artifactId, semver, fileId)` — constructs full BFF download URL
+- `listTypes()` — returns `TypeResponse[]`
+- `createType(payload)` — `POST /types`; payload: `{ name, description? }`; 409 on duplicate name
+- `updateType(id, payload)` — `PUT /types/:id`; same payload shape
+- `deleteType(id)` — `DELETE /types/:id`; 204 on success
 - All fields camelCase; IDs are `number`
 - `Artifact` has `types: TypeResponse[]` (may be empty; guard with `?? []`)
 - `ArtifactVersion` has `major/minor/patch`, `tags: ArtifactTag[]` (may be missing; guard with `?? []`)
@@ -82,6 +99,9 @@ No footer slot — add pagination below the table inside the default slot.
   - Single file: direct `<a>` download link
   - Multiple files: `q-btn-dropdown` listing each file with name, size, content-type
   - "Add Version" button in Versions panel `actions` slot → navigates to `ArtifactVersionCreatePage`
+  - **Delete Artifact** button in metadata panel `actions` slot — gated with `can('index:artifacts:delete')`; `$q.dialog` confirmation → `deleteArtifact()` → navigate to artifact list
+  - **Delete version** trash icon per row — gated with `can('index:versions:delete')`; `$q.dialog` confirmation → `deleteVersion()`; if last version deleted, second dialog prompts to delete the artifact too
+  - `deletingVersions: ref<Set<string>>` tracks in-flight semver strings; button disabled and shows spinner while in flight
 - `src/pages/index/ArtifactCreatePage.vue` — 3-step wizard: Artifact → Version → Files
   - Step 1: `fullName` (required) + `description`; async name-availability check on Next (exact match via `listArtifacts`)
   - Step 2: semver `version` (required, validated) + optional `config` (JsonEditor)
@@ -98,6 +118,13 @@ Context `fusion-index` has two groups:
 - **Registry**: Dashboard → `/fusion-index`, Artifact List → `/fusion-index/artifacts`, Create Artifact → `/fusion-index/artifacts/create`
 - **Monitoring**: Overview → `/fusion-index/monitoring` (placeholder)
 
+## Admin page
+- `src/pages/AdminPage.vue` — two sections in a 2-column grid:
+  - **Platform panels**: Users (placeholder), Platform Services (placeholder), System Config (placeholder)
+  - **Global Settings** section header (spans both columns) followed by:
+    - **Artifact Types** panel — live CRUD backed by `indexApi` types endpoints; inline create row, inline edit per row, delete with `$q.dialog` confirmation; requires `index:types:manage` permission on the BFF (enforced server-side); page itself requires `admin` role (router guard)
+- The section-header divider pattern (`grid-column: span 2`, uppercase label + icon) is reusable for future Global Settings panels
+
 ## Router (router/index.ts)
 All routes are flat children under the `/` MainLayout route.
 Fusion Index uses explicit routes (not a wildcard):
@@ -108,6 +135,7 @@ Fusion Index uses explicit routes (not a wildcard):
 - `/fusion-index/artifacts/:id` → `ArtifactDetailPage`
 - `/fusion-index/:pathMatch(.*)*` → `FusionIndexPage` (catch-all for unimplemented leaves)
 - Route ordering matters: `create` literals must appear before `/:id` dynamic segments
+- Admin routes use `meta: { adminOnly: true }`; `beforeEach` guard redirects non-admin users to `/data`
 
 ## Themes
 - `src/stores/theme.ts` — 5 themes: midnight, azure, matrix, light, synthwave; persisted to localStorage

@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { ref, nextTick, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import * as indexApi from '@/api/indexApi'
 import type { Artifact, ArtifactVersion, ArtifactFile, ArtifactTag } from '@/api/indexApi'
 import { formatSize } from '@/utils/format'
+import { usePermission } from '@/composables/usePermission'
 
 const route  = useRoute()
 const router = useRouter()
+const $q     = useQuasar()
+const { can } = usePermission()
 
 const artifactId = Number(route.params.id)
 
@@ -186,6 +190,62 @@ async function removeTag(v: ArtifactVersion, tag: string) {
     tagMutating.value = new Set([...tagMutating.value].filter(id => id !== v.id))
   }
 }
+
+// ─── Delete ───────────────────────────────────────────────────────────────────
+
+const deletingVersions = ref<Set<string>>(new Set())
+
+function confirmDeleteVersion(v: ArtifactVersion) {
+  $q.dialog({
+    title: 'Delete version',
+    message: `Delete version <b>${v.version}</b>? All files in this version will be removed.`,
+    html: true,
+    ok:     { label: 'Delete', color: 'negative', flat: true },
+    cancel: { label: 'Cancel', flat: true },
+  }).onOk(async () => {
+    deletingVersions.value = new Set([...deletingVersions.value, v.version])
+    try {
+      await indexApi.deleteVersion(artifactId, v.version)
+      versions.value = versions.value.filter(ver => ver.id !== v.id)
+      const newMap = { ...filesMap.value }
+      delete newMap[v.version]
+      filesMap.value = newMap
+
+      if (versions.value.length === 0) {
+        $q.dialog({
+          title: 'No versions remaining',
+          message: `<b>${artifact.value?.fullName}</b> has no versions left. Delete the artifact too?`,
+          html: true,
+          ok:     { label: 'Delete Artifact', color: 'negative', flat: true },
+          cancel: { label: 'Keep', flat: true },
+        }).onOk(() => doDeleteArtifact())
+      }
+    } catch (err) {
+      $q.notify({ type: 'negative', message: err instanceof Error ? err.message : 'Failed to delete version' })
+    } finally {
+      deletingVersions.value = new Set([...deletingVersions.value].filter(s => s !== v.version))
+    }
+  })
+}
+
+function confirmDeleteArtifact() {
+  $q.dialog({
+    title: 'Delete artifact',
+    message: `Delete <b>${artifact.value?.fullName}</b> and all its versions?`,
+    html: true,
+    ok:     { label: 'Delete', color: 'negative', flat: true },
+    cancel: { label: 'Cancel', flat: true },
+  }).onOk(() => doDeleteArtifact())
+}
+
+async function doDeleteArtifact() {
+  try {
+    await indexApi.deleteArtifact(artifactId)
+    router.replace('/fusion-index/artifacts')
+  } catch (err) {
+    $q.notify({ type: 'negative', message: err instanceof Error ? err.message : 'Failed to delete artifact' })
+  }
+}
 </script>
 
 <template>
@@ -210,6 +270,17 @@ async function removeTag(v: ArtifactVersion, tag: string) {
       :error="artifactError"
       @refresh="loadArtifact"
     >
+      <template #actions>
+        <button
+          v-if="can('index:artifacts:delete')"
+          class="delete-artifact-btn"
+          :disabled="!artifact"
+          @click="confirmDeleteArtifact"
+        >
+          <q-icon name="mdi-trash-can-outline" size="13px" />
+          Delete Artifact
+        </button>
+      </template>
       <div v-if="artifact" class="meta-grid">
         <div class="meta-row">
           <span class="meta-label">Full name</span>
@@ -268,11 +339,12 @@ async function removeTag(v: ArtifactVersion, tag: string) {
             <th>Size</th>
             <th>Download</th>
             <th>Published</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="versions.length === 0">
-            <td colspan="5" class="empty-row">No versions published yet</td>
+            <td colspan="6" class="empty-row">No versions published yet</td>
           </tr>
           <tr v-for="v in versions" :key="v.id">
 
@@ -405,6 +477,20 @@ async function removeTag(v: ArtifactVersion, tag: string) {
 
             <!-- Published -->
             <td class="muted-text fs-mono">{{ relativeTime(v.createdAt) }}</td>
+
+            <!-- Delete -->
+            <td class="action-cell">
+              <button
+                v-if="can('index:versions:delete')"
+                class="delete-version-btn"
+                :disabled="deletingVersions.has(v.version) || tagMutating.has(v.id)"
+                :title="`Delete ${v.version}`"
+                @click.stop="confirmDeleteVersion(v)"
+              >
+                <q-spinner v-if="deletingVersions.has(v.version)" size="12px" />
+                <q-icon v-else name="mdi-trash-can-outline" size="14px" />
+              </button>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -665,4 +751,48 @@ async function removeTag(v: ArtifactVersion, tag: string) {
   background: var(--fs-bg-hover);
   border-color: var(--fs-accent);
 }
+
+.delete-artifact-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 11.5px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--fs-text-muted);
+  background: none;
+  border: 1px solid var(--fs-border-bright);
+  transition: background var(--fs-ease), border-color var(--fs-ease), color var(--fs-ease);
+  white-space: nowrap;
+}
+.delete-artifact-btn:hover:not(:disabled) {
+  color: var(--fs-neg);
+  border-color: var(--fs-neg);
+  background: color-mix(in srgb, var(--fs-neg) 8%, transparent);
+}
+.delete-artifact-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.action-cell { width: 36px; text-align: center; }
+
+.delete-version-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--fs-text-muted);
+  transition: background var(--fs-ease), color var(--fs-ease);
+}
+.delete-version-btn:hover:not(:disabled) {
+  color: var(--fs-neg);
+  background: color-mix(in srgb, var(--fs-neg) 8%, transparent);
+}
+.delete-version-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>

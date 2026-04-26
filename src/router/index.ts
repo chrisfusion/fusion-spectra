@@ -24,18 +24,21 @@ const router = createRouter({
         { path: '/fusion-index/artifacts/:id/versions/create', component: () => import('@/pages/index/ArtifactVersionCreatePage.vue'), meta: { context: 'fusion-index' } },
         { path: '/fusion-index/artifacts/:id',                 component: () => import('@/pages/index/ArtifactDetailPage.vue'),         meta: { context: 'fusion-index' } },
         { path: '/fusion-index/:pathMatch(.*)*',   component: () => import('@/pages/FusionIndexPage.vue'),              meta: { context: 'fusion-index' } },
-        { path: '/admin/:pathMatch(.*)*',         component: () => import('@/pages/AdminPage.vue'),       meta: { context: 'admin' } },
+        { path: '/admin/:pathMatch(.*)*',         component: () => import('@/pages/AdminPage.vue'),       meta: { context: 'admin', adminOnly: true } },
       ]
     }
   ]
 })
 
-router.beforeEach(async () => {
+router.beforeEach(async (to) => {
   const auth = useAuthStore()
   const authenticated = await auth.init()
   if (!authenticated) {
     auth.loginRedirect()
     return false
+  }
+  if (to.meta.adminOnly && !auth.user?.roles.includes('admin')) {
+    return '/data'
   }
 })
 

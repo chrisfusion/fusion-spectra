@@ -3,9 +3,11 @@ import { ref } from 'vue'
 import { getBffUrl } from '@/config/runtime'
 
 export interface UserInfo {
-  sub:   string
-  email: string
-  name:  string
+  sub:         string
+  email:       string
+  name:        string
+  roles:       string[]
+  permissions: string[]
 }
 
 export const useAuthStore = defineStore('auth', () => {
