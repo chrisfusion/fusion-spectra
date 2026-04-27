@@ -53,11 +53,13 @@ The BFF is accessed via `http://bff.fusion.local` (minikube). The dev server pro
 
 ```bash
 eval $(minikube docker-env)
-docker build -t fusion-spectra:latest .
+docker build -t fusion-spectra:0.1.0 .
 ```
 
 > The build has three stages. Only **stage 1** (`npm ci`) needs network access.
 > Stages 2 (Vite build) and 3 (nginx) run without internet.
+
+Always use a semver tag (never `latest`). Update `image.tag` in `deployment/values-dev.yaml` to match before deploying.
 
 ### 5. Deploy
 
@@ -67,13 +69,12 @@ helm upgrade --install fusion-spectra ./deployment \
   --namespace fusion --create-namespace
 ```
 
-### 6. Force pod restart after rebuild
+Changing `image.tag` in `values-dev.yaml` triggers an automatic pod replacement — no manual rollout restart needed.
 
-When the image tag stays `latest`, Kubernetes will not restart pods automatically after `helm upgrade`. Force a rollout:
+### 6. Verify rollout
 
 ```bash
-kubectl rollout restart deployment/fusion-spectra -n fusion
-kubectl rollout status  deployment/fusion-spectra -n fusion
+kubectl rollout status deployment/fusion-spectra -n fusion
 ```
 
 ### 7. Open

@@ -184,39 +184,39 @@
   --fs-text-disabled:  #2a1040;
 }
 
-// ─── Darcula ──────────────────────────────────────────────────────────────────
-[data-theme="darcula"] {
+// ─── Carbon ───────────────────────────────────────────────────────────────────
+[data-theme="carbon"] {
   --fs-bg-deep:     #1a1b1e;
   --fs-bg-base:     #2b2b2b;
   --fs-bg-surface:  #313335;
   --fs-bg-elevated: #3c3f41;
-  --fs-bg-hover:    rgba(255, 255, 255, 0.04);
-  --fs-bg-active:   rgba(255, 255, 255, 0.08);
+  --fs-bg-hover:    rgba(255, 255, 255, 0.05);
+  --fs-bg-active:   rgba(255, 255, 255, 0.10);
 
-  --fs-border:        #4b4b4b;
-  --fs-border-dim:    #3a3a3a;
-  --fs-border-bright: #636363;
+  --fs-border:        #545454;
+  --fs-border-dim:    #3e3e3e;
+  --fs-border-bright: #707070;
 
-  --fs-accent:      #6897bb;
-  --fs-accent-glow: rgba(104, 151, 187, 0.22);
-  --fs-accent-soft: rgba(104, 151, 187, 0.10);
+  --fs-accent:      #8cbede;
+  --fs-accent-glow: rgba(140, 190, 222, 0.22);
+  --fs-accent-soft: rgba(140, 190, 222, 0.10);
 
-  --fs-violet:  #9876aa;
-  --fs-blue:    #6897bb;
-  --fs-cyan:    #69c3cd;
-  --fs-emerald: #6a8759;
-  --fs-amber:   #cc7832;
-  --fs-red:     #ff6b68;
+  --fs-violet:  #b39dcc;
+  --fs-blue:    #8cbede;
+  --fs-cyan:    #7ed4dc;
+  --fs-emerald: #90c07a;
+  --fs-amber:   #e0924a;
+  --fs-red:     #ff7b78;
 
-  --fs-pos:  #6a8759;
-  --fs-neg:  #ff6b68;
-  --fs-warn: #cc7832;
+  --fs-pos:  #90c07a;
+  --fs-neg:  #ff7b78;
+  --fs-warn: #e0924a;
 
-  --fs-text-primary:   #a9b7c6;
-  --fs-text-secondary: #828282;
-  --fs-text-muted:     #636363;
-  --fs-text-accent:    #6897bb;
-  --fs-text-disabled:  #484848;
+  --fs-text-primary:   #dce8f4;
+  --fs-text-secondary: #a8bcce;
+  --fs-text-muted:     #90a8bc;
+  --fs-text-accent:    #8cbede;
+  --fs-text-disabled:  #505a60;
 }
 
 // Light theme: Quasar component overrides
@@ -227,10 +227,52 @@
   .q-menu { border: 1px solid var(--fs-border) !important; box-shadow: 0 4px 20px rgba(0,0,0,0.12) !important; }
 }
 
-// Darcula: warm gray panels need explicit bg override for Quasar portals
-[data-theme="darcula"] {
+// Carbon: dark gray panels need explicit bg override for Quasar portals
+[data-theme="carbon"] {
   .q-menu, .q-tooltip { background: var(--fs-bg-elevated) !important; color: var(--fs-text-primary) !important; }
   .q-menu { border: 1px solid var(--fs-border) !important; box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important; }
+}
+
+// ─── Lumen ────────────────────────────────────────────────────────────────────
+[data-theme="lumen"] {
+  --fs-bg-deep:     #e4e4e4;
+  --fs-bg-base:     #ebebeb;
+  --fs-bg-surface:  #f5f5f5;
+  --fs-bg-elevated: #ffffff;
+  --fs-bg-hover:    rgba(8, 124, 250, 0.06);
+  --fs-bg-active:   rgba(8, 124, 250, 0.12);
+
+  --fs-border:        #c4c4c4;
+  --fs-border-dim:    #d4d4d4;
+  --fs-border-bright: #9e9e9e;
+
+  --fs-accent:      #087cfa;
+  --fs-accent-glow: rgba(8, 124, 250, 0.22);
+  --fs-accent-soft: rgba(8, 124, 250, 0.10);
+
+  --fs-violet:  #7c3aed;
+  --fs-blue:    #087cfa;
+  --fs-cyan:    #0891b2;
+  --fs-emerald: #067d17;
+  --fs-amber:   #b85c00;
+  --fs-red:     #c0392b;
+
+  --fs-pos:  #067d17;
+  --fs-neg:  #c0392b;
+  --fs-warn: #b85c00;
+
+  --fs-text-primary:   #1a1a1a;
+  --fs-text-secondary: #4a4a4a;
+  --fs-text-muted:     #6c6c6c;
+  --fs-text-accent:    #087cfa;
+  --fs-text-disabled:  #b8b8b8;
+}
+
+[data-theme="lumen"] {
+  color-scheme: light;
+
+  .q-menu, .q-tooltip { background: var(--fs-bg-surface) !important; color: var(--fs-text-primary) !important; }
+  .q-menu { border: 1px solid var(--fs-border) !important; box-shadow: 0 4px 20px rgba(0,0,0,0.10) !important; }
 }
 
 // ─── Reset ────────────────────────────────────────────────────────────────────

@@ -86,10 +86,16 @@ function isLeafActive(route_: string): boolean {
               :key="leaf.id"
               :to="leaf.route"
               class="sidebar__leaf"
-              :class="{ 'sidebar__leaf--active': isLeafActive(leaf.route) }"
+              :class="{ 'sidebar__leaf--active': isLeafActive(leaf.route), 'sidebar__leaf--placeholder': leaf.placeholder }"
             >
               <q-icon :name="leaf.icon" size="13px" class="sidebar__leaf-icon" />
               <span class="sidebar__leaf-label">{{ leaf.label }}</span>
+              <q-icon
+                v-if="leaf.placeholder"
+                name="mdi-dots-horizontal-circle-outline"
+                size="11px"
+                class="sidebar__leaf-placeholder"
+              />
               <span
                 v-if="leaf.badge"
                 class="fs-badge"
@@ -244,8 +250,10 @@ function isLeafActive(route_: string): boolean {
 
 .sidebar__leaf--active .sidebar__leaf-icon { color: var(--fs-accent); }
 
-.sidebar__leaf-icon  { flex-shrink: 0; color: inherit; }
-.sidebar__leaf-label { flex: 1; }
+.sidebar__leaf-icon        { flex-shrink: 0; color: inherit; }
+.sidebar__leaf-label       { flex: 1; }
+.sidebar__leaf-placeholder { flex-shrink: 0; color: var(--fs-warn); opacity: 0.55; }
+.sidebar__leaf--placeholder { opacity: 0.7; }
 
 /* Expand animation */
 .sidebar-expand-enter-active { animation: expand-down 0.18s ease; }

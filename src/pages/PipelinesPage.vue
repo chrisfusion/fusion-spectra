@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import CanvasPanel from '@/components/CanvasPanel.vue'
+import PlaceholderBanner from '@/components/PlaceholderBanner.vue'
 
 const pipelines = [
   { name: 'etl_raw_to_processed', schedule: '0 * * * *',  last: '12 min ago', duration: '4m 22s', status: 'running' },
@@ -24,6 +25,7 @@ const statusColor: Record<string, string> = {
 
 <template>
   <div class="page-grid">
+    <PlaceholderBanner />
     <!-- Pipeline list -->
     <CanvasPanel title="Pipelines" icon="mdi-transit-connection-variant" :wide="true">
       <table class="data-table">

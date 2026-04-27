@@ -167,6 +167,7 @@ Fusion Index uses explicit routes (not a wildcard):
 - Always use semver image tags (never `latest`/`local`): `eval $(minikube docker-env) && docker build -t fusion-spectra:X.Y.Z .`
 - Docker build MUST run inside minikube's daemon (`eval $(minikube docker-env)` first) — otherwise pod gets `ErrImageNeverPull`
 - After building, update `image.tag` in `values-dev.yaml` and run `helm upgrade`; tag change triggers pod replacement automatically
+- Helm field manager conflict: if `kubectl set image` was used on the deployment, subsequent `helm upgrade` may fail — bypass with `kubectl set image deployment/fusion-spectra frontend=fusion-spectra:X.Y.Z -n fusion && kubectl rollout status deployment/fusion-spectra -n fusion`
 
 ## Tag model (fusion-index)
 - A tag (e.g. `stable`, `latest`) is an **artifact-level named pointer** to one semver at a time — like a git tag
@@ -205,6 +206,8 @@ Used in `ArtifactCreatePage` and `ArtifactVersionCreatePage`:
 - Use `browser_snapshot` (not screenshot) to get element `ref` values for clicks/fills
 - Use `browser_take_screenshot` with `fullPage: true` to save to `screenshots/`
 - After pod restart, browser may serve cached JS — hard-reload or open a new tab
+- Quasar menus/dropdowns are portals — they don't appear in `browser_snapshot`; use `browser_evaluate` to read/click items inside `.q-menu`
+- Access Pinia stores in evaluate: `document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('storeName')`; theme store action is `.set(themeName)`
 
 ## Fusion Forge pages
 - `src/api/forgeApi.ts` — typed forge API via BFF proxy path `/api/forge/api/v1/*`

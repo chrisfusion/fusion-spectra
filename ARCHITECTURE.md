@@ -8,13 +8,16 @@ Browser
   │  SameSite=Lax session cookie
   ▼
 BFF (bff.fusion.local)          ← owns all OIDC / Keycloak interaction
-  │  /bff/userinfo              ← auth check
+  │  /bff/userinfo              ← auth check; returns sub, email, roles, permissions, resource_permissions
   │  /bff/login                 ← login redirect
   │  /bff/logout
+  │  /bff/admin/*               ← admin API (group-roles, resource-permissions, rbac-config)
   │
   │  /api/index/*               ← reverse-proxy to fusion-index
+  │  /api/forge/*               ← reverse-proxy to fusion-forge
   ▼
-fusion-index backend            ← Go/Gin artifact registry API
+fusion-index backend            ← artifact registry API
+fusion-forge backend            ← async Python venv builder API
   │
   └── PostgreSQL
 ```
@@ -34,11 +37,14 @@ src/
 │   └── runtime.ts              window.FUSION_CONFIG → VITE_BFF_URL fallback
 │
 ├── stores/
-│   ├── auth.ts                 Pinia: user info, init(), loginRedirect(), logout()
-│   └── theme.ts                Pinia: 5 themes, persisted to localStorage
+│   ├── auth.ts                 Pinia: UserInfo (sub, email, name, roles, permissions, resource_permissions)
+│   └── theme.ts                Pinia: 7 themes, persisted to localStorage
+│
+├── composables/
+│   └── usePermission.ts        can(permission, resourceId?) / hasRole(role) / isAdmin
 │
 ├── router/
-│   └── index.ts                hash history; beforeEach guard calls auth.init()
+│   └── index.ts                hash history; beforeEach guard: auth.init() + adminOnly redirect
 │
 ├── data/
 │   └── navigation.ts           single source of truth for all contexts/groups/leaves
@@ -48,14 +54,17 @@ src/
 │
 ├── components/
 │   ├── AppTopBar.vue           search bar, notifications, user menu
-│   ├── ActivityRail.vue        vertical icon strip — 5 contexts; click active = toggle sidebar
+│   ├── ActivityRail.vue        icon strip — 6 contexts; admin section v-if="isAdmin"
 │   ├── AppSidebar.vue          collapsible IDE-style tree (group → leaf)
 │   ├── CanvasPanel.vue         card wrapper used by all pages
-│   └── JsonEditor.vue          CodeMirror 6 JSON editor with lint + Format button
+│   ├── JsonEditor.vue          CodeMirror 6 JSON editor with lint + Format button
+│   └── TagChipInput.vue        v-model string[] chip input for tag lists
 │
 ├── api/
 │   ├── bffClient.ts            base fetch: credentials:'include', 401 redirect, FormData detection
-│   └── indexApi.ts             typed methods for fusion-index via /api/index/api/v1/*
+│   ├── indexApi.ts             typed methods for fusion-index via /api/index/api/v1/*
+│   ├── forgeApi.ts             typed methods for fusion-forge via /api/forge/api/v1/*
+│   └── bffAdminApi.ts          typed admin API: group-roles, resource-permissions, rbac-config
 │
 ├── utils/
 │   └── format.ts               formatSize(bytes) → human-readable string
@@ -64,13 +73,22 @@ src/
     ├── DataPage.vue            placeholder
     ├── PipelinesPage.vue       placeholder
     ├── MonitoringPage.vue      placeholder
-    ├── AdminPage.vue           placeholder
     ├── FusionIndexPage.vue     dashboard: artifact table + recent versions
-    └── index/
-        ├── ArtifactListPage.vue        paginated list, debounced search
-        ├── ArtifactDetailPage.vue      metadata panel + versions table
-        ├── ArtifactCreatePage.vue      3-step wizard
-        └── ArtifactVersionCreatePage.vue  2-step wizard
+    ├── AdminPage.vue           navigation hub: 2-column card grid
+    ├── index/
+    │   ├── ArtifactListPage.vue        paginated list, debounced search
+    │   ├── ArtifactDetailPage.vue      metadata panel + versions table + inline tags
+    │   ├── ArtifactCreatePage.vue      3-step wizard
+    │   └── ArtifactVersionCreatePage.vue  2-step wizard
+    ├── forge/
+    │   ├── ForgeIndexPage.vue          placeholder dashboard
+    │   ├── VenvListPage.vue            paginated table, chip multi-status filter
+    │   ├── VenvCreatePage.vue          2-step wizard
+    │   └── VenvDetailPage.vue          metadata + live log panel, auto-polls while building
+    └── admin/
+        ├── RoleAssignmentsPage.vue     group → role CRUD backed by BFF DB
+        ├── ResourcePermissionsPage.vue resource-scoped permission grants
+        └── ArtifactTypesPage.vue       artifact type taxonomy CRUD
 ```
 
 ---
@@ -79,7 +97,7 @@ src/
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  AppTopBar  (36px — search, notifications, user menu)   │
+│  AppTopBar  (52px — search, notifications, user menu)   │
 ├───┬────────────┬────────────────────────────────────────┤
 │   │            │                                        │
 │ A │  Sidebar   │           Canvas                       │
@@ -98,18 +116,24 @@ src/
 └───┴────────────┴────────────────────────────────────────┘
 ```
 
-The **Activity Rail** switches contexts; clicking the active context icon toggles the sidebar. Context is synced from `route.meta.context` so direct URL navigation always highlights the correct rail icon and opens the right sidebar.
+Activity rail contexts (top → bottom): Data, Pipelines & Jobs, Monitoring, Forge, Fusion Index, Admin (admin-only, amber accent, bottom).
 
 ---
 
 ## Routing
 
-All routes are flat children under the `/` `MainLayout` route. Vue Router 4 matches in declaration order, so literal segments must appear before dynamic ones:
+All routes are flat children under the `/` `MainLayout` route. Literal segments must appear before dynamic ones:
 
 ```
-/fusion-index/artifacts/create              ← must come before /:id
-/fusion-index/artifacts/:id/versions/create ← must come before /:id
+/fusion-index/artifacts/create              ← before /:id
+/fusion-index/artifacts/:id/versions/create ← before /:id
 /fusion-index/artifacts/:id
+/forge/venvs/create                         ← before /:id
+/forge/venvs/:id
+/admin/roles                                ← literal admin sub-pages
+/admin/permissions
+/admin/types
+/admin/:pathMatch(.*)*                      ← hub catch-all
 ```
 
 Hash history (`createWebHashHistory`) is used so the SPA works without server-side rewrite configuration behind nginx.
@@ -127,14 +151,35 @@ auth.init()  ──► already initialised? ──► return cached result
       ▼
 GET /bff/userinfo (credentials:'include')
       │
-      ├── 200 OK  ──► store user, return true
+      ├── 200 OK  ──► store UserInfo { sub, email, name, roles, permissions, resource_permissions }
+      │               return true
       │
       └── 401 / network error ──► loginRedirect()
                                       │
                                       ▼
                               window.location = /bff/login
                               (BFF → Keycloak OIDC flow)
+
+After auth.init():
+  route.meta.adminOnly && !hasRole('admin')  ──► redirect /data
 ```
+
+---
+
+## RBAC
+
+`usePermission()` composable (`src/composables/usePermission.ts`) exposes three helpers:
+
+| Helper | Returns true when… |
+|---|---|
+| `can(permission)` | user has the permission globally |
+| `can(permission, resourceId)` | user has it globally **or** has a resource-scoped grant for that ID |
+| `hasRole(role)` | user's `roles` array contains the role |
+| `isAdmin` | computed: `hasRole('admin')` |
+
+Global permissions come from `auth.user.permissions` (flat string array). Resource-scoped permissions come from `auth.user.resource_permissions` (array of `{ permission, resource_type, resource_id }`). Both are loaded once at login via `/bff/userinfo` — no extra API calls in components.
+
+Gate UI elements with `can()` not `hasRole()` — roles are too coarse for UI gates.
 
 ---
 
@@ -145,7 +190,7 @@ GET /bff/userinfo (credentials:'include')
 Thin wrapper around `fetch`:
 - Prepends `getBffUrl()` to all paths
 - Sends `credentials: 'include'` on every request
-- Detects `FormData` body and omits `Content-Type: application/json` (lets the browser set multipart boundary)
+- Detects `FormData` body and omits `Content-Type: application/json`
 - 401 → immediate redirect to BFF login
 - Non-2xx → throws `ApiError(status, message)`
 
@@ -158,17 +203,52 @@ Typed methods over `bffClient`. BFF proxy path: `/api/index/api/v1/*`
 | `listArtifacts(params?)` | GET | `/artifacts` |
 | `getArtifact(id)` | GET | `/artifacts/:id` |
 | `createArtifact(payload)` | POST | `/artifacts` |
+| `deleteArtifact(id)` | DELETE | `/artifacts/:id` |
 | `listVersions(artifactId)` | GET | `/artifacts/:id/versions` |
 | `createVersion(artifactId, payload)` | POST | `/artifacts/:id/versions` |
+| `deleteVersion(artifactId, semver)` | DELETE | `/artifacts/:id/versions/:semver` |
 | `listFiles(artifactId, semver)` | GET | `/artifacts/:id/versions/:semver/files` |
 | `uploadFile(artifactId, semver, file)` | POST | `/artifacts/:id/versions/:semver/files` |
 | `getFileDownloadUrl(...)` | — | constructs BFF URL |
+| `putTag(artifactId, tagName, semver)` | PUT | `/artifacts/:id/tags/:tag` |
+| `deleteTag(artifactId, tagName)` | DELETE | `/artifacts/:id/tags/:tag` |
+| `listTypes()` | GET | `/types` |
+| `createType(payload)` | POST | `/types` |
+| `updateType(id, payload)` | PUT | `/types/:id` |
+| `deleteType(id)` | DELETE | `/types/:id` |
+
+### forgeApi.ts
+
+BFF proxy path: `/api/forge/api/v1/*`
+
+| Method | HTTP | Endpoint |
+|--------|------|----------|
+| `listVenvs(params?)` | GET | `/venvs` |
+| `createVenv(payload)` | POST | `/venvs` |
+| `getVenv(id)` | GET | `/venvs/:id` |
+| `validateVenv(payload)` | POST | `/venvs/validate` |
+
+`validateVenv` uses raw `fetch` (not `bffFetch`) — forge returns a `ValidationResult` JSON body on 422, which `bffFetch` would throw and consume.
+
+### bffAdminApi.ts
+
+Admin endpoints directly on the BFF. Requires `admin:roles:manage` permission.
+
+| Method | HTTP | Endpoint |
+|--------|------|----------|
+| `listGroupRoles()` | GET | `/bff/admin/group-roles` |
+| `createGroupRole(group, role)` | POST | `/bff/admin/group-roles` |
+| `deleteGroupRole(id)` | DELETE | `/bff/admin/group-roles/:id` |
+| `listResourcePermissions()` | GET | `/bff/admin/resource-permissions` |
+| `createResourcePermission(payload)` | POST | `/bff/admin/resource-permissions` |
+| `deleteResourcePermission(id)` | DELETE | `/bff/admin/resource-permissions/:id` |
+| `getRBACConfig()` | GET | `/bff/admin/rbac-config` |
 
 ---
 
 ## Navigation data model
 
-`src/data/navigation.ts` is the single source of truth for the entire navigation tree. Nothing is hardcoded in layout components.
+`src/data/navigation.ts` is the single source of truth for the entire navigation tree.
 
 ```
 Context[]
@@ -182,46 +262,11 @@ Context[]
 
 ## Theming
 
-Five themes: `midnight` (default), `azure`, `matrix`, `light`, `synthwave`.
+Seven themes: `midnight` (default), `azure`, `carbon`, `matrix`, `synthwave`, `light`, `lumen`.
 
-Each theme is a block of CSS custom property overrides in `src/css/app.scss` under `[data-theme="<name>"]`. The theme store applies `data-theme` to `<html>` **and** calls `Quasar.Dark.set()` — CSS vars alone don't reach Quasar portals (menus, tooltips, dropdowns) which are mounted outside the Vue root.
+Each theme is a block of CSS custom property overrides in `src/css/app.scss` under `[data-theme="<name>"]`. The theme store applies `data-theme` to `<html>` **and** calls `Quasar.Dark.set()` — CSS vars alone don't reach Quasar portals (menus, tooltips, dropdowns) mounted outside the Vue root.
 
----
-
-## Fusion Index — feature detail
-
-### Pages and wizards
-
-```
-/fusion-index                        FusionIndexPage       dashboard
-/fusion-index/artifacts              ArtifactListPage      paginated list + search
-/fusion-index/artifacts/create       ArtifactCreatePage    3-step wizard
-  Step 1: fullName* + description
-    → async name-availability check (listArtifacts exact match)
-  Step 2: version* (semver) + config (JsonEditor, optional)
-  Step 3: drag-and-drop files (multi) + Create Artifact
-    → createArtifact → createVersion → uploadFile×N → navigate to detail
-    → orphan recovery: if artifact/version created before upload fails,
-      shows "Go to artifact →" and disables resubmit
-
-/fusion-index/artifacts/:id          ArtifactDetailPage    metadata + versions table
-  Versions panel actions slot: [+ Add Version] button
-
-/fusion-index/artifacts/:id/versions/create  ArtifactVersionCreatePage  2-step wizard
-  Step 1: version* (semver) + config (JsonEditor, optional)
-  Step 2: drag-and-drop files + Create Version
-    → createVersion → uploadFile×N → navigate to detail
-    → createdVersion ref locks Back/Submit once version exists (prevents duplicates)
-```
-
-### JsonEditor component
-
-CodeMirror 6 embedded in a Vue component. Key design decisions:
-
-- **Empty = valid**: the field is optional in both wizards; an empty editor emits `valid: true`
-- **External sync**: a `watch` on `modelValue` dispatches changes into the editor (e.g. programmatic format)
-- **`{ } Format` button**: `JSON.stringify(JSON.parse(text), null, 2)` — only runs on valid JSON
-- **Theme**: all colours via `--fs-*` CSS custom properties so it respects the active theme
+`light` and `lumen` are treated as light themes (`Dark.set(false)`). All other themes use dark mode.
 
 ---
 

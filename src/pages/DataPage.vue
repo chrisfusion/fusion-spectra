@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import CanvasPanel from '@/components/CanvasPanel.vue'
+import PlaceholderBanner from '@/components/PlaceholderBanner.vue'
 
 const datasets = [
   { name: 'events_raw',        zone: 'raw',       format: 'Parquet', size: '1.2 TB',  updated: '2 min ago',  status: 'running' },
@@ -31,6 +32,7 @@ const zoneColor: Record<string, string> = {
 
 <template>
   <div class="page-grid">
+    <PlaceholderBanner />
     <!-- Datasets panel -->
     <CanvasPanel title="Datasets" icon="mdi-folder-table-outline" :wide="true">
       <table class="data-table">

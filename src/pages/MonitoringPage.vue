@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import CanvasPanel from '@/components/CanvasPanel.vue'
+import PlaceholderBanner from '@/components/PlaceholderBanner.vue'
 
 const healthNodes = [
   { name: 'datanode-01', cpu: 42, mem: 61, status: 'ok' },
@@ -35,6 +36,7 @@ function cpuColor(v: number) {
 
 <template>
   <div class="page-grid">
+    <PlaceholderBanner />
     <!-- Metric cards -->
     <CanvasPanel title="Key Metrics" icon="mdi-speedometer" :wide="true">
       <div class="metric-grid">
