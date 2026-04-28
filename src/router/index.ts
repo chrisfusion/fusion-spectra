@@ -11,6 +11,12 @@ const router = createRouter({
       redirect: '/data',
       children: [
         { path: '/data/:pathMatch(.*)*',          component: () => import('@/pages/DataPage.vue'),        meta: { context: 'data' } },
+        { path: '/pipelines/weave/jobtemplates',         component: () => import('@/pages/pipelines/JobTemplateListPage.vue'),   meta: { context: 'pipelines' } },
+        { path: '/pipelines/weave/jobtemplates/create', component: () => import('@/pages/pipelines/JobTemplateCreatePage.vue'),  meta: { context: 'pipelines' } },
+        { path: '/pipelines/weave/jobtemplates/expert',         component: () => import('@/pages/pipelines/JobTemplateExpertPage.vue'),      meta: { context: 'pipelines' } },
+        { path: '/pipelines/weave/servicetemplates',             component: () => import('@/pages/pipelines/ServiceTemplateListPage.vue'),    meta: { context: 'pipelines' } },
+        { path: '/pipelines/weave/servicetemplates/create',      component: () => import('@/pages/pipelines/ServiceTemplateCreatePage.vue'),  meta: { context: 'pipelines' } },
+        { path: '/pipelines/weave/servicetemplates/expert',      component: () => import('@/pages/pipelines/ServiceTemplateExpertPage.vue'),  meta: { context: 'pipelines' } },
         { path: '/pipelines/:pathMatch(.*)*',     component: () => import('@/pages/PipelinesPage.vue'),   meta: { context: 'pipelines' } },
         { path: '/monitoring/:pathMatch(.*)*',    component: () => import('@/pages/MonitoringPage.vue'),  meta: { context: 'monitoring' } },
         { path: '/forge',                  component: () => import('@/pages/forge/ForgeIndexPage.vue'),  meta: { context: 'forge' } },

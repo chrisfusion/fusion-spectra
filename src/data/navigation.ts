@@ -93,13 +93,23 @@ export const contexts: Context[] = [
         ]
       },
       {
-        id: 'templates',
-        label: 'Templates',
-        icon: 'mdi-clipboard-text-outline',
+        id: 'job-templates',
+        label: 'Job Templates',
+        icon: 'mdi-briefcase-outline',
         children: [
-          { id: 'tpl-etl',    label: 'ETL',    icon: 'mdi-file-document-outline', route: '/pipelines/templates/etl',    placeholder: true },
-          { id: 'tpl-stream', label: 'Stream', icon: 'mdi-file-document-outline', route: '/pipelines/templates/stream', placeholder: true },
-          { id: 'tpl-batch',  label: 'Batch',  icon: 'mdi-file-document-outline', route: '/pipelines/templates/batch',  placeholder: true },
+          { id: 'tpl-jobtemplates',        label: 'Job Templates',        icon: 'mdi-briefcase-outline',      route: '/pipelines/weave/jobtemplates' },
+          { id: 'tpl-jobtemplate-create',  label: 'Create Job Template',  icon: 'mdi-plus-circle-outline',    route: '/pipelines/weave/jobtemplates/create' },
+          { id: 'tpl-jobtemplate-expert',  label: 'Expert Create',        icon: 'mdi-briefcase-edit-outline', route: '/pipelines/weave/jobtemplates/expert' },
+        ]
+      },
+      {
+        id: 'service-templates',
+        label: 'Service Templates',
+        icon: 'mdi-server-outline',
+        children: [
+          { id: 'tpl-servicetemplates',       label: 'Service Templates',       icon: 'mdi-server-outline',      route: '/pipelines/weave/servicetemplates' },
+          { id: 'tpl-servicetemplate-create', label: 'Create Service Template', icon: 'mdi-plus-circle-outline', route: '/pipelines/weave/servicetemplates/create' },
+          { id: 'tpl-servicetemplate-expert', label: 'Expert Create',           icon: 'mdi-server-network',      route: '/pipelines/weave/servicetemplates/expert' },
         ]
       }
     ]
