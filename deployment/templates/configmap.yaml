@@ -8,5 +8,8 @@ metadata:
 data:
   config.js: |
     window.FUSION_CONFIG = {
-      bffUrl: {{ .Values.config.bffUrl | quote }}
+      bffUrl:                {{ .Values.config.bffUrl | quote }},
+      extBffDownloadPattern: {{ .Values.config.extBffDownloadPattern | quote }},
+      extBffPublicPattern:   {{ .Values.config.extBffPublicPattern | quote }},
+      extBffPublicTag:       {{ .Values.config.extBffPublicTag | quote }},
     };

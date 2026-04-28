@@ -176,6 +176,11 @@ Fusion Index uses explicit routes (not a wildcard):
 - Inline tag editing on `ArtifactDetailPage`: `tagMutating: ref<Set<number>>` tracks in-flight version IDs; `tagAddingFor: ref<number|null>` is the row in add mode
 - `ArtifactTag` shape: `{ id, artifactId, tag, versionId, createdAt, updatedAt }`
 
+## Runtime config gotchas
+- Adding a new `FUSION_CONFIG` field requires updating BOTH `deployment/values.yaml` AND `deployment/templates/configmap.yaml` — missing either silently drops the field in K8s (`public/config.js` is irrelevant once the ConfigMap is mounted)
+- After a ConfigMap change + pod restart, browsers need a hard refresh (`Ctrl+Shift+R`) to pick up the new `config.js`; features gated with `v-if="configValue"` stay hidden until then
+- Direct ConfigMap patch when helm upgrade has a field manager conflict: `kubectl create configmap <name> --from-literal=config.js='...' --dry-run=client -o yaml | kubectl apply -f - && kubectl rollout restart deployment/<name> -n fusion`
+
 ## Quasar + Vite gotchas
 - `sass-embedded` must be in `devDependencies` (not `dependencies`)
 - `sassVariables` path in `@quasar/vite-plugin` must be absolute (`resolve(__dirname, ...)`)
@@ -208,6 +213,8 @@ Used in `ArtifactCreatePage` and `ArtifactVersionCreatePage`:
 - After pod restart, browser may serve cached JS — hard-reload or open a new tab
 - Quasar menus/dropdowns are portals — they don't appear in `browser_snapshot`; use `browser_evaluate` to read/click items inside `.q-menu`
 - Access Pinia stores in evaluate: `document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('storeName')`; theme store action is `.set(themeName)`
+- Playwright browser has its own separate session and cache from the user's browser — stale `config.js` there doesn't mean the user has the same problem
+- To call BFF APIs with auth during testing: `browser_evaluate` with `fetch('http://bff.fusion.local/api/...', { credentials: 'include' })` — uses the browser's session cookies
 
 ## Fusion Forge pages
 - `src/api/forgeApi.ts` — typed forge API via BFF proxy path `/api/forge/api/v1/*`
@@ -226,6 +233,36 @@ Context `forge` has one group:
 - **Venv Builder**: Overview → `/forge`, Venv Builds → `/forge/venvs`, Create Venv → `/forge/venvs/create`
 
 Forge routes (`router/index.ts`): `/forge` → `ForgeIndexPage`, `/forge/venvs` → `VenvListPage`, `/forge/venvs/create` → `VenvCreatePage`, `/forge/venvs/:id` → `VenvDetailPage`, `/forge/:pathMatch(.*)*` → `ForgeIndexPage`
+
+## Ext-BFF / Public API copy URLs (ArtifactDetailPage)
+
+Each file in the Versions table has two optional copy-to-clipboard buttons:
+
+1. **Copy ext-BFF URL** (`mdi-content-copy`) — always shown when `extBffDownloadPattern` is configured
+2. **Copy public API URL** (`mdi-earth`) — shown only for versions that carry the configured `extBffPublicTag` (default `public`)
+
+Both buttons are hidden via `v-if` when their pattern is an empty string — so deploying without config is safe.
+
+### URL patterns (runtime config)
+Patterns live in `window.FUSION_CONFIG` (overridden per-env by ConfigMap):
+```js
+extBffDownloadPattern: 'https://ext-bff.example.com/api/index/api/v1/artifacts/{artifactId}/versions/{semver}/files/{fileId}/download'
+extBffPublicPattern:   'https://ext-bff.example.com/api/public/index/api/v1/artifacts/{artifactId}/versions/{semver}/files/{fileId}/download'
+extBffPublicTag:       'public'
+```
+Supported placeholders: `{artifactId}`, `{semver}`, `{fileId}`.
+Getter functions in `src/config/runtime.ts`: `getExtBffDownloadPattern()`, `getExtBffPublicPattern()`, `getExtBffPublicTag()`.
+
+### Layout
+- **Single file**: icon buttons inline after the download `<a>` link
+- **Multi file**: separate `q-btn-dropdown` buttons alongside the download dropdown; each lists all files — clicking a file entry copies its resolved URL
+
+### Clipboard behaviour
+- Success → `$q.notify` positive toast
+- Failure (non-HTTPS / permission denied) → `$q.dialog` showing the URL in a selectable `<pre class="copy-fallback-url">` block with a hint
+
+### Helm values (deployment/values.yaml)
+`config.extBffDownloadPattern`, `config.extBffPublicPattern`, `config.extBffPublicTag` — rendered into the ConfigMap by `deployment/templates/configmap.yaml`.
 
 ## CodeMirror 6 gotchas
 - `@codemirror/lint` is a separate npm package (not bundled with `@codemirror/language`) — install explicitly

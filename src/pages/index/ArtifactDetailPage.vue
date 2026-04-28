@@ -7,6 +7,7 @@ import * as indexApi from '@/api/indexApi'
 import type { Artifact, ArtifactVersion, ArtifactFile, ArtifactTag } from '@/api/indexApi'
 import { formatSize } from '@/utils/format'
 import { usePermission } from '@/composables/usePermission'
+import { getExtBffDownloadPattern, getExtBffPublicPattern, getExtBffPublicTag } from '@/config/runtime'
 
 const route  = useRoute()
 const router = useRouter()
@@ -101,6 +102,45 @@ function totalSize(files: ArtifactFile[]): string {
 
 function downloadUrl(semver: string, fileId: number): string {
   return indexApi.getFileDownloadUrl(artifactId, semver, fileId)
+}
+
+// ─── External-BFF / public URL copy ──────────────────────────────────────────
+
+const extBffDownloadPattern = getExtBffDownloadPattern()
+const extBffPublicPattern   = getExtBffPublicPattern()
+const extBffPublicTag       = getExtBffPublicTag()
+
+function resolvePattern(pattern: string, semver: string, fileId: number): string {
+  return pattern
+    .replace('{artifactId}', String(artifactId))
+    .replace('{semver}', semver)
+    .replace('{fileId}', String(fileId))
+}
+
+function extBffUrl(semver: string, fileId: number): string {
+  return resolvePattern(extBffDownloadPattern, semver, fileId)
+}
+
+function publicApiUrl(semver: string, fileId: number): string {
+  return resolvePattern(extBffPublicPattern, semver, fileId)
+}
+
+function hasPublicTag(v: ArtifactVersion): boolean {
+  return (v.tags ?? []).some(t => t.tag === extBffPublicTag)
+}
+
+async function copyUrl(url: string) {
+  try {
+    await navigator.clipboard.writeText(url)
+    $q.notify({ type: 'positive', message: 'URL copied to clipboard', timeout: 2000 })
+  } catch {
+    $q.dialog({
+      title: 'Could not copy to clipboard',
+      message: `Clipboard access requires HTTPS and browser permission.<br><br>Copy manually:<br><pre class="copy-fallback-url">${url}</pre>`,
+      html: true,
+      ok: { label: 'Close', flat: true },
+    })
+  }
 }
 
 function relativeTime(iso: string): string {
@@ -410,68 +450,143 @@ async function doDeleteArtifact() {
 
             <!-- Download -->
             <td class="dl-cell">
-              <!-- loading -->
-              <template v-if="!filesReady">
+              <!-- loading or no files -->
+              <template v-if="!filesReady || versionFiles(v.version).length === 0">
                 <span class="muted-text">—</span>
               </template>
 
-              <!-- no files -->
-              <template v-else-if="versionFiles(v.version).length === 0">
-                <span class="muted-text">—</span>
-              </template>
-
-              <!-- single file — direct link -->
-              <template v-else-if="versionFiles(v.version).length === 1">
-                <a
-                  :href="downloadUrl(v.version, versionFiles(v.version)[0].id)"
-                  class="dl-btn"
-                  :title="versionFiles(v.version)[0].name"
-                  target="_blank"
-                >
-                  <q-icon name="mdi-download" size="13px" />
-                  {{ versionFiles(v.version)[0].name }}
-                </a>
-              </template>
-
-              <!-- multiple files — dropdown picker -->
               <template v-else>
-                <q-btn-dropdown
-                  flat
-                  dense
-                  no-caps
-                  unelevated
-                  size="xs"
-                  icon="mdi-download"
-                  :label="`${versionFiles(v.version).length} files`"
-                  class="dl-dropdown"
-                  dropdown-icon="mdi-chevron-down"
-                >
-                  <q-list dense style="min-width: 240px; padding: 4px 0">
-                    <q-item
-                      v-for="f in versionFiles(v.version)"
-                      :key="f.id"
-                      clickable
-                      tag="a"
-                      :href="downloadUrl(v.version, f.id)"
+                <div class="dl-group">
+
+                  <!-- single file — direct download link -->
+                  <template v-if="versionFiles(v.version).length === 1">
+                    <a
+                      :href="downloadUrl(v.version, versionFiles(v.version)[0].id)"
+                      class="dl-btn"
+                      :title="versionFiles(v.version)[0].name"
                       target="_blank"
-                      class="dl-item"
                     >
-                      <q-item-section avatar style="min-width: 28px">
-                        <q-icon name="mdi-file-download-outline" size="15px" class="muted-icon" />
-                      </q-item-section>
-                      <q-item-section>
-                        <q-item-label class="fs-mono dl-item__name">{{ f.name }}</q-item-label>
-                        <q-item-label caption class="dl-item__meta">
-                          {{ formatSize(f.sizeBytes) }}
-                          <template v-if="f.contentType"> · {{ f.contentType }}</template>
-                        </q-item-label>
-                      </q-item-section>
-                      <q-item-section side>
-                        <q-icon name="mdi-download" size="13px" class="muted-icon" />
-                      </q-item-section>
-                    </q-item>
-                  </q-list>
-                </q-btn-dropdown>
+                      <q-icon name="mdi-download" size="13px" />
+                      {{ versionFiles(v.version)[0].name }}
+                    </a>
+                  </template>
+
+                  <!-- multiple files — dropdown picker -->
+                  <template v-else>
+                    <q-btn-dropdown
+                      flat dense no-caps unelevated size="xs"
+                      icon="mdi-download"
+                      :label="`${versionFiles(v.version).length} files`"
+                      class="dl-dropdown"
+                      dropdown-icon="mdi-chevron-down"
+                    >
+                      <q-list dense style="min-width: 240px; padding: 4px 0">
+                        <q-item
+                          v-for="f in versionFiles(v.version)" :key="f.id"
+                          clickable tag="a" :href="downloadUrl(v.version, f.id)"
+                          target="_blank" class="dl-item"
+                        >
+                          <q-item-section avatar style="min-width: 28px">
+                            <q-icon name="mdi-file-download-outline" size="15px" class="muted-icon" />
+                          </q-item-section>
+                          <q-item-section>
+                            <q-item-label class="fs-mono dl-item__name">{{ f.name }}</q-item-label>
+                            <q-item-label caption class="dl-item__meta">
+                              {{ formatSize(f.sizeBytes) }}
+                              <template v-if="f.contentType"> · {{ f.contentType }}</template>
+                            </q-item-label>
+                          </q-item-section>
+                          <q-item-section side>
+                            <q-icon name="mdi-download" size="13px" class="muted-icon" />
+                          </q-item-section>
+                        </q-item>
+                      </q-list>
+                    </q-btn-dropdown>
+                  </template>
+
+                  <!-- Ext-BFF copy button (single file: icon btn; multi: dropdown) -->
+                  <template v-if="extBffDownloadPattern">
+                    <template v-if="versionFiles(v.version).length === 1">
+                      <button
+                        class="copy-btn"
+                        title="Copy ext-BFF URL"
+                        @click.stop="copyUrl(extBffUrl(v.version, versionFiles(v.version)[0].id))"
+                      >
+                        <q-icon name="mdi-content-copy" size="13px" />
+                      </button>
+                    </template>
+                    <template v-else>
+                      <q-btn-dropdown
+                        flat dense no-caps unelevated size="xs"
+                        icon="mdi-content-copy"
+                        class="copy-dropdown"
+                        dropdown-icon="mdi-chevron-down"
+                        title="Copy ext-BFF URL"
+                      >
+                        <q-list dense style="min-width: 240px; padding: 4px 0">
+                          <q-item
+                            v-for="f in versionFiles(v.version)" :key="f.id"
+                            clickable class="dl-item"
+                            @click="copyUrl(extBffUrl(v.version, f.id))"
+                          >
+                            <q-item-section avatar style="min-width: 28px">
+                              <q-icon name="mdi-content-copy" size="15px" class="muted-icon" />
+                            </q-item-section>
+                            <q-item-section>
+                              <q-item-label class="fs-mono dl-item__name">{{ f.name }}</q-item-label>
+                              <q-item-label caption class="dl-item__meta">
+                                {{ formatSize(f.sizeBytes) }}
+                                <template v-if="f.contentType"> · {{ f.contentType }}</template>
+                              </q-item-label>
+                            </q-item-section>
+                          </q-item>
+                        </q-list>
+                      </q-btn-dropdown>
+                    </template>
+                  </template>
+
+                  <!-- Public API copy button — only for versions with the public tag -->
+                  <template v-if="extBffPublicPattern && hasPublicTag(v)">
+                    <template v-if="versionFiles(v.version).length === 1">
+                      <button
+                        class="copy-btn copy-btn--public"
+                        title="Copy public API URL"
+                        @click.stop="copyUrl(publicApiUrl(v.version, versionFiles(v.version)[0].id))"
+                      >
+                        <q-icon name="mdi-earth" size="13px" />
+                      </button>
+                    </template>
+                    <template v-else>
+                      <q-btn-dropdown
+                        flat dense no-caps unelevated size="xs"
+                        icon="mdi-earth"
+                        class="copy-dropdown copy-dropdown--public"
+                        dropdown-icon="mdi-chevron-down"
+                        title="Copy public API URL"
+                      >
+                        <q-list dense style="min-width: 240px; padding: 4px 0">
+                          <q-item
+                            v-for="f in versionFiles(v.version)" :key="f.id"
+                            clickable class="dl-item"
+                            @click="copyUrl(publicApiUrl(v.version, f.id))"
+                          >
+                            <q-item-section avatar style="min-width: 28px">
+                              <q-icon name="mdi-earth" size="15px" class="muted-icon" />
+                            </q-item-section>
+                            <q-item-section>
+                              <q-item-label class="fs-mono dl-item__name">{{ f.name }}</q-item-label>
+                              <q-item-label caption class="dl-item__meta">
+                                {{ formatSize(f.sizeBytes) }}
+                                <template v-if="f.contentType"> · {{ f.contentType }}</template>
+                              </q-item-label>
+                            </q-item-section>
+                          </q-item>
+                        </q-list>
+                      </q-btn-dropdown>
+                    </template>
+                  </template>
+
+                </div>
               </template>
             </td>
 
@@ -587,7 +702,14 @@ async function doDeleteArtifact() {
 .data-table tr:hover td { background: var(--fs-bg-hover); }
 
 .size-cell { width: 80px; }
-.dl-cell   { width: 160px; }
+.dl-cell   { min-width: 140px; }
+
+.dl-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
 
 /* Direct download link */
 .dl-btn {
@@ -777,6 +899,51 @@ async function doDeleteArtifact() {
 
 .action-cell { width: 36px; text-align: center; }
 
+/* Copy-to-clipboard icon buttons */
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: none;
+  border: 1px solid var(--fs-border-bright);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--fs-text-muted);
+  transition: background var(--fs-ease), border-color var(--fs-ease), color var(--fs-ease);
+  flex-shrink: 0;
+}
+.copy-btn:hover {
+  color: var(--fs-accent);
+  border-color: var(--fs-accent);
+  background: var(--fs-bg-hover);
+}
+.copy-btn--public:hover {
+  color: var(--fs-pos, #4caf50);
+  border-color: var(--fs-pos, #4caf50);
+  background: color-mix(in srgb, var(--fs-pos, #4caf50) 8%, transparent);
+}
+
+/* Copy-to-clipboard dropdowns */
+.copy-dropdown {
+  color: var(--fs-text-muted) !important;
+  border: 1px solid var(--fs-border-bright) !important;
+  border-radius: 4px !important;
+  font-size: 11.5px !important;
+  padding: 2px 6px !important;
+}
+.copy-dropdown:hover {
+  color: var(--fs-accent) !important;
+  border-color: var(--fs-accent) !important;
+  background: var(--fs-bg-hover) !important;
+}
+.copy-dropdown--public:hover {
+  color: var(--fs-pos, #4caf50) !important;
+  border-color: var(--fs-pos, #4caf50) !important;
+  background: color-mix(in srgb, var(--fs-pos, #4caf50) 8%, transparent) !important;
+}
+
 .delete-version-btn {
   display: inline-flex;
   align-items: center;
@@ -795,4 +962,20 @@ async function doDeleteArtifact() {
   background: color-mix(in srgb, var(--fs-neg) 8%, transparent);
 }
 .delete-version-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+</style>
+
+<style>
+.copy-fallback-url {
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: var(--fs-bg-hover, rgba(0,0,0,0.12));
+  border: 1px solid var(--fs-border, rgba(255,255,255,0.08));
+  border-radius: 4px;
+  font-family: var(--fs-font-mono, 'JetBrains Mono', monospace);
+  font-size: 11.5px;
+  color: var(--fs-text-primary);
+  word-break: break-all;
+  white-space: pre-wrap;
+  user-select: all;
+}
 </style>
