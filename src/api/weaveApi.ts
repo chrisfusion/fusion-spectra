@@ -177,6 +177,66 @@ export interface CreateJobTemplatePayload {
   spec:     WeaveJobTemplateSpec
 }
 
+// ─── WeaveChain types ─────────────────────────────────────────────────────────
+
+export interface WeaveChainStep {
+  name:                string
+  stepKind?:           'Job' | 'Deploy'
+  jobTemplateRef?:     { name: string }
+  serviceTemplateRef?: { name: string }
+  dependsOn?:          string[]
+  runOnSuccess?:       boolean
+  runOnFailure?:       boolean
+  envOverrides?:       EnvVar[]
+  producesOutput?:     boolean
+  consumesOutputFrom?: string[]
+}
+
+export interface WeaveSharedStorageSpec {
+  size:               string
+  storageClassName?:  string
+}
+
+export interface WeaveChainSpec {
+  steps:             WeaveChainStep[]
+  failurePolicy?:    'StopAll' | 'ContinueOthers' | 'RetryFailed'
+  concurrencyPolicy?: 'Wait' | 'Forbid'
+  sharedStorage?:    WeaveSharedStorageSpec
+}
+
+export interface WeaveChainStatus {
+  observedGeneration?: number
+  valid:               boolean
+  validationMessage?:  string
+}
+
+export interface WeaveChain {
+  apiVersion: string
+  kind:       string
+  metadata: {
+    name:               string
+    namespace?:         string
+    uid?:               string
+    resourceVersion?:   string
+    creationTimestamp?: string
+    generation?:        number
+  }
+  spec:    WeaveChainSpec
+  status?: WeaveChainStatus
+}
+
+export interface WeaveChainList {
+  apiVersion: string
+  kind:       string
+  metadata:   { resourceVersion?: string }
+  items:      WeaveChain[]
+}
+
+export interface CreateChainPayload {
+  metadata: { name: string }
+  spec:     WeaveChainSpec
+}
+
 // ─── Job Templates ────────────────────────────────────────────────────────────
 
 export function listJobTemplates(): Promise<WeaveJobTemplateList> {
@@ -219,4 +279,96 @@ export function createServiceTemplate(payload: CreateServiceTemplatePayload): Pr
 
 export function deleteServiceTemplate(name: string): Promise<void> {
   return bffDelete(`${BASE}/servicetemplates/${encodeURIComponent(name)}`)
+}
+
+// ─── Weave Chains ─────────────────────────────────────────────────────────────
+
+export function listWeaveChains(): Promise<WeaveChainList> {
+  return bffGet<WeaveChainList>(`${BASE}/chains`)
+}
+
+export function getWeaveChain(name: string): Promise<WeaveChain> {
+  return bffGet<WeaveChain>(`${BASE}/chains/${encodeURIComponent(name)}`)
+}
+
+export function createWeaveChain(payload: CreateChainPayload): Promise<WeaveChain> {
+  return bffPost<WeaveChain>(`${BASE}/chains`, {
+    apiVersion: 'weave.fusion-platform.io/v1alpha1',
+    kind:       'WeaveChain',
+    ...payload,
+  })
+}
+
+export function deleteWeaveChain(name: string): Promise<void> {
+  return bffDelete(`${BASE}/chains/${encodeURIComponent(name)}`)
+}
+
+// ─── Weave Triggers ───────────────────────────────────────────────────────────
+
+export interface WeaveWebhookConfig {
+  path:       string
+  secretRef?: { name: string }
+}
+
+export interface WeaveTriggerSpec {
+  chainRef:            { name: string }
+  type:                'OnDemand' | 'Cron' | 'Webhook'
+  schedule?:           string
+  webhook?:            WeaveWebhookConfig
+  parameterOverrides?: EnvVar[]
+}
+
+export interface WeaveTriggerStatus {
+  active:            boolean
+  lastScheduleTime?: string
+  lastRunName?:      string
+  webhookURL?:       string
+  pendingRuns?:      string[]
+}
+
+export interface WeaveTrigger {
+  apiVersion: string
+  kind:       string
+  metadata: {
+    name:               string
+    namespace?:         string
+    uid?:               string
+    resourceVersion?:   string
+    creationTimestamp?: string
+    generation?:        number
+  }
+  spec:    WeaveTriggerSpec
+  status?: WeaveTriggerStatus
+}
+
+export interface WeaveTriggerList {
+  apiVersion: string
+  kind:       string
+  metadata:   { resourceVersion?: string }
+  items:      WeaveTrigger[]
+}
+
+export interface CreateTriggerPayload {
+  metadata: { name: string }
+  spec:     WeaveTriggerSpec
+}
+
+export function listWeaveTriggers(): Promise<WeaveTriggerList> {
+  return bffGet<WeaveTriggerList>(`${BASE}/triggers`)
+}
+
+export function getWeaveTrigger(name: string): Promise<WeaveTrigger> {
+  return bffGet<WeaveTrigger>(`${BASE}/triggers/${encodeURIComponent(name)}`)
+}
+
+export function createWeaveTrigger(payload: CreateTriggerPayload): Promise<WeaveTrigger> {
+  return bffPost<WeaveTrigger>(`${BASE}/triggers`, {
+    apiVersion: 'weave.fusion-platform.io/v1alpha1',
+    kind:       'WeaveTrigger',
+    ...payload,
+  })
+}
+
+export function deleteWeaveTrigger(name: string): Promise<void> {
+  return bffDelete(`${BASE}/triggers/${encodeURIComponent(name)}`)
 }

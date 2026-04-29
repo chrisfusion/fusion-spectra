@@ -111,6 +111,25 @@ export const contexts: Context[] = [
           { id: 'tpl-servicetemplate-create', label: 'Create Service Template', icon: 'mdi-plus-circle-outline', route: '/pipelines/weave/servicetemplates/create' },
           { id: 'tpl-servicetemplate-expert', label: 'Expert Create',           icon: 'mdi-server-network',      route: '/pipelines/weave/servicetemplates/expert' },
         ]
+      },
+      {
+        id: 'weave-chains',
+        label: 'Weave Chains',
+        icon: 'mdi-link-chain',
+        children: [
+          { id: 'chains-list',          label: 'Chains',              icon: 'mdi-link-chain',           route: '/pipelines/weave/chains' },
+          { id: 'chains-create',        label: 'Single Job/Service Wizard', icon: 'mdi-plus-circle-outline',  route: '/pipelines/weave/chains/create' },
+          { id: 'chains-simple-deploy', label: 'Webservice Wizard',        icon: 'mdi-auto-fix',             route: '/pipelines/weave/chains/simple-deploy' },
+        ]
+      },
+      {
+        id: 'weave-triggers',
+        label: 'Weave Triggers',
+        icon: 'mdi-lightning-bolt-outline',
+        children: [
+          { id: 'triggers-list',   label: 'Triggers',        icon: 'mdi-lightning-bolt-outline', route: '/pipelines/weave/triggers' },
+          { id: 'triggers-create', label: 'Create Trigger',  icon: 'mdi-plus-circle-outline',    route: '/pipelines/weave/triggers/create' },
+        ]
       }
     ]
   },
