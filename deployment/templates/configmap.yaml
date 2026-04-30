@@ -12,4 +12,5 @@ data:
       extBffDownloadPattern: {{ .Values.config.extBffDownloadPattern | quote }},
       extBffPublicPattern:   {{ .Values.config.extBffPublicPattern | quote }},
       extBffPublicTag:       {{ .Values.config.extBffPublicTag | quote }},
+      etlStorageClass:       {{ .Values.config.etlStorageClass | quote }},
     };

@@ -291,11 +291,11 @@ function createAnother() {
                   @click="stepKind = 'Deploy'"
                 >
                   <q-icon name="mdi-server-outline" size="14px" />
-                  Deploy
+                  Service
                 </button>
               </div>
               <span class="field-hint">
-                Job runs a batch workload to completion; Deploy creates a long-running service
+                Job runs a batch workload to completion; Service creates a long-running service
               </span>
             </div>
           </div>
@@ -402,7 +402,7 @@ function createAnother() {
             <ul class="summary-list">
               <li><span class="sum-key">chain name</span> <span class="sum-val fs-mono">{{ chainName }}</span></li>
               <li><span class="sum-key">step name</span>  <span class="sum-val fs-mono">{{ stepName }}</span></li>
-              <li><span class="sum-key">step kind</span>  <span class="sum-val fs-mono">{{ stepKind }}</span></li>
+              <li><span class="sum-key">step kind</span>  <span class="sum-val fs-mono">{{ stepKind === 'Deploy' ? 'Service' : stepKind }}</span></li>
               <li><span class="sum-key">template</span>   <span class="sum-val fs-mono">{{ selectedTemplate }}</span></li>
             </ul>
           </div>

@@ -5,6 +5,7 @@ declare global {
       extBffDownloadPattern?: string
       extBffPublicPattern?:   string
       extBffPublicTag?:       string
+      etlStorageClass?:       string
     }
   }
 }
@@ -23,4 +24,8 @@ export function getExtBffPublicPattern(): string {
 
 export function getExtBffPublicTag(): string {
   return window.FUSION_CONFIG?.extBffPublicTag ?? 'public'
+}
+
+export function getEtlStorageClass(): string {
+  return window.FUSION_CONFIG?.etlStorageClass ?? ''
 }
