@@ -190,6 +190,14 @@ Fusion Index uses explicit routes (not a wildcard):
 - API fields like `types[]` and `tags[]` may be absent from responses even when typed — always guard with `?? []`
 - Vue 3: `ref` inside `v-for` resolves to an **array** — declare as `ref<El[]>([])` and access `[0]`; a `ref<El|null>(null)` silently becomes an array and `.focus()` fails
 - Vue 3: `Set.add()` / `Set.delete()` are NOT reactive — replace the whole ref: `s.value = new Set([...s.value, x])`
+- `--fs-bg-panel` is NOT defined in `app.scss` — use `--fs-bg-elevated` or `--fs-bg-surface` for solid backgrounds; `--fs-bg-panel` resolves to transparent
+- `q-dialog` and `q-tooltip` render as portals outside component DOM — CSS overrides must be in an unscoped `<style>` block (not `<style scoped>`)
+
+## Weave DAG (ChainDagView.vue)
+- `@vue-flow/core` + `@dagrejs/dagre` installed; node click/hover events go on `<VueFlow>`, NOT inside node slot divs
+- Custom node slots receive `{ data, id }` — store full step object in `node.data.step` during `buildGraph()`
+- `stepKind 'Deploy'` (API value) displays as `'Service'` in spectra — always use a `displayKind()` helper; never render raw stepKind
+- fusion-weave source is at `../fusion-flux`; disable auth for local dev: `kubectl set env deployment/fusion-weave-api -n fusion ALLOW_UNAUTHENTICATED=true`
 
 ## Screenshots
 `screenshots/` — UI screenshots named `YYYY-MM-DD_<description>.png`

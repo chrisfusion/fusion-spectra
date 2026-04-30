@@ -317,7 +317,7 @@ function createAnother() {
                   <span class="stage-icon stage-icon--deploy">
                     <q-icon name="mdi-server-outline" size="14px" />
                   </span>
-                  <span class="stage-title">Service Deploy</span>
+                  <span class="stage-title">Service</span>
                   <span class="stage-badge stage-badge--required">required</span>
                 </div>
               </div>
@@ -408,7 +408,7 @@ function createAnother() {
             <div class="review-stage">
               <span class="review-stage__icon stage-icon--deploy"><q-icon name="mdi-server-outline" size="13px" /></span>
               <div class="review-stage__text">
-                <span class="review-stage__label">Service Deploy</span>
+                <span class="review-stage__label">Service</span>
                 <span class="review-stage__name fs-mono">{{ serviceTemplate }}</span>
               </div>
             </div>

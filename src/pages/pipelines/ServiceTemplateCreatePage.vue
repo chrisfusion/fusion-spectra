@@ -9,7 +9,7 @@ const router = useRouter()
 // ─── Wizard state ─────────────────────────────────────────────────────────────
 
 const step = ref<1 | 2 | 3>(1)
-const stepLabels = ['Identity & Ports', 'Command & Env', 'Deployment Config'] as const
+const stepLabels = ['Identity & Ports', 'Command & Env', 'Service Config'] as const
 
 // ─── Step 1: name + image + ports ─────────────────────────────────────────────
 
@@ -350,7 +350,7 @@ function createAnother() {
           </div>
         </div>
 
-        <!-- ── Step 3: Deployment Config ── -->
+        <!-- ── Step 3: Service Config ── -->
         <div v-else class="form-body">
 
           <div class="form-row">

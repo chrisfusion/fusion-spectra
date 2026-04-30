@@ -371,7 +371,7 @@ function createAnother() {
         <div class="form-row"><label class="form-label">Memory limit</label>  <input v-model="memLimit"   class="fs-input fs-mono field-narrow" placeholder="512Mi" /></div>
 
         <!-- ── Deployment Settings ── -->
-        <div class="section-header"><q-icon name="mdi-cog-outline" size="15px" class="section-icon" /> Deployment Settings</div>
+        <div class="section-header"><q-icon name="mdi-cog-outline" size="15px" class="section-icon" /> Service Settings</div>
         <div class="form-row">
           <label class="form-label">Replicas</label>
           <div class="field-wrap">

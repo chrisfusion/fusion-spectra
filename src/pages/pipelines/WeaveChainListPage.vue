@@ -125,7 +125,7 @@ onMounted(loadChains)
             </tr>
           </thead>
           <tbody>
-            <tr v-for="c in pagedItems" :key="c.metadata.name">
+            <tr v-for="c in pagedItems" :key="c.metadata.name" class="clickable-row" @click="router.push('/pipelines/weave/chains/' + c.metadata.name)">
               <td class="col-name fs-mono">{{ c.metadata.name }}</td>
               <td class="col-num">{{ c.spec.steps.length }}</td>
               <td class="col-policy">
@@ -145,7 +145,7 @@ onMounted(loadChains)
                 </span>
               </td>
               <td class="col-muted">{{ chainAge(c) }}</td>
-              <td class="col-actions">
+              <td class="col-actions" @click.stop>
                 <button
                   v-if="can('weave:chains:delete')"
                   class="icon-btn icon-btn--danger"
@@ -231,6 +231,7 @@ onMounted(loadChains)
 }
 .tpl-table tbody tr:last-child td { border-bottom: none; }
 .tpl-table tbody tr:hover td { background: var(--fs-bg-hover); }
+.tpl-table tbody tr.clickable-row { cursor: pointer; }
 
 .col-name    { font-weight: 500; color: var(--fs-accent); }
 .col-num     { color: var(--fs-text-muted); text-align: center; }
