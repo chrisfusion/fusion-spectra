@@ -86,9 +86,9 @@ export const contexts: Context[] = [
         label: 'Jobs',
         icon: 'mdi-briefcase-outline',
         children: [
-          { id: 'jobs-running',  label: 'Running',   icon: 'mdi-motion-play-outline',  route: '/pipelines/jobs/running',   placeholder: true, badge: { text: '2', variant: 'warn' } },
-          { id: 'jobs-history',  label: 'History',   icon: 'mdi-history',              route: '/pipelines/jobs/history',   placeholder: true },
-          { id: 'jobs-failed',   label: 'Failed',    icon: 'mdi-alert-circle-outline', route: '/pipelines/jobs/failed',    placeholder: true, badge: { text: '1', variant: 'neg' } },
+          { id: 'jobs-running',  label: 'Running',    icon: 'mdi-motion-play-outline',  route: '/pipelines/runs/running' },
+          { id: 'jobs-history',  label: 'Run History', icon: 'mdi-history',            route: '/pipelines/runs' },
+          { id: 'jobs-failed',   label: 'Failed',    icon: 'mdi-alert-circle-outline', route: '/pipelines/runs/failed' },
           { id: 'jobs-schedule', label: 'Schedules', icon: 'mdi-calendar-clock',       route: '/pipelines/jobs/schedules', placeholder: true },
         ]
       },
