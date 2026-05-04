@@ -54,7 +54,7 @@ async function handleLogout() {
 
       <div class="topbar__logo-text">
         <span class="topbar__logo-fusion fs-gradient-text">fusion</span>
-        <span class="topbar__logo-spectra">SPECTRA</span>
+        <span class="topbar__logo-lens">SPECTRA</span>
       </div>
     </div>
 
@@ -191,7 +191,7 @@ async function handleLogout() {
   letter-spacing: 0.02em;
 }
 
-.topbar__logo-spectra {
+.topbar__logo-lens {
   font-family: var(--fs-font-mono);
   font-size: 8.5px;
   font-weight: 500;
