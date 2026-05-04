@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import * as monitorApi from '@/api/weaveMonitorApi'
 import { useRunsPolling } from '@/composables/useRunsPolling'
+
+const router = useRouter()
 
 const allRuns  = ref<monitorApi.RunSummary[]>([])
 const loading  = ref(false)
@@ -72,7 +75,7 @@ onMounted(async () => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="r in runs" :key="r.name">
+            <tr v-for="r in runs" :key="r.name" class="clickable-row" @click="router.push('/pipelines/runs/' + r.name)">
               <td class="col-name fs-mono">{{ r.name }}</td>
               <td class="col-chain fs-mono">{{ r.chain }}</td>
               <td>
@@ -130,6 +133,7 @@ onMounted(async () => {
 }
 .tpl-table tbody tr:last-child td { border-bottom: none; }
 .tpl-table tbody tr:hover td { background: var(--fs-bg-hover); }
+.tpl-table tbody tr.clickable-row { cursor: pointer; }
 
 .col-name  { font-weight: 500; color: var(--fs-accent); }
 .col-chain { color: var(--fs-text-muted); }

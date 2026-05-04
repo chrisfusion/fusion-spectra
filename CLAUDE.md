@@ -199,6 +199,14 @@ Fusion Index uses explicit routes (not a wildcard):
 - `stepKind 'Deploy'` (API value) displays as `'Service'` in spectra — always use a `displayKind()` helper; never render raw stepKind
 - fusion-weave source is at `../fusion-flux`; disable auth for local dev: `kubectl set env deployment/fusion-weave-api -n fusion ALLOW_UNAUTHENTICATED=true`
 
+## Weave run monitoring pages
+- `src/api/weaveMonitorApi.ts` — typed client for `/api/weave/monitor/v1/`; BFF catch-all `GET /api/weave/*` (permission `weave:resources:read`) already covers all monitoring GETs — no BFF changes needed
+- `MONITORING_ENABLED=true` is already set on `fusion-weave-api` in minikube — monitoring API is live
+- `src/composables/useRunsPolling.ts` — 10s polling composable for list pages; exports `{ polling, startPolling, stopPolling, togglePolling }`; calls `onUnmounted(stopPolling)` internally — callers don't need to
+- Pages: `WeaveRunsOverviewPage` (`/pipelines/runs`), `WeaveRunsRunningPage` (`/pipelines/runs/running`), `WeaveRunsFailedPage` (`/pipelines/runs/failed`), `WeaveRunDetailPage` (`/pipelines/runs/:name`)
+- Run detail inline log expansion: `activeLogStep: ref<string|null>(null)`; use `<template v-for>` in `<tbody>` + a sibling `<tr v-if="activeLogStep === step.name">` spanning all columns; only show log button when `step.jobRef?.name` exists (deploymentRef steps have no logs)
+- Run detail polling: VenvDetailPage pattern — `setInterval` inline, stops automatically when `isTerminal(phase)` (`Succeeded | Failed | Stopped`); `onUnmounted` clears timer
+
 ## Screenshots
 `screenshots/` — UI screenshots named `YYYY-MM-DD_<description>.png`
 
@@ -218,7 +226,7 @@ Used in `ArtifactCreatePage` and `ArtifactVersionCreatePage`:
 - Test against minikube at `http://spectra.fusion.local`, not the dev server
 - Use `browser_snapshot` (not screenshot) to get element `ref` values for clicks/fills
 - Use `browser_take_screenshot` with `fullPage: true` to save to `screenshots/`
-- After pod restart, browser may serve cached JS — hard-reload or open a new tab
+- After pod restart, browser may serve cached JS — navigate to `/#/` first, then to the target URL; this clears the Vue hash-router's cached module more reliably than a hard-reload in the Playwright browser
 - Quasar menus/dropdowns are portals — they don't appear in `browser_snapshot`; use `browser_evaluate` to read/click items inside `.q-menu`
 - Access Pinia stores in evaluate: `document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('storeName')`; theme store action is `.set(themeName)`
 - Playwright browser has its own separate session and cache from the user's browser — stale `config.js` there doesn't mean the user has the same problem

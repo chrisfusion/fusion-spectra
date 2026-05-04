@@ -26,6 +26,7 @@ const router = createRouter({
         { path: '/pipelines/weave/triggers/create', component: () => import('@/pages/pipelines/WeaveTriggerCreatePage.vue'), meta: { context: 'pipelines' } },
         { path: '/pipelines/runs/running',        component: () => import('@/pages/pipelines/WeaveRunsRunningPage.vue'),  meta: { context: 'pipelines' } },
         { path: '/pipelines/runs/failed',         component: () => import('@/pages/pipelines/WeaveRunsFailedPage.vue'),   meta: { context: 'pipelines' } },
+        { path: '/pipelines/runs/:name',          component: () => import('@/pages/pipelines/WeaveRunDetailPage.vue'),    meta: { context: 'pipelines' } },
         { path: '/pipelines/runs',                component: () => import('@/pages/pipelines/WeaveRunsOverviewPage.vue'), meta: { context: 'pipelines' } },
         { path: '/pipelines/:pathMatch(.*)*',     component: () => import('@/pages/PipelinesPage.vue'),   meta: { context: 'pipelines' } },
         { path: '/monitoring/:pathMatch(.*)*',    component: () => import('@/pages/MonitoringPage.vue'),  meta: { context: 'monitoring' } },

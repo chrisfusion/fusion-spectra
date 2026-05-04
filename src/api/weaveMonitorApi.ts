@@ -31,10 +31,102 @@ export interface RunStatsResponse {
   maxDurationMs: number
 }
 
+// ─── Run detail types ─────────────────────────────────────────────────────────
+
+export type StepPhase = 'Pending' | 'Running' | 'Succeeded' | 'Failed' | 'Skipped' | 'Retrying'
+
+export interface RunStepStatus {
+  name:            string
+  phase:           StepPhase
+  jobRef?:         { name: string } | null
+  deploymentRef?:  { name: string } | null
+  retryCount?:     number
+  nextRetryAfter?: string | null
+  startTime?:      string | null
+  completionTime?: string | null
+  message?:        string
+  outputCaptured?: boolean
+}
+
+export interface WeaveRunSpec {
+  chainRef:             { name: string }
+  triggerRef?:          { name: string } | null
+  parameterOverrides?:  Array<{ name: string; value: string }>
+}
+
+export interface WeaveRunStatus {
+  phase:           RunPhase
+  steps:           RunStepStatus[]
+  startTime?:      string | null
+  completionTime?: string | null
+  message?:        string
+  sharedPVCName?:  string
+}
+
+export interface WeaveRun {
+  metadata: {
+    name:               string
+    namespace?:         string
+    creationTimestamp?: string
+    labels?:            Record<string, string>
+  }
+  spec:    WeaveRunSpec
+  status?: WeaveRunStatus
+}
+
+export interface K8sJobCondition {
+  type:    string
+  status:  string
+  message?: string
+}
+
+export interface K8sJob {
+  metadata: { name: string; namespace?: string }
+  status?: {
+    active?:         number
+    succeeded?:      number
+    failed?:         number
+    startTime?:      string
+    completionTime?: string
+    conditions?:     K8sJobCondition[]
+  }
+}
+
+export interface K8sEvent {
+  reason:          string
+  message:         string
+  type:            string
+  count:           number
+  firstTimestamp?: string
+  lastTimestamp?:  string
+  involvedObject:  { name: string; kind: string }
+}
+
+export interface RunDetail {
+  run:    WeaveRun
+  jobs:   K8sJob[]
+  events: K8sEvent[]
+}
+
+export interface LogResponse {
+  runName:  string
+  stepName: string
+  podName:  string
+  lines:    string[]
+}
+
 export function listRuns(): Promise<RunSummary[]> {
   return bffGet<RunSummary[]>(`${BASE}/runs`)
 }
 
 export function getRunStats(window: StatsWindow): Promise<RunStatsResponse> {
   return bffGet<RunStatsResponse>(`${BASE}/stats/runs?window=${window}`)
+}
+
+export function getRun(name: string): Promise<RunDetail> {
+  return bffGet<RunDetail>(`${BASE}/runs/${encodeURIComponent(name)}`)
+}
+
+export function getStepLogs(runName: string, stepName: string): Promise<LogResponse> {
+  return bffGet<LogResponse>(`${BASE}/runs/${encodeURIComponent(runName)}/steps/${encodeURIComponent(stepName)}/logs`)
 }

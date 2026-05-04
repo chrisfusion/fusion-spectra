@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import * as monitorApi from '@/api/weaveMonitorApi'
 import { formatDurationMs } from '@/utils/format'
+
+const router = useRouter()
 
 const POLL_MS = 10_000
 
@@ -193,7 +196,7 @@ onMounted(async () => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="r in runningRuns" :key="r.name">
+            <tr v-for="r in runningRuns" :key="r.name" class="clickable-row" @click="router.push('/pipelines/runs/' + r.name)">
               <td class="col-name fs-mono">{{ r.name }}</td>
               <td class="col-chain fs-mono">{{ r.chain }}</td>
               <td>
@@ -234,7 +237,7 @@ onMounted(async () => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="r in failedRuns" :key="r.name">
+            <tr v-for="r in failedRuns" :key="r.name" class="clickable-row" @click="router.push('/pipelines/runs/' + r.name)">
               <td class="col-name fs-mono">{{ r.name }}</td>
               <td class="col-chain fs-mono">{{ r.chain }}</td>
               <td class="col-num">
@@ -397,6 +400,7 @@ onMounted(async () => {
 }
 .tpl-table tbody tr:last-child td { border-bottom: none; }
 .tpl-table tbody tr:hover td { background: var(--fs-bg-hover); }
+.tpl-table tbody tr.clickable-row { cursor: pointer; }
 
 .col-name  { font-weight: 500; color: var(--fs-accent); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-chain { color: var(--fs-text-muted); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
