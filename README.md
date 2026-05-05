@@ -2,7 +2,7 @@
 
 The Fusion Platform web UI — a Vue 3 micro-frontend shell that brings together data cataloguing, pipeline management, monitoring, and the Fusion Index artifact registry in a single IDE-style interface.
 
-![Artifact Registry](screenshots/2026-04-23_artifact-list.png)
+![Fusion Spectra](screenshots/2026-05-05_main.png)
 
 ---
 
@@ -58,17 +58,6 @@ npm run dev
 Requires `127.0.0.1 dev.fusion.local` in `/etc/hosts`. See [INSTALL.md](INSTALL.md) for full setup.
 
 ---
-
-## Screenshots
-
-| | |
-|---|---|
-| ![Artifact list](screenshots/2026-04-23_artifact-list.png) | ![Artifact detail](screenshots/2026-04-23_artifact-detail.png) |
-| Artifact Registry | Artifact Detail + Versions |
-| ![Create step 1](screenshots/2026-04-23_create-artifact-step1.png) | ![Create step 2](screenshots/2026-04-23_create-artifact-step2.png) |
-| Create Artifact — Step 1 | Create Artifact — Step 2 (JSON editor) |
-| ![Create step 3](screenshots/2026-04-23_create-artifact-step3.png) | ![Add version step 1](screenshots/2026-04-23_add-version-step1.png) |
-| Create Artifact — Step 3 (file upload) | Add Version — Step 1 |
 
 ---
 
