@@ -121,6 +121,7 @@ export const contexts: Context[] = [
           { id: 'chains-create',        label: 'Single Job/Service Wizard', icon: 'mdi-plus-circle-outline',  route: '/pipelines/weave/chains/create' },
           { id: 'chains-simple-deploy', label: 'Webservice Wizard',        icon: 'mdi-auto-fix',             route: '/pipelines/weave/chains/simple-deploy' },
           { id: 'chains-etl',           label: 'ETL Wizard',               icon: 'mdi-database-sync',        route: '/pipelines/weave/chains/etl' },
+          { id: 'chains-advanced',      label: 'Advanced Chain Builder',   icon: 'mdi-sitemap',              route: '/pipelines/weave/chains/advanced' },
         ]
       },
       {

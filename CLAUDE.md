@@ -207,6 +207,38 @@ Fusion Index uses explicit routes (not a wildcard):
 - Run detail inline log expansion: `activeLogStep: ref<string|null>(null)`; use `<template v-for>` in `<tbody>` + a sibling `<tr v-if="activeLogStep === step.name">` spanning all columns; only show log button when `step.jobRef?.name` exists (deploymentRef steps have no logs)
 - Run detail polling: VenvDetailPage pattern — `setInterval` inline, stops automatically when `isTerminal(phase)` (`Succeeded | Failed | Stopped`); `onUnmounted` clears timer
 
+## Advanced Chain Builder (WeaveAdvancedChainPage)
+Route: `/pipelines/weave/chains/advanced` — the most feature-complete chain wizard.
+
+**3-step wizard** with split-panel step 2:
+- Step 1 (Identity): chain name + `failurePolicy` / `concurrencyPolicy` / `sharedStorage` (all chain-level fields)
+- Step 2 (Pipeline): left = dynamic step list, right = sticky `ChainDagView` live preview (split grid `1fr 340px`, preview col `position:sticky;top:16px`)
+- Step 3 (Review): full DAG + settings summary table + steps table; Submit → `createWeaveChain()`
+
+**Step interfaces**:
+```typescript
+interface EnvRow  { uid: number; key: string; value: string }
+interface StepRow {
+  uid: number; name: string; nameError: string | null
+  stepKind: 'Job' | 'Deploy'; templateName: string; templateError: string | null
+  dependsOn: string[]; runOnSuccess: boolean; runOnFailure: boolean
+  producesOutput: boolean; consumesOutputFrom: string[]
+  envRows: EnvRow[]; expanded: boolean
+}
+```
+
+**Key behaviors**:
+- `handleNameInput(idx, newName)` — propagates step renames to `dependsOn` + `consumesOutputFrom` in all other steps
+- `removeStep(i)` — cleans up references in other steps
+- `toggleDependsOn(stepIdx, dep)` — also removes dep from `consumesOutputFrom` when unchecked
+- `toggleProducesOutput(idx)` — removes step from others' `consumesOutputFrom` when turned off
+- `hasCycle()` — DFS cycle detection; builds adjacency list dep→dependent; blocks Next when a cycle exists
+- `templatesFor(kind)` — returns `jobTemplates.value` or `serviceTemplates.value`; DRY helper
+- Templates loaded lazily on entering step 2 (guard: only if both lists are empty — prevents re-fetch on Back+Next)
+- `previewSteps` computed — maps `StepRow[]` → `WeaveChainStep[]` for the live DAG; updates on every form change
+- Stable v-for keys via `uid` counters (`++_uid`) on both `EnvRow` and `StepRow` — never use array index as key on deletable lists
+- All array mutations use spread/filter — never `.push()`/`.splice()` on reactive arrays
+
 ## Screenshots
 `screenshots/` — UI screenshots named `YYYY-MM-DD_<description>.png`
 
@@ -217,10 +249,12 @@ Fusion Index uses explicit routes (not a wildcard):
 Both navigation.ts and router must be updated together — neither works without the other.
 
 ## Multi-step wizard pattern
-Used in `ArtifactCreatePage` and `ArtifactVersionCreatePage`:
+Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards:
 - `step` ref (number), `v-if="step === N"` per section inside one CanvasPanel
 - Validate on Next click; only advance if valid
 - Track partially-created resources in a ref (e.g. `createdId`) — prevents duplicate creation on retry and enables orphan recovery UI
+- For split-panel step 2 (builder + live preview): use CSS grid `1fr NNNpx`; preview col `position:sticky;top:16px`
+- Stable v-for keys: add a `uid: number` field to row interfaces; use `++_uid` counter; never use array index as key on deletable lists
 
 ## UI testing (Playwright)
 - Test against minikube at `http://spectra.fusion.local`, not the dev server
