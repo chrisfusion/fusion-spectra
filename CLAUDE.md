@@ -270,19 +270,28 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - `src/api/forgeApi.ts` — typed forge API via BFF proxy path `/api/forge/api/v1/*`
 - `src/pages/forge/ForgeIndexPage.vue` — placeholder dashboard
 - `src/pages/forge/VenvCreatePage.vue` — 2-step wizard: package info → requirements.txt upload + live validation
-- `src/pages/forge/VenvListPage.vue` — paginated table, chip-based multi-status filter, debounced name search
+- `src/pages/forge/VenvListPage.vue` — unified Builds list (venv + git); build-type chips (ALL/requirements/git); ALL mode = parallel fetch both endpoints, merge by createdAt desc; per-type mode = server-side pagination
 - `src/pages/forge/VenvDetailPage.vue` — two-panel: metadata (left) + logs (right); auto-polls every 5s while PENDING/BUILDING; stops on terminal status or unmount; auto-scrolls logs to bottom
+- `src/pages/forge/GitBuildCreatePage.vue` — 2-step wizard (Repository → Review & Submit); metadata_source toggle controls field visibility: `full`→hide both name+version, `version`→show name only, `manual`→show both; `buildPayload()` omits name for `full`, omits version for non-`manual`
 
 ## fusion-forge API quirks
 - Backend returns `SUCCESS` not `SUCCEEDED` — `normalizeStatus()` in `forgeApi.ts` normalizes on read; `denormalizeStatus()` converts back for filter query params
 - `validateVenv` uses raw `fetch` (not `bffFetch`) — forge returns meaningful `ValidationResult` JSON on 422, but `bffFetch` throws and consumes the body
+- `validateGitBuild` uses the same raw fetch pattern; `GitBuildPayload` fields are snake_case: `repo_url`, `repo_ref`, `metadata_source`, `entrypoint_file`, `project_dir`
+- Git builds use a fully separate endpoint `/api/forge/api/v1/gitbuilds` — the venvs endpoint has no `buildType` filter; route requests by selected type
+- `metadata_source` payload rules: `full`→omit name+version (forge reads both from pyproject.toml); `version`→send name only (forge reads version); `manual`→send both
 - Multi-value query params: use `q.append('status', s)` per value, not `q.set()`
 
 ## Forge navigation (navigation.ts)
 Context `forge` has one group:
-- **Venv Builder**: Overview → `/forge`, Venv Builds → `/forge/venvs`, Create Venv → `/forge/venvs/create`
+- **Venv Builder**: Overview → `/forge`, Builds → `/forge/venvs`, Create Venv → `/forge/venvs/create`, Git Build → `/forge/gitbuilds/create`
 
-Forge routes (`router/index.ts`): `/forge` → `ForgeIndexPage`, `/forge/venvs` → `VenvListPage`, `/forge/venvs/create` → `VenvCreatePage`, `/forge/venvs/:id` → `VenvDetailPage`, `/forge/:pathMatch(.*)*` → `ForgeIndexPage`
+Forge routes (`router/index.ts`): `/forge` → `ForgeIndexPage`, `/forge/venvs` → `VenvListPage`, `/forge/venvs/create` → `VenvCreatePage`, `/forge/venvs/:id` → `VenvDetailPage`, `/forge/gitbuilds/create` → `GitBuildCreatePage`, `/forge/:pathMatch(.*)*` → `ForgeIndexPage`
+
+## fusion-forge deployment (minikube)
+- Two separate K8s deployments share one image: `fusion-forge-server` (container: `server`) and `fusion-forge-operator` (container: `operator`)
+- Build: `eval $(minikube docker-env) && docker build -t fusion-forge:X.Y.Z /path/to/fusion-forge/`
+- Update both: `kubectl set image deployment/fusion-forge-server server=fusion-forge:X.Y.Z -n fusion && kubectl set image deployment/fusion-forge-operator operator=fusion-forge:X.Y.Z -n fusion`
 
 ## Ext-BFF / Public API copy URLs (ArtifactDetailPage)
 

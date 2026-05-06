@@ -45,19 +45,27 @@ function validateStep1(): boolean {
     repoUrlError.value = null
   }
 
-  if (!name.value.trim()) {
-    nameError.value = 'Name is required'
-    ok = false
+  if (metadataSource.value !== 'full') {
+    if (!name.value.trim()) {
+      nameError.value = 'Name is required'
+      ok = false
+    } else {
+      nameError.value = null
+    }
   } else {
     nameError.value = null
   }
 
-  if (!version.value.trim()) {
-    versionError.value = 'Version is required'
-    ok = false
-  } else if (!SEMVER_RE.test(version.value.trim())) {
-    versionError.value = 'Must be semver: 1.0.0'
-    ok = false
+  if (metadataSource.value === 'manual') {
+    if (!version.value.trim()) {
+      versionError.value = 'Version is required'
+      ok = false
+    } else if (!SEMVER_RE.test(version.value.trim())) {
+      versionError.value = 'Must be semver: 1.0.0'
+      ok = false
+    } else {
+      versionError.value = null
+    }
   } else {
     versionError.value = null
   }
@@ -79,10 +87,10 @@ function validateStep1(): boolean {
 function buildPayload(): forgeApi.GitBuildPayload {
   const p: forgeApi.GitBuildPayload = {
     repo_url:        repoUrl.value.trim(),
-    name:            name.value.trim(),
-    version:         version.value.trim(),
     metadata_source: metadataSource.value,
   }
+  if (metadataSource.value !== 'full')    p.name    = name.value.trim()
+  if (metadataSource.value === 'manual')  p.version = version.value.trim()
   if (repoRef.value.trim())        p.repo_ref        = repoRef.value.trim()
   if (description.value.trim())    p.description     = description.value.trim()
   if (entrypointFile.value.trim()) p.entrypoint_file = entrypointFile.value.trim()
@@ -263,12 +271,12 @@ const META_LABEL: Record<MetadataSource, string> = {
               <span class="field-hint">
                 <template v-if="metadataSource === 'manual'">Name and version are used as-is</template>
                 <template v-else-if="metadataSource === 'version'">Name is used as-is; version is read from pyproject.toml</template>
-                <template v-else>Name and version are read from pyproject.toml; provided values used as fallback</template>
+                <template v-else>Name and version are both read from pyproject.toml</template>
               </span>
             </div>
           </div>
 
-          <div class="form-row">
+          <div v-if="metadataSource !== 'full'" class="form-row">
             <label class="form-label">Name <span class="required">*</span></label>
             <div class="field-wrap">
               <input
@@ -281,7 +289,7 @@ const META_LABEL: Record<MetadataSource, string> = {
             </div>
           </div>
 
-          <div class="form-row">
+          <div v-if="metadataSource === 'manual'" class="form-row">
             <label class="form-label">Version <span class="required">*</span></label>
             <div class="field-wrap">
               <input
@@ -291,7 +299,6 @@ const META_LABEL: Record<MetadataSource, string> = {
                 placeholder="1.0.0"
               />
               <span v-if="versionError" class="field-error">{{ versionError }}</span>
-              <span v-if="metadataSource !== 'manual' && !versionError" class="field-hint">Overridden by pyproject.toml if found</span>
             </div>
           </div>
 
@@ -355,13 +362,17 @@ const META_LABEL: Record<MetadataSource, string> = {
               <span class="review-key">Metadata</span>
               <span class="review-val">{{ META_LABEL[metadataSource] }}</span>
             </div>
-            <div class="review-row">
+            <div v-if="metadataSource !== 'full'" class="review-row">
               <span class="review-key">Name</span>
               <span class="review-val fs-mono">{{ name }}</span>
             </div>
-            <div class="review-row">
+            <div v-if="metadataSource === 'manual'" class="review-row">
               <span class="review-key">Version</span>
               <span class="review-val fs-mono">{{ version }}</span>
+            </div>
+            <div v-if="metadataSource !== 'manual'" class="review-row">
+              <span class="review-key">{{ metadataSource === 'full' ? 'Name + Version' : 'Version' }}</span>
+              <span class="review-val" style="color: var(--fs-text-muted); font-style: italic;">from pyproject.toml</span>
             </div>
             <div v-if="description" class="review-row">
               <span class="review-key">Description</span>
