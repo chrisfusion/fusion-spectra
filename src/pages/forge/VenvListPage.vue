@@ -8,16 +8,21 @@ const router = useRouter()
 
 const PAGE_SIZE = 20
 
-type StatusChip = 'ALL' | forgeApi.VenvBuild['status']
-const STATUS_CHIPS: StatusChip[] = ['ALL', 'PENDING', 'BUILDING', 'SUCCEEDED', 'FAILED']
+type StatusChip    = 'ALL' | forgeApi.VenvBuild['status']
+type BuildTypeChip = 'ALL' | 'requirements' | 'git'
 
-const selectedStatuses = ref<StatusChip[]>(['ALL'])
-const nameSearch       = ref('')
-const currentPage      = ref(1)
+const STATUS_CHIPS:     StatusChip[]    = ['ALL', 'PENDING', 'BUILDING', 'SUCCEEDED', 'FAILED']
+const BUILD_TYPE_CHIPS: BuildTypeChip[] = ['ALL', 'requirements', 'git']
+
+const selectedStatuses  = ref<StatusChip[]>(['ALL'])
+const selectedBuildType = ref<BuildTypeChip>('ALL')
+const nameSearch        = ref('')
+const currentPage       = ref(1)
 
 const loading = ref(false)
 const error   = ref<string | null>(null)
-const result  = ref<forgeApi.VenvPage | null>(null)
+const items   = ref<forgeApi.VenvBuild[]>([])
+const total   = ref(0)
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -25,15 +30,29 @@ async function loadBuilds() {
   loading.value = true
   error.value   = null
   try {
-    const statuses = selectedStatuses.value.includes('ALL')
-      ? undefined
-      : selectedStatuses.value as string[]
-    result.value = await forgeApi.listVenvs({
-      page:     currentPage.value - 1,
-      pageSize: PAGE_SIZE,
-      name:     nameSearch.value.trim() || undefined,
-      status:   statuses,
-    })
+    const statuses = selectedStatuses.value.includes('ALL') ? undefined : selectedStatuses.value as string[]
+    const name     = nameSearch.value.trim() || undefined
+    const page     = currentPage.value - 1
+
+    if (selectedBuildType.value === 'git') {
+      const r = await forgeApi.listGitBuilds({ page, pageSize: PAGE_SIZE, status: statuses, name })
+      items.value = r.items
+      total.value = r.total
+    } else if (selectedBuildType.value === 'requirements') {
+      const r = await forgeApi.listVenvs({ page, pageSize: PAGE_SIZE, status: statuses, name })
+      items.value = r.items
+      total.value = r.total
+    } else {
+      // ALL: fetch both in parallel, merge by createdAt desc (no server-side pagination)
+      const [venvs, git] = await Promise.all([
+        forgeApi.listVenvs({ page: 0, pageSize: 50, status: statuses, name }),
+        forgeApi.listGitBuilds({ page: 0, pageSize: 50, status: statuses, name }),
+      ])
+      const merged = [...venvs.items, ...git.items]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      items.value = merged
+      total.value = venvs.total + git.total
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to load builds'
   } finally {
@@ -64,6 +83,12 @@ function toggleStatus(chip: StatusChip) {
   loadBuilds()
 }
 
+function selectBuildType(chip: BuildTypeChip) {
+  selectedBuildType.value = chip
+  currentPage.value = 1
+  loadBuilds()
+}
+
 function isActiveChip(chip: StatusChip) {
   return selectedStatuses.value.includes(chip)
 }
@@ -72,7 +97,8 @@ watch(currentPage, loadBuilds)
 onMounted(loadBuilds)
 
 function openBuild(b: forgeApi.VenvBuild) {
-  router.push(`/forge/venvs/${b.id}`)
+  const path = b.buildType === 'git' ? `/forge/gitbuilds/${b.id}` : `/forge/venvs/${b.id}`
+  router.push(path)
 }
 
 function formatDate(iso: string): string {
@@ -90,14 +116,27 @@ const STATUS_ICON: Record<forgeApi.VenvBuild['status'], string> = {
 <template>
   <div class="page-grid">
     <CanvasPanel
-      title="Venv Builds"
+      title="Builds"
       icon="mdi-list-box-outline"
       :wide="true"
       :loading="loading"
       :error="error ?? undefined"
       @refresh="loadBuilds"
     >
-      <!-- Toolbar -->
+      <!-- Build type filter -->
+      <div class="toolbar toolbar--type">
+        <div class="chips">
+          <button
+            v-for="chip in BUILD_TYPE_CHIPS"
+            :key="chip"
+            class="chip"
+            :class="[`chip--type-${chip}`, { 'chip--active': selectedBuildType === chip }]"
+            @click="selectBuildType(chip)"
+          >{{ chip === 'ALL' ? 'All Types' : chip }}</button>
+        </div>
+      </div>
+
+      <!-- Status + search toolbar -->
       <div class="toolbar">
         <div class="chips">
           <button
@@ -131,7 +170,7 @@ const STATUS_ICON: Record<forgeApi.VenvBuild['status'], string> = {
           </thead>
           <tbody>
             <tr
-              v-for="b in result?.items ?? []"
+              v-for="b in items"
               :key="b.id"
               class="build-row"
               @click="openBuild(b)"
@@ -148,7 +187,7 @@ const STATUS_ICON: Record<forgeApi.VenvBuild['status'], string> = {
               <td class="col-muted">{{ b.creatorEmail ?? '—' }}</td>
               <td class="col-muted">{{ formatDate(b.createdAt) }}</td>
             </tr>
-            <tr v-if="!loading && (result?.items ?? []).length === 0">
+            <tr v-if="!loading && items.length === 0">
               <td colspan="6" class="empty-row">No builds found.</td>
             </tr>
           </tbody>
@@ -156,10 +195,10 @@ const STATUS_ICON: Record<forgeApi.VenvBuild['status'], string> = {
       </div>
 
       <!-- Pagination -->
-      <div v-if="(result?.total ?? 0) > PAGE_SIZE" class="pagination-row">
+      <div v-if="selectedBuildType !== 'ALL' && total > PAGE_SIZE" class="pagination-row">
         <q-pagination
           v-model="currentPage"
-          :max="Math.ceil((result?.total ?? 0) / PAGE_SIZE)"
+          :max="Math.ceil(total / PAGE_SIZE)"
           :max-pages="7"
           direction-links
           boundary-links
@@ -167,7 +206,7 @@ const STATUS_ICON: Record<forgeApi.VenvBuild['status'], string> = {
           color="grey"
           active-color="primary"
         />
-        <span class="pagination-hint">{{ result?.total ?? 0 }} total</span>
+        <span class="pagination-hint">{{ total }} total</span>
       </div>
     </CanvasPanel>
   </div>
@@ -217,6 +256,12 @@ const STATUS_ICON: Record<forgeApi.VenvBuild['status'], string> = {
 .chip--building.chip--active  { background: var(--fs-warn, #ff9800);     border-color: var(--fs-warn, #ff9800);     color: #fff; }
 .chip--succeeded.chip--active { background: var(--fs-pos, #4caf50);      border-color: var(--fs-pos, #4caf50);      color: #fff; }
 .chip--failed.chip--active    { background: var(--fs-neg, #e57373);      border-color: var(--fs-neg, #e57373);      color: #fff; }
+
+.chip--type-ALL.chip--active          { background: var(--fs-accent);       border-color: var(--fs-accent);       color: #fff; }
+.chip--type-requirements.chip--active { background: #7b52ab;               border-color: #7b52ab;               color: #fff; }
+.chip--type-git.chip--active          { background: #f05033;               border-color: #f05033;               color: #fff; }
+
+.toolbar--type { padding-bottom: 6px; border-bottom: 1px solid var(--fs-border); margin-bottom: 2px; }
 
 .search-input {
   margin-left: auto;

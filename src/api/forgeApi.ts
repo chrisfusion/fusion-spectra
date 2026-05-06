@@ -94,6 +94,75 @@ export async function validateVenv(formData: FormData): Promise<ValidationResult
   return res.json() as Promise<ValidationResult>
 }
 
+// ─── Git Builds ───────────────────────────────────────────────────────────────
+
+export interface GitBuildPayload {
+  repo_url:         string
+  repo_ref?:        string
+  metadata_source?: 'manual' | 'version' | 'full'
+  name?:            string
+  version?:         string
+  description?:     string
+  entrypoint_file?: string
+  project_dir?:     string
+}
+
+export interface GitBuild extends VenvBuild {
+  repoUrl:        string
+  repoRef:        string
+  metadataSource: 'manual' | 'version' | 'full'
+  entrypointFile: string | null
+  projectDir:     string | null
+}
+
+export interface GitBuildPage {
+  items:    GitBuild[]
+  total:    number
+  page:     number
+  pageSize: number
+}
+
+export function listGitBuilds(params?: {
+  page?:     number
+  pageSize?: number
+  status?:   string | string[]
+  name?:     string
+}): Promise<GitBuildPage> {
+  const q = new URLSearchParams()
+  if (params?.page !== undefined) q.set('page',     String(params.page))
+  if (params?.pageSize)           q.set('pageSize', String(params.pageSize))
+  if (params?.status) {
+    const statuses = Array.isArray(params.status) ? params.status : [params.status]
+    statuses.forEach(s => q.append('status', denormalizeStatus(s)))
+  }
+  if (params?.name) q.set('name', params.name)
+  const qs = q.toString()
+  return bffGet<GitBuildPage>(`${BASE}/gitbuilds${qs ? '?' + qs : ''}`)
+    .then(p => ({ ...p, items: p.items.map(normalizeStatus) as GitBuild[] }))
+}
+
+export function createGitBuild(payload: GitBuildPayload): Promise<GitBuild> {
+  return bffFetch(`${BASE}/gitbuilds`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(payload),
+  }).then(r => r.json() as Promise<GitBuild>)
+}
+
+export async function validateGitBuild(payload: GitBuildPayload): Promise<ValidationResult> {
+  const res = await fetch(`${getBffUrl()}${BASE}/gitbuilds/validate`, {
+    method:      'POST',
+    headers:     { 'Content-Type': 'application/json' },
+    body:        JSON.stringify(payload),
+    credentials: 'include',
+  })
+  if (res.status === 401) {
+    window.location.href = `${getBffUrl()}/bff/login`
+    throw new ApiError(401, 'Unauthorized')
+  }
+  return res.json() as Promise<ValidationResult>
+}
+
 export async function getVenvLogs(id: number): Promise<string> {
   const res = await bffFetch(`${BASE}/venvs/${id}/logs`)
   if (res.status === 204) return ''
