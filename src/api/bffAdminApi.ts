@@ -1,4 +1,5 @@
 import { bffFetch, bffGet } from './bffClient'
+import type { ServiceOverride } from './bffStatusApi'
 
 export interface GroupRoleAssignment {
   id: number
@@ -66,5 +67,20 @@ export const bffAdminApi = {
 
   getRBACConfig(): Promise<RBACConfigResponse> {
     return bffGet<RBACConfigResponse>('/bff/admin/rbac-config')
+  },
+
+  listServiceStatusOverrides(): Promise<ServiceOverride[]> {
+    return bffGet<ServiceOverride[]>('/bff/admin/service-status')
+  },
+
+  upsertServiceStatusOverride(service: string, status: string, description: string): Promise<ServiceOverride> {
+    return bffFetch(`/bff/admin/service-status/${service}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status, description }),
+    }).then(r => r.json() as Promise<ServiceOverride>)
+  },
+
+  async deleteServiceStatusOverride(service: string): Promise<void> {
+    await bffFetch(`/bff/admin/service-status/${service}`, { method: 'DELETE' })
   },
 }

@@ -254,8 +254,9 @@ export const contexts: Context[] = [
         label: 'Platform',
         icon: 'mdi-layers-outline',
         children: [
-          { id: 'services', label: 'Services', icon: 'mdi-server-network-outline', route: '/admin/platform/services', placeholder: true },
-          { id: 'database', label: 'Database', icon: 'mdi-database-cog-outline',   route: '/admin/platform/database', placeholder: true },
+          { id: 'service-status-overrides', label: 'Service Status Overrides', icon: 'mdi-heart-pulse',          route: '/admin/health' },
+          { id: 'services',                 label: 'Services',                  icon: 'mdi-server-network-outline', route: '/admin/platform/services', placeholder: true },
+          { id: 'database',                 label: 'Database',                  icon: 'mdi-database-cog-outline',   route: '/admin/platform/database', placeholder: true },
         ]
       },
       {

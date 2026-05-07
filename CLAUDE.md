@@ -288,6 +288,21 @@ Context `forge` has one group:
 
 Forge routes (`router/index.ts`): `/forge` → `ForgeIndexPage`, `/forge/venvs` → `VenvListPage`, `/forge/venvs/create` → `VenvCreatePage`, `/forge/venvs/:id` → `VenvDetailPage`, `/forge/gitbuilds/create` → `GitBuildCreatePage`, `/forge/:pathMatch(.*)*` → `ForgeIndexPage`
 
+## fusion-bff deployment (minikube)
+- Build: `cd /path/to/fusion-bff && eval $(minikube docker-env) && docker build -t fusion-bff:X.Y.Z .`
+- Deploy: `kubectl set image deployment/fusion-bff fusion-bff=fusion-bff:X.Y.Z -n fusion && kubectl rollout status deployment/fusion-bff -n fusion`
+- Container name in the deployment is `fusion-bff` (not `bff`) — required for `kubectl set image`
+- BFF session store is **in-memory** — every pod restart wipes all sessions; Playwright browser (and users) must re-login after any BFF redeploy
+- `rbac.yaml` is mounted from the `fusion-bff-rbac` ConfigMap, not baked into the image — adding permissions to the source file does NOT update the running cluster; patch with: `kubectl create configmap fusion-bff-rbac --from-file=rbac.yaml=<file> -n fusion --dry-run=client -o yaml | kubectl apply -f - && kubectl rollout restart deployment/fusion-bff -n fusion`
+- The deployed ConfigMap can be stale vs the source — check with `kubectl get configmap fusion-bff-rbac -n fusion -o jsonpath='{.data.rbac\.yaml}'` before assuming permissions are live
+
+## Service Health Overrides (admin)
+- BFF endpoints: `GET /bff/admin/service-status`, `PUT /bff/admin/service-status/:service`, `DELETE /bff/admin/service-status/:service` — all require `admin:health:manage`
+- `GET /bff/system-health` requires only a valid session (any logged-in user)
+- Valid services: `forge`, `index`, `weave`, `spectra`; valid statuses: `Healthy`, `Unhealthy`, `Offline`, `Maintenance`
+- Admin UI page: `/admin/health` → `src/pages/admin/ServiceStatusOverridesPage.vue`
+- API methods in `src/api/bffAdminApi.ts`: `listServiceStatusOverrides`, `upsertServiceStatusOverride`, `deleteServiceStatusOverride`
+
 ## fusion-forge deployment (minikube)
 - Two separate K8s deployments share one image: `fusion-forge-server` (container: `server`) and `fusion-forge-operator` (container: `operator`)
 - Build: `eval $(minikube docker-env) && docker build -t fusion-forge:X.Y.Z /path/to/fusion-forge/`
