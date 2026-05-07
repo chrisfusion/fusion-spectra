@@ -170,6 +170,11 @@ const STATUS_ICON: Record<forgeApi.VenvBuild['status'], string> = {
           <span class="meta-value">{{ build.buildType }}</span>
         </div>
 
+        <div class="meta-row">
+          <span class="meta-label">Python</span>
+          <span class="meta-value fs-mono">{{ build.pythonVersion }}</span>
+        </div>
+
         <div v-if="build.description" class="meta-row meta-row--top">
           <span class="meta-label">Description</span>
           <span class="meta-value meta-value--wrap">{{ build.description }}</span>

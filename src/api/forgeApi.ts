@@ -23,6 +23,7 @@ export interface VenvBuild {
   description:          string | null
   status:               'PENDING' | 'BUILDING' | 'SUCCEEDED' | 'FAILED'
   buildType:            string
+  pythonVersion:        string
   creatorId:            string | null
   creatorEmail:         string | null
   indexArtifactId:      number | null
@@ -105,6 +106,7 @@ export interface GitBuildPayload {
   description?:     string
   entrypoint_file?: string
   project_dir?:     string
+  python_version?:  string
 }
 
 export interface GitBuild extends VenvBuild {

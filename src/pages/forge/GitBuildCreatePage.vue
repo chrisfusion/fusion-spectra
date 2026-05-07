@@ -23,6 +23,7 @@ const version        = ref('')
 const description    = ref('')
 const entrypointFile = ref('')
 const projectDir     = ref('')
+const pythonVersion  = ref<'3.10' | '3.12'>('3.12')
 
 const repoUrlError  = ref<string | null>(null)
 const nameError     = ref<string | null>(null)
@@ -95,6 +96,7 @@ function buildPayload(): forgeApi.GitBuildPayload {
   if (description.value.trim())    p.description     = description.value.trim()
   if (entrypointFile.value.trim()) p.entrypoint_file = entrypointFile.value.trim()
   if (projectDir.value.trim())     p.project_dir     = projectDir.value.trim()
+  p.python_version = pythonVersion.value
   return p
 }
 
@@ -146,6 +148,7 @@ function createAnother() {
   description.value    = ''
   entrypointFile.value = ''
   projectDir.value     = ''
+  pythonVersion.value  = '3.12'
   validResult.value    = null
   submitError.value    = null
   createdBuild.value   = null
@@ -335,6 +338,22 @@ const META_LABEL: Record<MetadataSource, string> = {
               />
               <span v-if="projectDirErr" class="field-error">{{ projectDirErr }}</span>
               <span v-else class="field-hint">Monorepo subdirectory — relative path, no .. (optional)</span>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <label class="form-label">Python</label>
+            <div class="py-toggle">
+              <button
+                class="py-toggle__btn"
+                :class="{ 'py-toggle__btn--active': pythonVersion === '3.12' }"
+                @click="pythonVersion = '3.12'"
+              >3.12</button>
+              <button
+                class="py-toggle__btn"
+                :class="{ 'py-toggle__btn--active': pythonVersion === '3.10' }"
+                @click="pythonVersion = '3.10'"
+              >3.10</button>
             </div>
           </div>
 
@@ -718,6 +737,36 @@ const META_LABEL: Record<MetadataSource, string> = {
   color: var(--fs-text-primary);
 }
 .violation__msg { color: var(--fs-neg, #e57373); flex: 1; }
+
+/* Python version toggle */
+.py-toggle {
+  display: inline-flex;
+  border: 1px solid var(--fs-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.py-toggle__btn {
+  padding: 6px 14px;
+  font-size: 12.5px;
+  font-family: var(--fs-font-mono);
+  font-weight: 500;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--fs-text-muted);
+  transition: background var(--fs-ease), color var(--fs-ease);
+}
+.py-toggle__btn + .py-toggle__btn {
+  border-left: 1px solid var(--fs-border);
+}
+.py-toggle__btn--active {
+  background: var(--fs-accent);
+  color: #fff;
+}
+.py-toggle__btn:not(.py-toggle__btn--active):hover {
+  background: var(--fs-bg-hover);
+  color: var(--fs-text-primary);
+}
 
 /* Action bar */
 .form-actions {
