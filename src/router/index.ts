@@ -53,6 +53,12 @@ const router = createRouter({
   ]
 })
 
+router.onError((err, to) => {
+  if (/Failed to fetch dynamically imported module|Importing a module script failed/i.test(err.message)) {
+    window.location.href = window.location.origin + '/#' + to.fullPath
+  }
+})
+
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
   const authenticated = await auth.init()

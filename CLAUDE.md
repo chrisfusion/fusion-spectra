@@ -174,6 +174,8 @@ Fusion Index uses explicit routes (not a wildcard):
 - Docker build MUST run inside minikube's daemon (`eval $(minikube docker-env)` first) — otherwise pod gets `ErrImageNeverPull`
 - After building, update `image.tag` in `values-dev.yaml` and run `helm upgrade`; tag change triggers pod replacement automatically
 - Helm field manager conflict: if `kubectl set image` was used on the deployment, subsequent `helm upgrade` may fail — bypass with `kubectl set image deployment/fusion-spectra frontend=fusion-spectra:X.Y.Z -n fusion && kubectl rollout status deployment/fusion-spectra -n fusion`
+- Stale JS chunks after redeploy cause blank canvas on SPA navigation (silent failure, no console error) — `router.onError` in `src/router/index.ts` auto-reloads on chunk-not-found; if navigation still fails, a fresh build+redeploy is the fix
+- "Clean reinstall on minikube" = `eval $(minikube docker-env) && docker build -t fusion-spectra:X.Y.Z . && kubectl set image deployment/fusion-spectra frontend=fusion-spectra:X.Y.Z -n fusion`; NOT `npm install`
 
 ## Tag model (fusion-index)
 - A tag (e.g. `stable`, `latest`) is an **artifact-level named pointer** to one semver at a time — like a git tag

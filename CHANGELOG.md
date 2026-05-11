@@ -9,6 +9,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.9.2] — 2026-05-11
+
+### Fixed
+- SPA navigation blank-canvas after deployment: `router.onError` now catches stale-chunk errors and auto-reloads to the target route, eliminating the need for manual Ctrl+R after a redeploy
+
+---
+
+## [0.9.1] — 2026-05-11
+
+### Fixed
+- Clean redeploy to clear browser-cached stale JS chunks that caused blank canvas on context switch
+
+---
+
 ## [0.9.0] — 2026-05-11
 
 ### Added
