@@ -1,4 +1,4 @@
-import { bffGet, bffDelete } from './bffClient'
+import { bffGet, bffDelete, bffPatch } from './bffClient'
 
 const BASE         = '/api/weave/monitor/v1'
 const CRUD_BASE    = '/api/weave/api/v1'
@@ -34,7 +34,7 @@ export interface RunStatsResponse {
 
 // ─── Run detail types ─────────────────────────────────────────────────────────
 
-export type StepPhase = 'Pending' | 'Running' | 'Succeeded' | 'Failed' | 'Skipped' | 'Retrying'
+export type StepPhase = 'Pending' | 'Running' | 'Succeeded' | 'Failed' | 'Skipped' | 'Retrying' | 'Deployed'
 
 export interface RunStepStatus {
   name:            string
@@ -135,4 +135,10 @@ export function getStepLogs(runName: string, stepName: string): Promise<LogRespo
 
 export function deleteRun(name: string): Promise<void> {
   return bffDelete(`${CRUD_BASE}/runs/${encodeURIComponent(name)}`)
+}
+
+export function restartDeployStep(runName: string, stepName: string): Promise<void> {
+  return bffPatch(`${CRUD_BASE}/runs/${encodeURIComponent(runName)}`, {
+    metadata: { annotations: { 'fusion-platform.io/restart-step': stepName } },
+  })
 }

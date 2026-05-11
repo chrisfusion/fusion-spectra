@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import * as monitorApi from '@/api/weaveMonitorApi'
 import { formatDurationMs } from '@/utils/format'
+import { usePermission } from '@/composables/usePermission'
 
 const route  = useRoute()
 const router = useRouter()
+const $q     = useQuasar()
+const { can } = usePermission()
 
 const runName = route.params.name as string
 
@@ -29,6 +33,29 @@ function stepKindLabel(step: monitorApi.RunStepStatus): string {
   if (step.deploymentRef?.name) return 'Service'
   if (step.jobRef?.name)        return 'Job'
   return '—'
+}
+
+// restart
+const restartingSteps = ref<Set<string>>(new Set())
+
+async function restartStep(step: monitorApi.RunStepStatus) {
+  $q.dialog({
+    title: 'Restart service',
+    message: `Trigger a rolling restart of <strong>${step.name}</strong>?`,
+    html: true,
+    ok:     { label: 'Restart', color: 'warning', flat: true },
+    cancel: { label: 'Cancel',  flat: true },
+  }).onOk(async () => {
+    restartingSteps.value = new Set([...restartingSteps.value, step.name])
+    try {
+      await monitorApi.restartDeployStep(runName, step.name)
+      $q.notify({ type: 'positive', message: `Restart triggered for ${step.name}` })
+    } catch (e) {
+      $q.notify({ type: 'negative', message: e instanceof Error ? e.message : 'Restart failed' })
+    } finally {
+      restartingSteps.value = new Set([...restartingSteps.value].filter(s => s !== step.name))
+    }
+  })
 }
 
 // log dialog
@@ -330,8 +357,17 @@ function runDuration(): string {
               <td class="col-message" :title="step.message">{{ step.message || '—' }}</td>
               <td class="col-actions" @click.stop>
                 <button
+                  v-if="!!step.deploymentRef?.name && can('weave:steps:restart')"
                   class="icon-btn"
-                  title="View logs"
+                  :disabled="restartingSteps.has(step.name)"
+                  @click="restartStep(step)"
+                >
+                  <q-spinner v-if="restartingSteps.has(step.name)" size="13px" />
+                  <q-icon v-else name="mdi-restart" size="15px" />
+                  <q-tooltip>Restart service</q-tooltip>
+                </button>
+                <button
+                  class="icon-btn"
                   @click="openLogDialog(step.name)"
                 >
                   <q-icon name="mdi-text-box-outline" size="15px" />
@@ -597,7 +633,7 @@ function runDuration(): string {
   font-size: 12px;
   cursor: default;
 }
-.col-actions { width: 40px; text-align: center; }
+.col-actions { width: 72px; text-align: right; white-space: nowrap; }
 
 .empty-row {
   text-align: center;
@@ -622,6 +658,7 @@ function runDuration(): string {
 .phase-badge--stopped   { color: var(--fs-text-muted);    background: color-mix(in srgb, var(--fs-text-muted)    12%, transparent); }
 .phase-badge--skipped   { color: var(--fs-text-muted);    background: color-mix(in srgb, var(--fs-text-muted)    12%, transparent); }
 .phase-badge--retrying  { color: var(--fs-warn, #ff9800); background: color-mix(in srgb, var(--fs-warn, #ff9800) 12%, transparent); }
+.phase-badge--deployed  { color: var(--fs-pos, #4caf50);  background: color-mix(in srgb, var(--fs-pos, #4caf50)  12%, transparent); }
 
 /* ─── Event type badges ─────────────────────────────────────────────────────── */
 

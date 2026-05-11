@@ -9,6 +9,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.9.3] — 2026-05-11
+
+### Added
+- Restart button on Deploy step rows in WeaveRunDetailPage: triggers a rolling restart via the `fusion-platform.io/restart-step` annotation PATCH; gated by `weave:steps:restart` permission; in-flight spinner + confirmation dialog
+- `StepPhase` type now includes `'Deployed'`; added `phase-badge--deployed` style (green)
+
+---
+
 ## [0.9.2] — 2026-05-11
 
 ### Fixed

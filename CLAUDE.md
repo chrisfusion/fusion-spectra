@@ -208,6 +208,7 @@ Fusion Index uses explicit routes (not a wildcard):
 - fusion-weave source is at `../fusion-flux`; disable auth for local dev: `kubectl set env deployment/fusion-weave-api -n fusion ALLOW_UNAUTHENTICATED=true`
 
 ## Weave run monitoring pages
+- `StepPhase` includes `'Deployed'` (non-terminal) — deploy steps never reach `Succeeded`; polling must not stop on `Deployed`; `phase-badge--deployed` uses green (`--fs-pos`)
 - `src/api/weaveMonitorApi.ts` — typed client for `/api/weave/monitor/v1/`; BFF catch-all `GET /api/weave/*` (permission `weave:resources:read`) already covers all monitoring GETs — no BFF changes needed
 - `MONITORING_ENABLED=true` is already set on `fusion-weave-api` in minikube — monitoring API is live
 - `src/composables/useRunsPolling.ts` — 10s polling composable for list pages; exports `{ polling, startPolling, stopPolling, togglePolling }`; calls `onUnmounted(stopPolling)` internally — callers don't need to
@@ -218,6 +219,8 @@ Fusion Index uses explicit routes (not a wildcard):
 
 ## Weave API — CRUD & edit patterns
 - Full CRUD on all four resource types: jobtemplates, servicetemplates, chains, triggers, runs all have `GET / POST / GET :name / PUT :name / PATCH :name / DELETE :name` via `registerCRUD()` — no BFF changes needed for any of these
+- `weaveMonitorApi.ts` imports only `bffGet`/`bffDelete` by default — add `bffPatch` or `bffPost` to the import line when adding write operations (same as `bffPut` gotcha in `weaveApi.ts`)
+- Rolling restart a Deploy step: `PATCH /api/weave/api/v1/runs/:name` with `{"metadata":{"annotations":{"fusion-platform.io/restart-step":"<stepName>"}}}` — annotation consumed by operator (one-shot); same pattern as `fireWeaveTrigger`
 - `PUT /:name` requires `resourceVersion`: the handler calls `client.Update` which enforces K8s optimistic concurrency — always include `metadata.resourceVersion` from the fetched object in the PUT body or the server returns 409 Conflict
 - K8s resource names are immutable: `metadata.name` cannot be changed via PUT; show it read-only (lock icon + tooltip "immutable in Kubernetes") in edit UIs; delete+recreate is the only rename path
 - `weaveApi.ts` imports: `bffPut` is exported by `bffClient.ts` but was not initially imported in `weaveApi.ts` — add it to the import line when adding PUT operations
@@ -305,11 +308,18 @@ Context `forge` has one group:
 
 Forge routes (`router/index.ts`): `/forge` → `ForgeIndexPage`, `/forge/venvs` → `VenvListPage`, `/forge/venvs/create` → `VenvCreatePage`, `/forge/venvs/:id` → `VenvDetailPage`, `/forge/gitbuilds/create` → `GitBuildCreatePage`, `/forge/:pathMatch(.*)*` → `ForgeIndexPage`
 
+## fusion-weave deployment (minikube)
+- Both `fusion-weave-operator` (container: `manager`) and `fusion-weave-api` (container: `api-server`) share one image — build once, update both
+- Build: `eval $(minikube docker-env) && docker build -t fusion-weave-operator:X.Y.Z /path/to/fusion-flux/`
+- Deploy: `kubectl set image deployment/fusion-weave-operator manager=fusion-weave-operator:X.Y.Z -n fusion && kubectl set image deployment/fusion-weave-api api-server=fusion-weave-operator:X.Y.Z -n fusion`
+- Current semver: `0.2.0` (was `latest` — do not revert to `latest`)
+
 ## fusion-bff deployment (minikube)
 - Build: `cd /path/to/fusion-bff && eval $(minikube docker-env) && docker build -t fusion-bff:X.Y.Z .`
 - Deploy: `kubectl set image deployment/fusion-bff fusion-bff=fusion-bff:X.Y.Z -n fusion && kubectl rollout status deployment/fusion-bff -n fusion`
 - Container name in the deployment is `fusion-bff` (not `bff`) — required for `kubectl set image`
 - BFF session store is **in-memory** — every pod restart wipes all sessions; Playwright browser (and users) must re-login after any BFF redeploy
+- Adding a new BFF permission requires BOTH: (1) add to `role_permissions` for each relevant role in `rbac.yaml`, AND (2) add a `route_permissions` rule before the `GET /api/weave/*` (or equivalent) catch-all; missing either silently blocks the request
 - `rbac.yaml` is mounted from the `fusion-bff-rbac` ConfigMap, not baked into the image — adding permissions to the source file does NOT update the running cluster; patch with: `kubectl create configmap fusion-bff-rbac --from-file=rbac.yaml=<file> -n fusion --dry-run=client -o yaml | kubectl apply -f - && kubectl rollout restart deployment/fusion-bff -n fusion`
 - The deployed ConfigMap can be stale vs the source — check with `kubectl get configmap fusion-bff-rbac -n fusion -o jsonpath='{.data.rbac\.yaml}'` before assuming permissions are live
 
