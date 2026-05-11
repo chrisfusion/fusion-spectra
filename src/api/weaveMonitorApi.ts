@@ -1,6 +1,7 @@
-import { bffGet } from './bffClient'
+import { bffGet, bffDelete } from './bffClient'
 
-const BASE = '/api/weave/monitor/v1'
+const BASE         = '/api/weave/monitor/v1'
+const CRUD_BASE    = '/api/weave/api/v1'
 
 export type RunPhase = 'Pending' | 'Running' | 'Succeeded' | 'Failed' | 'Stopped'
 
@@ -67,6 +68,7 @@ export interface WeaveRun {
   metadata: {
     name:               string
     namespace?:         string
+    uid?:               string
     creationTimestamp?: string
     labels?:            Record<string, string>
   }
@@ -129,4 +131,8 @@ export function getRun(name: string): Promise<RunDetail> {
 
 export function getStepLogs(runName: string, stepName: string): Promise<LogResponse> {
   return bffGet<LogResponse>(`${BASE}/runs/${encodeURIComponent(runName)}/steps/${encodeURIComponent(stepName)}/logs`)
+}
+
+export function deleteRun(name: string): Promise<void> {
+  return bffDelete(`${CRUD_BASE}/runs/${encodeURIComponent(name)}`)
 }

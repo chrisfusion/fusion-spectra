@@ -1,4 +1,4 @@
-import { bffGet, bffPost, bffDelete } from './bffClient'
+import { bffGet, bffPost, bffPut, bffPatch, bffDelete } from './bffClient'
 
 const BASE = '/api/weave/api/v1'
 
@@ -255,6 +255,19 @@ export function createJobTemplate(payload: CreateJobTemplatePayload): Promise<We
   })
 }
 
+export function updateJobTemplate(current: WeaveJobTemplate, spec: WeaveJobTemplateSpec): Promise<WeaveJobTemplate> {
+  return bffPut<WeaveJobTemplate>(`${BASE}/jobtemplates/${encodeURIComponent(current.metadata.name)}`, {
+    apiVersion: current.apiVersion,
+    kind:       current.kind,
+    metadata: {
+      name:            current.metadata.name,
+      namespace:       current.metadata.namespace,
+      resourceVersion: current.metadata.resourceVersion,
+    },
+    spec,
+  })
+}
+
 export function deleteJobTemplate(name: string): Promise<void> {
   return bffDelete(`${BASE}/jobtemplates/${encodeURIComponent(name)}`)
 }
@@ -274,6 +287,19 @@ export function createServiceTemplate(payload: CreateServiceTemplatePayload): Pr
     apiVersion: 'weave.fusion-platform.io/v1alpha1',
     kind:       'WeaveServiceTemplate',
     ...payload,
+  })
+}
+
+export function updateServiceTemplate(current: WeaveServiceTemplate, spec: WeaveServiceTemplateSpec): Promise<WeaveServiceTemplate> {
+  return bffPut<WeaveServiceTemplate>(`${BASE}/servicetemplates/${encodeURIComponent(current.metadata.name)}`, {
+    apiVersion: current.apiVersion,
+    kind:       current.kind,
+    metadata: {
+      name:            current.metadata.name,
+      namespace:       current.metadata.namespace,
+      resourceVersion: current.metadata.resourceVersion,
+    },
+    spec,
   })
 }
 
@@ -366,6 +392,12 @@ export function createWeaveTrigger(payload: CreateTriggerPayload): Promise<Weave
     apiVersion: 'weave.fusion-platform.io/v1alpha1',
     kind:       'WeaveTrigger',
     ...payload,
+  })
+}
+
+export function fireWeaveTrigger(name: string): Promise<void> {
+  return bffPatch(`${BASE}/triggers/${encodeURIComponent(name)}`, {
+    metadata: { annotations: { 'fusion-platform.io/fire': 'true' } },
   })
 }
 

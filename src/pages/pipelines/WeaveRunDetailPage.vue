@@ -16,12 +16,28 @@ const detail  = ref<monitorApi.RunDetail | null>(null)
 const loading = ref(false)
 const error   = ref<string | null>(null)
 
-// per-step log state
-const activeLogStep  = ref<string | null>(null)
-const logLines       = ref<string[]>([])
-const logLoading     = ref(false)
-const logError       = ref<string | null>(null)
-const logPodName     = ref<string>('')
+// step detail dialog
+const selectedStep   = ref<monitorApi.RunStepStatus | null>(null)
+const stepDialogOpen = ref(false)
+
+function openStepDialog(step: monitorApi.RunStepStatus) {
+  selectedStep.value   = step
+  stepDialogOpen.value = true
+}
+
+function stepKindLabel(step: monitorApi.RunStepStatus): string {
+  if (step.deploymentRef?.name) return 'Service'
+  if (step.jobRef?.name)        return 'Job'
+  return '—'
+}
+
+// log dialog
+const logDialogOpen = ref(false)
+const logStepName   = ref('')
+const logLines      = ref<string[]>([])
+const logLoading    = ref(false)
+const logError      = ref<string | null>(null)
+const logPodName    = ref<string>('')
 
 // ─── Derived ──────────────────────────────────────────────────────────────────
 
@@ -83,16 +99,12 @@ async function loadRun() {
   }
 }
 
-async function toggleLogs(stepName: string) {
-  if (activeLogStep.value === stepName) {
-    activeLogStep.value = null
-    logLines.value      = []
-    logPodName.value    = ''
-    return
-  }
-  activeLogStep.value = stepName
+async function openLogDialog(stepName: string) {
+  logStepName.value   = stepName
   logLines.value      = []
   logError.value      = null
+  logPodName.value    = ''
+  logDialogOpen.value = true
   logLoading.value    = true
   try {
     const resp = await monitorApi.getStepLogs(runName, stepName)
@@ -166,6 +178,14 @@ function runDuration(): string {
 
       <div v-if="run" class="meta-grid">
         <div class="meta-row">
+          <span class="meta-label">Name</span>
+          <span class="meta-value fs-mono">{{ run.metadata.name }}</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">Namespace</span>
+          <span class="meta-value fs-mono">{{ run.metadata.namespace ?? '—' }}</span>
+        </div>
+        <div class="meta-row">
           <span class="meta-label">Phase</span>
           <span class="phase-badge" :class="`phase-badge--${(status?.phase ?? 'pending').toLowerCase()}`">
             {{ status?.phase ?? '—' }}
@@ -178,6 +198,14 @@ function runDuration(): string {
         <div class="meta-row" v-if="run.spec.triggerRef?.name">
           <span class="meta-label">Trigger</span>
           <span class="meta-value fs-mono">{{ run.spec.triggerRef.name }}</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">Steps</span>
+          <span class="meta-value fs-mono">{{ steps.length }}</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">Created</span>
+          <span class="meta-value">{{ formatDate(run.metadata.creationTimestamp) }}</span>
         </div>
         <div class="meta-row">
           <span class="meta-label">Started</span>
@@ -206,6 +234,10 @@ function runDuration(): string {
               <span class="param-key">{{ p.name }}</span>=<span class="param-val">{{ p.value }}</span>
             </span>
           </div>
+        </div>
+        <div class="meta-row" v-if="run.metadata.uid">
+          <span class="meta-label">UID</span>
+          <span class="meta-value fs-mono meta-value--uid">{{ run.metadata.uid }}</span>
         </div>
       </div>
     </CanvasPanel>
@@ -272,66 +304,41 @@ function runDuration(): string {
             </tr>
           </thead>
           <tbody>
-            <template v-for="step in steps" :key="step.name">
-              <tr :class="{ 'row--active-log': activeLogStep === step.name }">
-                <td class="col-name fs-mono">{{ step.name }}</td>
-                <td>
-                  <span class="phase-badge" :class="`phase-badge--${step.phase.toLowerCase()}`">
-                    {{ step.phase }}
-                  </span>
-                </td>
-                <td class="col-dur fs-mono">{{ stepDuration(step) }}</td>
-                <td class="col-num">
-                  <span v-if="step.retryCount" class="retry-badge">{{ step.retryCount }}</span>
-                  <span v-else class="col-muted">—</span>
-                </td>
-                <td class="col-ref fs-mono">
-                  <span v-if="step.jobRef?.name" class="ref-chip">
-                    <q-icon name="mdi-briefcase-outline" size="11px" />
-                    {{ step.jobRef.name }}
-                  </span>
-                  <span v-else-if="step.deploymentRef?.name" class="ref-chip ref-chip--deploy">
-                    <q-icon name="mdi-server-outline" size="11px" />
-                    {{ step.deploymentRef.name }}
-                  </span>
-                  <span v-else class="col-muted">—</span>
-                </td>
-                <td class="col-message" :title="step.message">{{ step.message || '—' }}</td>
-                <td class="col-actions">
-                  <button
-                    v-if="step.jobRef?.name"
-                    class="icon-btn"
-                    :class="{ 'icon-btn--active': activeLogStep === step.name }"
-                    title="View logs"
-                    @click="toggleLogs(step.name)"
-                  >
-                    <q-icon name="mdi-text-box-outline" size="15px" />
-                    <q-tooltip>{{ activeLogStep === step.name ? 'Hide logs' : 'View logs' }}</q-tooltip>
-                  </button>
-                </td>
-              </tr>
-
-              <!-- Inline log row -->
-              <tr v-if="activeLogStep === step.name" class="log-row">
-                <td colspan="7" class="log-cell">
-                  <div class="log-header">
-                    <span class="log-title">
-                      <q-icon name="mdi-console" size="13px" />
-                      {{ step.name }} — pod: <span class="fs-mono">{{ logPodName || '…' }}</span>
-                    </span>
-                    <button class="icon-btn" title="Close logs" @click="activeLogStep = null">
-                      <q-icon name="mdi-close" size="14px" />
-                    </button>
-                  </div>
-                  <div v-if="logLoading" class="log-loading">
-                    <q-spinner size="18px" /> Loading logs…
-                  </div>
-                  <p v-else-if="logError" class="log-error">{{ logError }}</p>
-                  <pre v-else-if="logLines.length" class="log-pre">{{ logLines.join('\n') }}</pre>
-                  <p v-else class="log-empty">No log output.</p>
-                </td>
-              </tr>
-            </template>
+            <tr v-for="step in steps" :key="step.name" class="clickable-row" @click="openStepDialog(step)">
+              <td class="col-name fs-mono">{{ step.name }}</td>
+              <td>
+                <span class="phase-badge" :class="`phase-badge--${step.phase.toLowerCase()}`">
+                  {{ step.phase }}
+                </span>
+              </td>
+              <td class="col-dur fs-mono">{{ stepDuration(step) }}</td>
+              <td class="col-num">
+                <span v-if="step.retryCount" class="retry-badge">{{ step.retryCount }}</span>
+                <span v-else class="col-muted">—</span>
+              </td>
+              <td class="col-ref fs-mono">
+                <span v-if="step.jobRef?.name" class="ref-chip">
+                  <q-icon name="mdi-briefcase-outline" size="11px" />
+                  {{ step.jobRef.name }}
+                </span>
+                <span v-else-if="step.deploymentRef?.name" class="ref-chip ref-chip--deploy">
+                  <q-icon name="mdi-server-outline" size="11px" />
+                  {{ step.deploymentRef.name }}
+                </span>
+                <span v-else class="col-muted">—</span>
+              </td>
+              <td class="col-message" :title="step.message">{{ step.message || '—' }}</td>
+              <td class="col-actions" @click.stop>
+                <button
+                  class="icon-btn"
+                  title="View logs"
+                  @click="openLogDialog(step.name)"
+                >
+                  <q-icon name="mdi-text-box-outline" size="15px" />
+                  <q-tooltip>View logs</q-tooltip>
+                </button>
+              </td>
+            </tr>
 
             <tr v-if="!loading && steps.length === 0">
               <td colspan="7" class="empty-row">No steps yet.</td>
@@ -342,6 +349,125 @@ function runDuration(): string {
     </CanvasPanel>
 
   </div>
+
+  <!-- Log dialog -->
+  <q-dialog v-model="logDialogOpen" :maximized="false">
+    <q-card class="log-dialog">
+      <q-card-section class="log-dialog__header">
+        <div class="log-dialog__title">
+          <q-icon name="mdi-text-box-outline" size="15px" />
+          <span class="fs-mono">{{ logStepName }}</span>
+          <span v-if="logPodName" class="log-dialog__pod fs-mono">— {{ logPodName }}</span>
+        </div>
+        <q-btn flat round dense icon="mdi-close" @click="logDialogOpen = false" />
+      </q-card-section>
+
+      <q-separator />
+
+      <q-card-section class="log-dialog__body">
+        <div v-if="logLoading" class="log-dlg-loading">
+          <q-spinner size="14px" />
+          <span>Loading logs…</span>
+        </div>
+        <p v-else-if="logError" class="log-dlg-error">{{ logError }}</p>
+        <pre v-else-if="logLines.length" class="log-dlg-pre">{{ logLines.join('\n') }}</pre>
+        <p v-else class="log-dlg-empty">EOF — No LOG available at moment or yet</p>
+      </q-card-section>
+    </q-card>
+  </q-dialog>
+
+  <!-- Step detail dialog -->
+  <q-dialog v-model="stepDialogOpen">
+    <q-card class="step-dialog" v-if="selectedStep">
+      <q-card-section class="step-dialog__header">
+        <div class="step-dialog__title">
+          <q-icon name="mdi-stairs" size="16px" />
+          <span class="fs-mono">{{ selectedStep.name }}</span>
+        </div>
+        <q-btn flat round dense icon="mdi-close" @click="stepDialogOpen = false" />
+      </q-card-section>
+
+      <q-separator />
+
+      <q-card-section class="step-dialog__body">
+        <div class="sdl-grid">
+
+          <div class="sdl-row">
+            <span class="sdl-label">Phase</span>
+            <span class="phase-badge" :class="`phase-badge--${selectedStep.phase.toLowerCase()}`">
+              {{ selectedStep.phase }}
+            </span>
+          </div>
+
+          <div class="sdl-row">
+            <span class="sdl-label">Kind</span>
+            <span class="sdl-value">{{ stepKindLabel(selectedStep) }}</span>
+          </div>
+
+          <div class="sdl-row" v-if="selectedStep.jobRef?.name">
+            <span class="sdl-label">Job</span>
+            <span class="sdl-value fs-mono ref-chip">
+              <q-icon name="mdi-briefcase-outline" size="11px" />
+              {{ selectedStep.jobRef.name }}
+            </span>
+          </div>
+
+          <div class="sdl-row" v-if="selectedStep.deploymentRef?.name">
+            <span class="sdl-label">Deployment</span>
+            <span class="sdl-value fs-mono ref-chip ref-chip--deploy">
+              <q-icon name="mdi-server-outline" size="11px" />
+              {{ selectedStep.deploymentRef.name }}
+            </span>
+          </div>
+
+          <div class="sdl-row">
+            <span class="sdl-label">Started</span>
+            <span class="sdl-value">{{ formatDate(selectedStep.startTime) }}</span>
+          </div>
+
+          <div class="sdl-row">
+            <span class="sdl-label">Completed</span>
+            <span class="sdl-value">{{ formatDate(selectedStep.completionTime) }}</span>
+          </div>
+
+          <div class="sdl-row">
+            <span class="sdl-label">Duration</span>
+            <span class="sdl-value fs-mono">{{ stepDuration(selectedStep) }}</span>
+          </div>
+
+          <div class="sdl-row">
+            <span class="sdl-label">Retries</span>
+            <span class="sdl-value fs-mono">
+              <span v-if="selectedStep.retryCount" class="retry-badge">{{ selectedStep.retryCount }}</span>
+              <span v-else class="sdl-muted">0</span>
+            </span>
+          </div>
+
+          <div class="sdl-row" v-if="selectedStep.nextRetryAfter">
+            <span class="sdl-label">Next Retry</span>
+            <span class="sdl-value">{{ formatDate(selectedStep.nextRetryAfter) }}</span>
+          </div>
+
+          <div class="sdl-row" v-if="selectedStep.jobRef?.name">
+            <span class="sdl-label">Output</span>
+            <span class="sdl-value">
+              <span v-if="selectedStep.outputCaptured" class="output-badge output-badge--yes">
+                <q-icon name="mdi-check-circle-outline" size="12px" /> Captured
+              </span>
+              <span v-else class="sdl-muted">Not captured</span>
+            </span>
+          </div>
+
+          <div class="sdl-row sdl-row--top" v-if="selectedStep.message">
+            <span class="sdl-label">Message</span>
+            <span class="sdl-value sdl-value--message">{{ selectedStep.message }}</span>
+          </div>
+
+        </div>
+      </q-card-section>
+    </q-card>
+  </q-dialog>
+
 </template>
 
 <style scoped>
@@ -410,6 +536,10 @@ function runDuration(): string {
   font-size: 12px;
   word-break: break-word;
 }
+.meta-value--uid {
+  font-size: 11px;
+  color: var(--fs-text-muted);
+}
 
 .param-list { display: flex; flex-wrap: wrap; gap: 4px; }
 .param-chip {
@@ -451,7 +581,6 @@ function runDuration(): string {
 }
 .tpl-table tbody tr:last-child td { border-bottom: none; }
 .tpl-table tbody tr:hover td { background: var(--fs-bg-hover); }
-.tpl-table tbody tr.row--active-log td { background: color-mix(in srgb, var(--fs-accent) 5%, transparent); }
 
 .col-name    { font-weight: 500; color: var(--fs-accent); }
 .col-dur     { color: var(--fs-text-secondary); font-size: 12px; }
@@ -537,67 +666,6 @@ function runDuration(): string {
   background: color-mix(in srgb, var(--fs-warn, #ff9800) 12%, transparent);
 }
 
-/* ─── Inline log ────────────────────────────────────────────────────────────── */
-
-.log-row td { padding: 0 !important; border-bottom: 1px solid var(--fs-border); }
-
-.log-cell {
-  background: var(--fs-bg-elevated, var(--fs-bg-surface)) !important;
-  padding: 0 !important;
-}
-
-.log-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--fs-border);
-  background: var(--fs-bg-hover);
-}
-.log-title {
-  font-size: 11px;
-  color: var(--fs-text-muted);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.log-loading {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 16px 12px;
-  font-size: 12px;
-  color: var(--fs-text-muted);
-}
-
-.log-error {
-  padding: 12px;
-  font-size: 12px;
-  color: var(--fs-neg, #e57373);
-  margin: 0;
-}
-
-.log-pre {
-  margin: 0;
-  padding: 12px;
-  font-family: var(--fs-font-mono);
-  font-size: 11.5px;
-  line-height: 1.6;
-  color: var(--fs-text-primary);
-  white-space: pre-wrap;
-  word-break: break-all;
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.log-empty {
-  padding: 12px;
-  font-size: 12px;
-  color: var(--fs-text-muted);
-  margin: 0;
-}
-
 /* ─── Shared ────────────────────────────────────────────────────────────────── */
 
 .icon-btn {
@@ -615,4 +683,166 @@ function runDuration(): string {
 .icon-btn--active { color: var(--fs-accent); }
 
 .fs-mono { font-family: var(--fs-font-mono); }
+.clickable-row { cursor: pointer; }
+</style>
+
+<style>
+/* q-dialog renders outside component DOM — must be unscoped */
+.step-dialog {
+  min-width: 420px;
+  max-width: 560px;
+  background: var(--fs-bg-surface);
+  color: var(--fs-text-primary);
+}
+
+.step-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px !important;
+}
+
+.step-dialog__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fs-text-primary);
+}
+
+.step-dialog__body {
+  padding: 16px !important;
+}
+
+.sdl-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.sdl-row {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--fs-border);
+}
+.sdl-row:last-child { border-bottom: none; }
+.sdl-row--top { align-items: start; }
+
+.sdl-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fs-text-muted);
+}
+
+.sdl-value {
+  font-size: 12.5px;
+  color: var(--fs-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sdl-value--message {
+  color: var(--fs-text-muted);
+  font-size: 12px;
+  word-break: break-word;
+  line-height: 1.5;
+  display: block;
+}
+
+.sdl-muted {
+  color: var(--fs-text-muted);
+  font-size: 12px;
+}
+
+.output-badge--yes {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fs-pos, #4caf50);
+}
+
+/* ─── Log dialog ────────────────────────────────────────────────────────────── */
+
+.log-dialog {
+  width: 760px;
+  max-width: 96vw;
+  background: var(--fs-bg-surface);
+  color: var(--fs-text-primary);
+}
+
+.log-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px !important;
+}
+
+.log-dialog__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fs-text-primary);
+}
+
+.log-dialog__pod {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--fs-text-muted);
+}
+
+.log-dialog__body {
+  padding: 0 !important;
+  max-height: 70vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.log-dlg-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 16px;
+  font-size: 12px;
+  color: var(--fs-text-muted);
+}
+
+.log-dlg-error {
+  padding: 16px;
+  font-size: 12px;
+  color: var(--fs-neg, #e57373);
+  margin: 0;
+}
+
+.log-dlg-pre {
+  margin: 0;
+  padding: 14px 16px;
+  font-family: var(--fs-font-mono);
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: var(--fs-text-primary);
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-y: auto;
+  flex: 1;
+  background: var(--fs-bg-elevated, var(--fs-bg-surface));
+}
+
+.log-dlg-empty {
+  padding: 20px 16px;
+  font-size: 12px;
+  color: var(--fs-text-muted);
+  margin: 0;
+}
 </style>

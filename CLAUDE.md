@@ -2,6 +2,12 @@
 
 Vue 3 + Quasar 2 + Vite micro-frontend shell (Module Federation host).
 Dev server: `npm run dev` → http://dev.fusion.local:5174
+
+## CHANGELOG maintenance
+- `CHANGELOG.md` is the project changelog — update it for every feature and bugfix going forward
+- Format: add entries under `## [Unreleased]` with today's date as a comment; use `### Added`, `### Changed`, `### Fixed` subsections; one line per item
+- When a deployment bumps the image tag (values-dev.yaml), also promote `[Unreleased]` to a versioned section (e.g. `## [0.9.1] — YYYY-MM-DD`) matching the new tag
+- Use `date +%Y-%m-%d` in Bash to get today's date when writing changelog entries
 - Requires `127.0.0.1 dev.fusion.local` in `/etc/hosts` (localhost breaks SameSite=Lax cookie sharing with bff.fusion.local)
 - Vite config: `server.host:'0.0.0.0'`, `server.port:5174`, `server.allowedHosts:['dev.fusion.local']`
 Type check: `npm run typecheck`
@@ -204,8 +210,16 @@ Fusion Index uses explicit routes (not a wildcard):
 - `MONITORING_ENABLED=true` is already set on `fusion-weave-api` in minikube — monitoring API is live
 - `src/composables/useRunsPolling.ts` — 10s polling composable for list pages; exports `{ polling, startPolling, stopPolling, togglePolling }`; calls `onUnmounted(stopPolling)` internally — callers don't need to
 - Pages: `WeaveRunsOverviewPage` (`/pipelines/runs`), `WeaveRunsRunningPage` (`/pipelines/runs/running`), `WeaveRunsFailedPage` (`/pipelines/runs/failed`), `WeaveRunDetailPage` (`/pipelines/runs/:name`)
-- Run detail inline log expansion: `activeLogStep: ref<string|null>(null)`; use `<template v-for>` in `<tbody>` + a sibling `<tr v-if="activeLogStep === step.name">` spanning all columns; only show log button when `step.jobRef?.name` exists (deploymentRef steps have no logs)
+- Run detail log dialog: `openLogDialog(stepName)` fetches `getStepLogs()` and shows result in a `<q-dialog>` (separate from the step-info dialog); log button shown on ALL step rows regardless of `jobRef`/`deploymentRef` — show "EOF — No LOG available at moment or yet" when `lines` is empty
 - Run detail polling: VenvDetailPage pattern — `setInterval` inline, stops automatically when `isTerminal(phase)` (`Succeeded | Failed | Stopped`); `onUnmounted` clears timer
+- Run deletion: `DELETE /api/weave/api/v1/runs/:name` (CRUD_BASE in `weaveMonitorApi.ts`) works through the BFF proxy; no stop/cancel mechanism exists in the controller — `Stopped` phase is only set by the StopAll failure policy
+
+## Weave API — CRUD & edit patterns
+- Full CRUD on all four resource types: jobtemplates, servicetemplates, chains, triggers, runs all have `GET / POST / GET :name / PUT :name / PATCH :name / DELETE :name` via `registerCRUD()` — no BFF changes needed for any of these
+- `PUT /:name` requires `resourceVersion`: the handler calls `client.Update` which enforces K8s optimistic concurrency — always include `metadata.resourceVersion` from the fetched object in the PUT body or the server returns 409 Conflict
+- K8s resource names are immutable: `metadata.name` cannot be changed via PUT; show it read-only (lock icon + tooltip "immutable in Kubernetes") in edit UIs; delete+recreate is the only rename path
+- `weaveApi.ts` imports: `bffPut` is exported by `bffClient.ts` but was not initially imported in `weaveApi.ts` — add it to the import line when adding PUT operations
+- Template edit dialog pattern: view mode shows `<pre>` of `JSON.stringify(t.spec, null, 2)`; edit mode swaps in `<JsonEditor>`; on save compare `newSpec.image !== t.spec.image` and show `$q.dialog` confirm before calling `updateJobTemplate` / `updateServiceTemplate`; buttons inside `q-dialog` need CSS in an unscoped `<style>` block scoped to the dialog class (e.g. `.tpl-dialog .fs-btn { ... }`)
 
 ## Advanced Chain Builder (WeaveAdvancedChainPage)
 Route: `/pipelines/weave/chains/advanced` — the most feature-complete chain wizard.
@@ -241,6 +255,7 @@ interface StepRow {
 
 ## Screenshots
 `screenshots/` — UI screenshots named `YYYY-MM-DD_<description>.png`
+- Test/debug screenshots **must** use the prefix `test_` (e.g. `test_2026-05-11_wizard-step2.png`) — these are git-ignored
 
 ## Adding a new page / feature
 1. Add leaf to `src/data/navigation.ts` under the correct group

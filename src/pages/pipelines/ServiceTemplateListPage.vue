@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import CanvasPanel from '@/components/CanvasPanel.vue'
+import JsonEditor from '@/components/JsonEditor.vue'
 import { usePermission } from '@/composables/usePermission'
 import * as weaveApi from '@/api/weaveApi'
 
@@ -20,6 +21,86 @@ const nameSearch  = ref('')
 const currentPage = ref(1)
 
 const deletingNames = ref<Set<string>>(new Set())
+
+// detail / edit dialog
+const selectedTemplate   = ref<weaveApi.WeaveServiceTemplate | null>(null)
+const templateDialogOpen = ref(false)
+const editMode           = ref(false)
+const editSpecJson       = ref('')
+const editSpecValid      = ref(true)
+const editSubmitting     = ref(false)
+const editError          = ref<string | null>(null)
+
+function openTemplateDialog(t: weaveApi.WeaveServiceTemplate) {
+  selectedTemplate.value   = t
+  templateDialogOpen.value = true
+  editMode.value           = false
+  editError.value          = null
+}
+
+function enterEditMode() {
+  editSpecJson.value  = JSON.stringify(selectedTemplate.value!.spec, null, 2)
+  editSpecValid.value = true
+  editError.value     = null
+  editMode.value      = true
+}
+
+function cancelEdit() {
+  editMode.value  = false
+  editError.value = null
+}
+
+async function performUpdate(newSpec: weaveApi.WeaveServiceTemplateSpec) {
+  const t = selectedTemplate.value!
+  editSubmitting.value = true
+  editError.value      = null
+  try {
+    const updated = await weaveApi.updateServiceTemplate(t, newSpec)
+    result.value = result.value
+      ? { ...result.value, items: result.value.items.map(i => i.metadata.name === t.metadata.name ? updated : i) }
+      : result.value
+    selectedTemplate.value = updated
+    editMode.value = false
+  } catch (e) {
+    editError.value = e instanceof Error ? e.message : 'Update failed'
+  } finally {
+    editSubmitting.value = false
+  }
+}
+
+function saveEdit() {
+  let newSpec: weaveApi.WeaveServiceTemplateSpec
+  try {
+    newSpec = JSON.parse(editSpecJson.value) as weaveApi.WeaveServiceTemplateSpec
+  } catch {
+    editError.value = 'Invalid JSON — fix syntax before saving'
+    return
+  }
+  if (!editSpecValid.value) {
+    editError.value = 'Invalid JSON — fix syntax before saving'
+    return
+  }
+
+  const t            = selectedTemplate.value!
+  const imageChanged = newSpec.image !== t.spec.image
+
+  if (imageChanged) {
+    $q.dialog({
+      title:   'Change Container Image?',
+      message: `You are changing the image from <code>${t.spec.image}</code> to <code>${newSpec.image}</code>.<br>This will affect all future runs using this template.`,
+      html:    true,
+      ok:     { label: 'Apply Change', color: 'warning', flat: true },
+      cancel: { label: 'Cancel', flat: true },
+    }).onOk(() => performUpdate(newSpec))
+    return
+  }
+
+  performUpdate(newSpec)
+}
+
+function formatSpecJson(t: weaveApi.WeaveServiceTemplate): string {
+  return JSON.stringify(t.spec, null, 2)
+}
 
 async function loadTemplates() {
   loading.value = true
@@ -122,7 +203,7 @@ onMounted(loadTemplates)
             </tr>
           </thead>
           <tbody>
-            <tr v-for="t in pagedItems" :key="t.metadata.name">
+            <tr v-for="t in pagedItems" :key="t.metadata.name" class="clickable-row" @click="openTemplateDialog(t)">
               <td class="col-name fs-mono">{{ t.metadata.name }}</td>
               <td class="col-image fs-mono">{{ t.spec.image }}</td>
               <td class="col-num">{{ t.spec.replicas ?? 1 }}</td>
@@ -140,13 +221,13 @@ onMounted(loadTemplates)
                 </span>
               </td>
               <td class="col-muted">{{ templateAge(t) }}</td>
-              <td class="col-actions">
+              <td class="col-actions" @click.stop>
                 <button
                   v-if="can('weave:servicetemplates:delete')"
                   class="icon-btn icon-btn--danger"
                   :disabled="deletingNames.has(t.metadata.name)"
                   :title="`Delete ${t.metadata.name}`"
-                  @click.stop="confirmDelete(t)"
+                  @click="confirmDelete(t)"
                 >
                   <q-spinner v-if="deletingNames.has(t.metadata.name)" size="13px" />
                   <q-icon v-else name="mdi-delete-outline" size="16px" />
@@ -176,6 +257,94 @@ onMounted(loadTemplates)
       </div>
     </CanvasPanel>
   </div>
+
+  <!-- Template detail / edit dialog -->
+  <q-dialog v-model="templateDialogOpen" :persistent="editMode">
+    <q-card class="tpl-dialog" v-if="selectedTemplate">
+      <q-card-section class="tpl-dialog__header">
+        <div class="tpl-dialog__title">
+          <q-icon name="mdi-server-outline" size="16px" />
+          <span class="fs-mono">{{ selectedTemplate.metadata.name }}</span>
+          <span v-if="editMode" class="tpl-dialog__mode-badge">Editing</span>
+        </div>
+        <div class="tpl-dialog__actions">
+          <template v-if="!editMode">
+            <button
+              v-if="can('weave:servicetemplates:write')"
+              class="fs-btn fs-btn--ghost fs-btn--sm"
+              @click="enterEditMode"
+            >
+              <q-icon name="mdi-pencil-outline" size="13px" /> Edit
+            </button>
+            <q-btn flat round dense icon="mdi-close" @click="templateDialogOpen = false" />
+          </template>
+          <template v-else>
+            <button class="fs-btn fs-btn--ghost fs-btn--sm" :disabled="editSubmitting" @click="cancelEdit">
+              Cancel
+            </button>
+            <button class="fs-btn fs-btn--primary fs-btn--sm" :disabled="editSubmitting || !editSpecValid" @click="saveEdit">
+              <q-spinner v-if="editSubmitting" size="12px" color="white" />
+              <q-icon v-else name="mdi-check-outline" size="13px" />
+              {{ editSubmitting ? 'Saving…' : 'Save' }}
+            </button>
+          </template>
+        </div>
+      </q-card-section>
+
+      <q-separator />
+
+      <q-card-section class="tpl-dialog__meta">
+        <div class="tdl-grid">
+          <div class="tdl-row">
+            <span class="tdl-label">Name</span>
+            <span class="tdl-value fs-mono">
+              {{ selectedTemplate.metadata.name }}
+              <q-icon name="mdi-lock-outline" size="11px" class="tdl-lock-icon" />
+              <q-tooltip>Template names are immutable in Kubernetes</q-tooltip>
+            </span>
+          </div>
+          <div class="tdl-row">
+            <span class="tdl-label">Namespace</span>
+            <span class="tdl-value fs-mono">{{ selectedTemplate.metadata.namespace ?? '—' }}</span>
+          </div>
+          <div class="tdl-row">
+            <span class="tdl-label">Created</span>
+            <span class="tdl-value">{{ selectedTemplate.metadata.creationTimestamp ? new Date(selectedTemplate.metadata.creationTimestamp).toLocaleString() : '—' }}</span>
+          </div>
+          <div class="tdl-row">
+            <span class="tdl-label">Valid</span>
+            <span class="tdl-value">
+              <span v-if="selectedTemplate.status?.valid === true"  class="valid-badge valid-badge--ok"><q-icon name="mdi-check-circle-outline" size="12px" /> Valid</span>
+              <span v-else-if="selectedTemplate.status?.valid === false" class="valid-badge valid-badge--err"><q-icon name="mdi-alert-circle-outline" size="12px" /> Invalid — {{ selectedTemplate.status.validationMessage }}</span>
+              <span v-else class="valid-badge valid-badge--pending"><q-icon name="mdi-clock-outline" size="12px" /> Pending</span>
+            </span>
+          </div>
+          <div class="tdl-row" v-if="selectedTemplate.metadata.uid">
+            <span class="tdl-label">UID</span>
+            <span class="tdl-value fs-mono tdl-value--uid">{{ selectedTemplate.metadata.uid }}</span>
+          </div>
+        </div>
+      </q-card-section>
+
+      <q-separator />
+
+      <q-card-section class="tpl-dialog__spec">
+        <div class="spec-label">Spec</div>
+        <pre v-if="!editMode" class="spec-pre">{{ formatSpecJson(selectedTemplate) }}</pre>
+        <JsonEditor
+          v-else
+          v-model="editSpecJson"
+          min-height="260px"
+          max-height="55vh"
+          @valid="editSpecValid = $event"
+        />
+        <div v-if="editError" class="edit-error">
+          <q-icon name="mdi-alert-circle-outline" size="13px" /> {{ editError }}
+        </div>
+      </q-card-section>
+    </q-card>
+  </q-dialog>
+
 </template>
 
 <style scoped>
@@ -202,6 +371,7 @@ onMounted(loadTemplates)
 }
 .tpl-table tbody tr:last-child td { border-bottom: none; }
 .tpl-table tbody tr:hover td { background: var(--fs-bg-hover); }
+.tpl-table tbody tr.clickable-row { cursor: pointer; }
 .col-name    { font-weight: 500; color: var(--fs-accent); }
 .col-image   { color: var(--fs-text-muted); font-size: 12px; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-num     { color: var(--fs-text-muted); text-align: center; }
@@ -223,4 +393,124 @@ onMounted(loadTemplates)
 .fs-btn--primary { background: var(--fs-accent); color: #fff; border-color: var(--fs-accent); }
 .fs-btn--primary:hover { filter: brightness(1.1); }
 .fs-mono { font-family: var(--fs-font-mono); }
+</style>
+
+<style>
+.tpl-dialog {
+  width: 640px;
+  max-width: 96vw;
+  background: var(--fs-bg-surface);
+  color: var(--fs-text-primary);
+}
+.tpl-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px !important;
+}
+.tpl-dialog__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fs-text-primary);
+}
+.tpl-dialog__mode-badge {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: var(--fs-warn, #ff9800);
+  background: color-mix(in srgb, var(--fs-warn, #ff9800) 12%, transparent);
+}
+.tpl-dialog__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tpl-dialog__meta { padding: 12px 16px !important; }
+.tpl-dialog__spec { padding: 12px 16px !important; }
+
+.tdl-grid { display: flex; flex-direction: column; }
+.tdl-row {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 8px;
+  align-items: baseline;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--fs-border);
+}
+.tdl-row:last-child { border-bottom: none; }
+.tdl-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fs-text-muted);
+}
+.tdl-value {
+  font-size: 12.5px;
+  color: var(--fs-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.tdl-value--uid { font-size: 11px; color: var(--fs-text-muted); }
+.tdl-lock-icon  { color: var(--fs-text-muted); opacity: 0.6; }
+
+.spec-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fs-text-muted);
+  margin-bottom: 8px;
+}
+.spec-pre {
+  margin: 0;
+  padding: 12px;
+  font-family: var(--fs-font-mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--fs-text-primary);
+  background: var(--fs-bg-elevated, var(--fs-bg-surface));
+  border: 1px solid var(--fs-border);
+  border-radius: 4px;
+  white-space: pre;
+  overflow-x: auto;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.edit-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--fs-neg, #e57373);
+}
+
+.fs-btn--sm { padding: 5px 10px; font-size: 11.5px; }
+
+.tpl-dialog .fs-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background var(--fs-ease), filter var(--fs-ease), color var(--fs-ease);
+}
+.tpl-dialog .fs-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.tpl-dialog .fs-btn--primary  { background: var(--fs-accent); color: #fff; border-color: var(--fs-accent); }
+.tpl-dialog .fs-btn--primary:hover:not(:disabled) { filter: brightness(1.1); }
+.tpl-dialog .fs-btn--ghost    { background: transparent; color: var(--fs-text-muted); border-color: var(--fs-border); }
+.tpl-dialog .fs-btn--ghost:hover:not(:disabled) { color: var(--fs-text-primary); background: var(--fs-bg-hover); }
 </style>

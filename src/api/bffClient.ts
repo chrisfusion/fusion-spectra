@@ -49,6 +49,14 @@ export async function bffPut<T>(path: string, body?: unknown): Promise<T> {
   return res.json() as Promise<T>
 }
 
+export async function bffPatch<T>(path: string, body?: unknown): Promise<T> {
+  const res = await bffFetch(path, {
+    method: 'PATCH',
+    body: body !== undefined ? JSON.stringify(body) : undefined
+  })
+  return res.json() as Promise<T>
+}
+
 export async function bffDelete(path: string): Promise<void> {
   await bffFetch(path, { method: 'DELETE' })
 }

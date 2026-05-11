@@ -23,8 +23,8 @@ const K8S_NAME_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$|^[a-z0-9]$/
 
 interface PortRow {
   name:       string
-  port:       string
-  targetPort: string
+  port:       string | number
+  targetPort: string | number
   protocol:   'TCP' | 'UDP' | 'SCTP'
 }
 const ports = ref<PortRow[]>([{ name: 'http', port: '', targetPort: '', protocol: 'TCP' }])
@@ -57,7 +57,7 @@ function validateStep1(): boolean {
   } else {
     imageError.value = null
   }
-  const validPorts = ports.value.filter(p => p.name.trim() && p.port.trim())
+  const validPorts = ports.value.filter(p => p.name.trim() && String(p.port ?? '').trim() !== '')
   if (validPorts.length === 0) {
     portsError.value = 'At least one port with name and port number is required'
     ok = false
@@ -102,14 +102,15 @@ const createdTemplate = ref<weaveApi.WeaveServiceTemplate | null>(null)
 
 function buildSpec(): weaveApi.WeaveServiceTemplateSpec {
   const builtPorts: weaveApi.WeaveServicePort[] = ports.value
-    .filter(p => p.name.trim() && p.port.trim())
+    .filter(p => p.name.trim() && String(p.port ?? '').trim() !== '')
     .map(p => {
-      const portNum = parseInt(p.port)
-      const targetNum = parseInt(p.targetPort)
+      const portNum = parseInt(String(p.port ?? ''))
+      const targetStr = String(p.targetPort ?? '').trim()
+      const targetNum = parseInt(targetStr)
       return {
         name:       p.name.trim(),
         port:       portNum,
-        ...(p.targetPort.trim() && !isNaN(targetNum) ? { targetPort: targetNum } : {}),
+        ...(targetStr && !isNaN(targetNum) ? { targetPort: targetNum } : {}),
         protocol:   p.protocol,
       }
     })

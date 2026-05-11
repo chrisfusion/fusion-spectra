@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import * as monitorApi from '@/api/weaveMonitorApi'
 import { useRunsPolling } from '@/composables/useRunsPolling'
 
 const router = useRouter()
+const $q     = useQuasar()
 
-const allRuns  = ref<monitorApi.RunSummary[]>([])
-const loading  = ref(false)
-const error    = ref<string | null>(null)
+const allRuns      = ref<monitorApi.RunSummary[]>([])
+const loading      = ref(false)
+const error        = ref<string | null>(null)
+const deletingRuns = ref<Set<string>>(new Set())
 
 const runs = computed(() =>
   allRuns.value.filter(r => r.phase === 'Failed' || r.phase === 'Stopped')
@@ -28,6 +31,26 @@ async function loadRuns() {
 }
 
 const { polling, startPolling, togglePolling } = useRunsPolling(loadRuns)
+
+function confirmDelete(r: monitorApi.RunSummary) {
+  $q.dialog({
+    title:   'Delete Run',
+    message: `Delete run <strong>${r.name}</strong>? This cannot be undone.`,
+    html:    true,
+    ok:     { label: 'Delete', color: 'negative', flat: true },
+    cancel: { label: 'Cancel', flat: true },
+  }).onOk(async () => {
+    deletingRuns.value = new Set([...deletingRuns.value, r.name])
+    try {
+      await monitorApi.deleteRun(r.name)
+      allRuns.value = allRuns.value.filter(x => x.name !== r.name)
+    } catch (e) {
+      $q.notify({ type: 'negative', message: e instanceof Error ? e.message : 'Delete failed' })
+    } finally {
+      deletingRuns.value = new Set([...deletingRuns.value].filter(n => n !== r.name))
+    }
+  })
+}
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—'
@@ -74,6 +97,7 @@ onMounted(async () => {
               <th>Message</th>
               <th>Started</th>
               <th>Completed</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -94,9 +118,20 @@ onMounted(async () => {
               </td>
               <td class="col-muted">{{ formatDate(r.startTime) }}</td>
               <td class="col-muted">{{ formatDate(r.completionTime) }}</td>
+              <td class="col-actions" @click.stop>
+                <button
+                  class="icon-btn icon-btn--danger"
+                  :disabled="deletingRuns.has(r.name)"
+                  :title="`Delete ${r.name}`"
+                  @click="confirmDelete(r)"
+                >
+                  <q-spinner v-if="deletingRuns.has(r.name)" size="13px" />
+                  <q-icon v-else name="mdi-delete-outline" size="16px" />
+                </button>
+              </td>
             </tr>
             <tr v-if="!loading && runs.length === 0">
-              <td colspan="8" class="empty-row">No failed or stopped runs.</td>
+              <td colspan="9" class="empty-row">No failed or stopped runs.</td>
             </tr>
           </tbody>
         </table>
@@ -142,10 +177,11 @@ onMounted(async () => {
 .tpl-table tbody tr:hover td { background: var(--fs-bg-hover); }
 .tpl-table tbody tr.clickable-row { cursor: pointer; }
 
-.col-name  { font-weight: 500; color: var(--fs-accent); }
-.col-chain { color: var(--fs-text-muted); }
-.col-num   { color: var(--fs-text-muted); text-align: center; }
-.col-muted { color: var(--fs-text-muted); font-size: 12px; }
+.col-name    { font-weight: 500; color: var(--fs-accent); }
+.col-chain   { color: var(--fs-text-muted); }
+.col-num     { color: var(--fs-text-muted); text-align: center; }
+.col-muted   { color: var(--fs-text-muted); font-size: 12px; }
+.col-actions { width: 48px; text-align: center; white-space: nowrap; }
 .col-message {
   max-width: 240px;
   overflow: hidden;
@@ -205,8 +241,10 @@ onMounted(async () => {
   color: var(--fs-text-muted);
   transition: color var(--fs-ease), background var(--fs-ease);
 }
-.icon-btn:hover   { color: var(--fs-text-primary); background: var(--fs-bg-hover); }
-.icon-btn--active { color: var(--fs-accent); }
+.icon-btn:hover                        { color: var(--fs-text-primary); background: var(--fs-bg-hover); }
+.icon-btn--active                      { color: var(--fs-accent); }
+.icon-btn--danger:hover:not(:disabled) { color: var(--fs-neg, #e57373); background: color-mix(in srgb, var(--fs-neg, #e57373) 10%, transparent); }
+.icon-btn:disabled                     { opacity: 0.4; cursor: not-allowed; }
 
 .fs-mono { font-family: var(--fs-font-mono); }
 </style>

@@ -62,6 +62,9 @@ __pycache__/
 test-results/
 playwright-report/
 
+# Test screenshots (prefix test_)
+screenshots/test_*
+
 # Loose screenshots / debug images in repo root
 /*.png
 /*.jpg

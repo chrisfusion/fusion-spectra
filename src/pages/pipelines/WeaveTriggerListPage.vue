@@ -20,6 +20,7 @@ const nameSearch  = ref('')
 const currentPage = ref(1)
 
 const deletingNames = ref<Set<string>>(new Set())
+const firingNames   = ref<Set<string>>(new Set())
 
 async function loadTriggers() {
   loading.value = true
@@ -53,6 +54,27 @@ function triggerAge(t: weaveApi.WeaveTrigger): string {
   const ts = t.metadata.creationTimestamp
   if (!ts) return '—'
   return new Date(ts).toLocaleString()
+}
+
+function confirmFire(t: weaveApi.WeaveTrigger) {
+  $q.dialog({
+    title:   'Fire Trigger',
+    message: `Fire <strong>${t.metadata.name}</strong> now? A new WeaveRun will be created for chain <strong>${t.spec.chainRef.name}</strong>.`,
+    html:    true,
+    ok:     { label: 'Fire', color: 'warning', flat: true },
+    cancel: { label: 'Cancel', flat: true },
+  }).onOk(async () => {
+    firingNames.value = new Set([...firingNames.value, t.metadata.name])
+    try {
+      await weaveApi.fireWeaveTrigger(t.metadata.name)
+      $q.notify({ type: 'positive', message: `Trigger ${t.metadata.name} fired — run created.` })
+      await loadTriggers()
+    } catch (e) {
+      $q.notify({ type: 'negative', message: e instanceof Error ? e.message : 'Fire failed' })
+    } finally {
+      firingNames.value = new Set([...firingNames.value].filter(n => n !== t.metadata.name))
+    }
+  })
 }
 
 function confirmDelete(t: weaveApi.WeaveTrigger) {
@@ -152,6 +174,16 @@ onMounted(loadTriggers)
               <td class="col-muted">{{ triggerAge(t) }}</td>
               <td class="col-actions">
                 <button
+                  v-if="t.spec.type === 'OnDemand' && can('weave:triggers:write')"
+                  class="icon-btn icon-btn--fire"
+                  :disabled="firingNames.has(t.metadata.name)"
+                  title="Fire trigger"
+                  @click.stop="confirmFire(t)"
+                >
+                  <q-spinner v-if="firingNames.has(t.metadata.name)" size="13px" />
+                  <q-icon v-else name="mdi-play-circle-outline" size="16px" />
+                </button>
+                <button
                   v-if="can('weave:triggers:delete')"
                   class="icon-btn icon-btn--danger"
                   :disabled="deletingNames.has(t.metadata.name)"
@@ -234,7 +266,7 @@ onMounted(loadTriggers)
 .col-name    { font-weight: 500; color: var(--fs-accent); }
 .col-chain   { color: var(--fs-text-secondary, var(--fs-text-muted)); font-size: 12px; }
 .col-muted   { color: var(--fs-text-muted); font-size: 12px; }
-.col-actions { width: 40px; text-align: center; }
+.col-actions { width: 72px; text-align: center; white-space: nowrap; }
 
 /* Type badge */
 .type-badge {
@@ -279,7 +311,8 @@ onMounted(loadTriggers)
   transition: color var(--fs-ease), background var(--fs-ease);
 }
 .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.icon-btn--danger:hover:not(:disabled) { color: var(--fs-neg, #e57373); background: color-mix(in srgb, var(--fs-neg, #e57373) 10%, transparent); }
+.icon-btn--fire:hover:not(:disabled)   { color: var(--fs-warn, #ffa726); background: color-mix(in srgb, var(--fs-warn, #ffa726) 10%, transparent); }
+.icon-btn--danger:hover:not(:disabled) { color: var(--fs-neg, #e57373);  background: color-mix(in srgb, var(--fs-neg, #e57373)  10%, transparent); }
 
 .pagination-row {
   display: flex;

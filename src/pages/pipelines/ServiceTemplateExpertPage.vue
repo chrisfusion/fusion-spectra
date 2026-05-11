@@ -17,7 +17,7 @@ const imageError = ref<string | null>(null)
 
 // ─── Ports ────────────────────────────────────────────────────────────────────
 
-interface PortRow { name: string; port: string; targetPort: string; protocol: 'TCP' | 'UDP' | 'SCTP' }
+interface PortRow { name: string; port: string | number; targetPort: string | number; protocol: 'TCP' | 'UDP' | 'SCTP' }
 const ports      = ref<PortRow[]>([{ name: 'http', port: '', targetPort: '', protocol: 'TCP' }])
 const portsError = ref<string | null>(null)
 
@@ -125,7 +125,7 @@ function validate(): boolean {
   if (!image.value.trim()) { imageError.value = 'Image is required'; ok = false }
   else imageError.value = null
 
-  const validPorts = ports.value.filter(p => p.name.trim() && p.port.trim())
+  const validPorts = ports.value.filter(p => p.name.trim() && String(p.port ?? '').trim() !== '')
   if (validPorts.length === 0) { portsError.value = 'At least one port with name and port number is required'; ok = false }
   else portsError.value = null
 
@@ -136,12 +136,13 @@ function validate(): boolean {
 
 function buildSpec(): weaveApi.WeaveServiceTemplateSpec {
   const builtPorts: weaveApi.WeaveServicePort[] = ports.value
-    .filter(p => p.name.trim() && p.port.trim())
+    .filter(p => p.name.trim() && String(p.port ?? '').trim() !== '')
     .map(p => {
-      const portNum   = parseInt(p.port)
-      const targetNum = parseInt(p.targetPort)
+      const portNum   = parseInt(String(p.port ?? ''))
+      const targetStr = String(p.targetPort ?? '').trim()
+      const targetNum = parseInt(targetStr)
       return { name: p.name.trim(), port: portNum,
-               ...(p.targetPort.trim() && !isNaN(targetNum) ? { targetPort: targetNum } : {}),
+               ...(targetStr && !isNaN(targetNum) ? { targetPort: targetNum } : {}),
                protocol: p.protocol }
     })
 

@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import * as monitorApi from '@/api/weaveMonitorApi'
 import { formatDurationMs } from '@/utils/format'
 
 const router = useRouter()
+const $q     = useQuasar()
 
 const POLL_MS = 10_000
 
@@ -16,9 +18,10 @@ const stats        = ref<monitorApi.RunStatsResponse | null>(null)
 const statsLoading = ref(false)
 const statsError   = ref<string | null>(null)
 
-const allRuns     = ref<monitorApi.RunSummary[]>([])
-const runsLoading = ref(false)
-const runsError   = ref<string | null>(null)
+const allRuns      = ref<monitorApi.RunSummary[]>([])
+const runsLoading  = ref(false)
+const runsError    = ref<string | null>(null)
+const deletingRuns = ref<Set<string>>(new Set())
 
 // ─── Derived ──────────────────────────────────────────────────────────────────
 
@@ -83,6 +86,26 @@ async function loadRuns() {
 
 async function loadAll() {
   await Promise.all([loadStats(), loadRuns()])
+}
+
+function confirmDelete(r: monitorApi.RunSummary) {
+  $q.dialog({
+    title:   'Delete Run',
+    message: `Delete run <strong>${r.name}</strong>? This cannot be undone.`,
+    html:    true,
+    ok:     { label: 'Delete', color: 'negative', flat: true },
+    cancel: { label: 'Cancel', flat: true },
+  }).onOk(async () => {
+    deletingRuns.value = new Set([...deletingRuns.value, r.name])
+    try {
+      await monitorApi.deleteRun(r.name)
+      allRuns.value = allRuns.value.filter(x => x.name !== r.name)
+    } catch (e) {
+      $q.notify({ type: 'negative', message: e instanceof Error ? e.message : 'Delete failed' })
+    } finally {
+      deletingRuns.value = new Set([...deletingRuns.value].filter(n => n !== r.name))
+    }
+  })
 }
 
 function onWindowChange(w: monitorApi.StatsWindow) {
@@ -193,6 +216,7 @@ onMounted(async () => {
               <th>Phase</th>
               <th>Steps</th>
               <th>Started</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -204,9 +228,20 @@ onMounted(async () => {
               </td>
               <td class="col-num">{{ r.stepCount }}</td>
               <td class="col-muted">{{ formatDate(r.startTime) }}</td>
+              <td class="col-actions" @click.stop>
+                <button
+                  class="icon-btn icon-btn--danger"
+                  :disabled="deletingRuns.has(r.name)"
+                  :title="`Delete ${r.name}`"
+                  @click="confirmDelete(r)"
+                >
+                  <q-spinner v-if="deletingRuns.has(r.name)" size="13px" />
+                  <q-icon v-else name="mdi-delete-outline" size="16px" />
+                </button>
+              </td>
             </tr>
             <tr v-if="!runsLoading && runningRuns.length === 0">
-              <td colspan="5" class="empty-row">No running runs.</td>
+              <td colspan="6" class="empty-row">No running runs.</td>
             </tr>
           </tbody>
         </table>
@@ -234,6 +269,7 @@ onMounted(async () => {
               <th>Failed Steps</th>
               <th>Message</th>
               <th>Completed</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -246,9 +282,20 @@ onMounted(async () => {
               </td>
               <td class="col-message" :title="r.message ?? ''">{{ r.message || '—' }}</td>
               <td class="col-muted">{{ formatDate(r.completionTime) }}</td>
+              <td class="col-actions" @click.stop>
+                <button
+                  class="icon-btn icon-btn--danger"
+                  :disabled="deletingRuns.has(r.name)"
+                  :title="`Delete ${r.name}`"
+                  @click="confirmDelete(r)"
+                >
+                  <q-spinner v-if="deletingRuns.has(r.name)" size="13px" />
+                  <q-icon v-else name="mdi-delete-outline" size="16px" />
+                </button>
+              </td>
             </tr>
             <tr v-if="!runsLoading && failedRuns.length === 0">
-              <td colspan="5" class="empty-row">No failed runs.</td>
+              <td colspan="6" class="empty-row">No failed runs.</td>
             </tr>
           </tbody>
         </table>
@@ -402,10 +449,11 @@ onMounted(async () => {
 .tpl-table tbody tr:hover td { background: var(--fs-bg-hover); }
 .tpl-table tbody tr.clickable-row { cursor: pointer; }
 
-.col-name  { font-weight: 500; color: var(--fs-accent); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.col-chain { color: var(--fs-text-muted); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.col-num   { color: var(--fs-text-muted); text-align: center; }
-.col-muted { color: var(--fs-text-muted); font-size: 12px; }
+.col-name    { font-weight: 500; color: var(--fs-accent); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-chain   { color: var(--fs-text-muted); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-num     { color: var(--fs-text-muted); text-align: center; }
+.col-muted   { color: var(--fs-text-muted); font-size: 12px; }
+.col-actions { width: 48px; text-align: center; white-space: nowrap; }
 .col-message {
   max-width: 200px;
   overflow: hidden;
@@ -465,8 +513,10 @@ onMounted(async () => {
   color: var(--fs-text-muted);
   transition: color var(--fs-ease), background var(--fs-ease);
 }
-.icon-btn:hover    { color: var(--fs-text-primary); background: var(--fs-bg-hover); }
-.icon-btn--active  { color: var(--fs-accent); }
+.icon-btn:hover                        { color: var(--fs-text-primary); background: var(--fs-bg-hover); }
+.icon-btn--active                      { color: var(--fs-accent); }
+.icon-btn--danger:hover:not(:disabled) { color: var(--fs-neg, #e57373); background: color-mix(in srgb, var(--fs-neg, #e57373) 10%, transparent); }
+.icon-btn:disabled                     { opacity: 0.4; cursor: not-allowed; }
 
 .fs-mono { font-family: var(--fs-font-mono); }
 </style>
