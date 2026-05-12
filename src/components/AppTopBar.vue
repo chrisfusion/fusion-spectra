@@ -105,7 +105,7 @@ async function handleLogout() {
       <div class="topbar__divider" />
 
       <!-- User menu -->
-      <div class="topbar__user" @click="userMenuOpen = !userMenuOpen">
+      <div class="topbar__user">
         <div class="topbar__avatar">
           <span>{{ initials }}</span>
         </div>

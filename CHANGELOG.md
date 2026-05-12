@@ -7,6 +7,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+<!-- 2026-05-13 -->
+### Fixed
+- User menu dropdown in the topbar now opens correctly; removed conflicting manual `@click` toggle that was fighting Quasar's built-in `q-menu` trigger and cancelling every click
+
 ---
 
 ## [0.9.5] — 2026-05-13
