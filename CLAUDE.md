@@ -21,7 +21,7 @@ Type check: `npm run typecheck`
 
 ## Layout architecture
 - `src/layouts/MainLayout.vue` — shell: topbar + activity rail + sidebar + canvas
-- Activity rail (`src/components/ActivityRail.vue`) — contexts split into regular (top) and admin (bottom); admin section rendered only when `isAdmin` is true
+- Activity rail (`src/components/ActivityRail.vue`) — three-zone model: regular (top) → separator (flex:1) → util (bottomUtil) → admin (adminOnly); admin section gated by `isAdmin`, util section always visible
 - Sidebar (`src/components/AppSidebar.vue`) — IDE-style tree, 2-level (group → leaf)
 - Canvas panels use `src/components/CanvasPanel.vue`
 - Context/nav data: `src/data/navigation.ts` — single source of truth
@@ -372,3 +372,15 @@ Getter functions in `src/config/runtime.ts`: `getExtBffDownloadPattern()`, `getE
 ## CodeMirror 6 gotchas
 - `@codemirror/lint` is a separate npm package (not bundled with `@codemirror/language`) — install explicitly
 - `lintGutter` lives in `@codemirror/lint`, not `@codemirror/language`
+
+## fusion-content API
+- BFF proxies `/api/content/*` → fusion-content service; permission `content:changelog:read`
+- `GET /api/content/api/v1/changelog?page=1&pageSize=20` → `{ data: DateGroup[], pagination: { page, pageSize, total } }`
+- `DateGroup`: `{ date: string ("unreleased" | "YYYY-MM-DD"), projects: ProjectEntry[] }`
+- `ProjectEntry`: `{ project, version, changes: { added?, changed?, fixed?, removed?: string[] } }`
+- Client: `src/api/contentApi.ts`; page: `src/pages/ChangelogPage.vue` at `/changelog`
+
+## Activity rail — utility zone
+- `Context.bottomUtil?: boolean` — renders between separator and admin; always visible (no `isAdmin` guard); use for standalone nav buttons with no sidebar
+- Set `groups: []` on a `bottomUtil` context; `MainLayout` detects empty groups and navigates directly without opening the sidebar
+- To add a new utility button: add entry to `navigation.ts` with `bottomUtil: true, groups: []`, add route to `router/index.ts`

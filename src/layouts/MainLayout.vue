@@ -20,12 +20,12 @@ watch(() => route.meta.context, (ctx) => {
 }, { immediate: true })
 
 function onContextSelect(id: ContextId) {
+  const ctx = contexts.find(c => c.id === id)
   if (id === activeContextId.value) {
-    sidebarOpen.value = !sidebarOpen.value
+    if (ctx?.groups.length) sidebarOpen.value = !sidebarOpen.value
   } else {
     activeContextId.value = id
-    sidebarOpen.value     = true
-    const ctx = contexts.find(c => c.id === id)
+    sidebarOpen.value     = !!(ctx?.groups.length)
     if (ctx) router.push(ctx.rootPath)
   }
 }

@@ -14,7 +14,8 @@ const emit = defineEmits<{
 
 const { isAdmin } = usePermission()
 
-const regularContexts = props.contexts.filter(c => !c.adminOnly)
+const regularContexts = props.contexts.filter(c => !c.adminOnly && !c.bottomUtil)
+const utilContexts    = props.contexts.filter(c =>  c.bottomUtil)
 const adminContexts   = props.contexts.filter(c =>  c.adminOnly)
 </script>
 
@@ -39,6 +40,24 @@ const adminContexts   = props.contexts.filter(c =>  c.adminOnly)
     </div>
 
     <div class="rail__sep" />
+
+    <div v-if="utilContexts.length" class="rail__util">
+      <button
+        v-for="ctx in utilContexts"
+        :key="ctx.id"
+        class="rail__btn rail__btn--util"
+        :class="{
+          'rail__btn--active': ctx.id === activeId,
+          'rail__btn--active-open': ctx.id === activeId && sidebarOpen
+        }"
+        @click="emit('select', ctx.id)"
+      >
+        <q-icon :name="ctx.icon" size="18px" />
+        <q-tooltip anchor="center right" self="center left" :offset="[10, 0]" class="rail__tooltip">
+          {{ ctx.label }}
+        </q-tooltip>
+      </button>
+    </div>
 
     <div v-if="isAdmin && adminContexts.length" class="rail__bottom">
       <button
@@ -73,6 +92,7 @@ const adminContexts   = props.contexts.filter(c =>  c.adminOnly)
 }
 
 .rail__top    { display: flex; flex-direction: column; gap: 2px; }
+.rail__util   { display: flex; flex-direction: column; gap: 2px; padding-bottom: 4px; }
 .rail__bottom { display: flex; flex-direction: column; gap: 2px; }
 
 .rail__sep {

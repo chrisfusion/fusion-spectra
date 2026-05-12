@@ -7,6 +7,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+---
+
+## [0.9.5] — 2026-05-13
+
+<!-- 2026-05-13 -->
+### Added
+- Changelog page (`/changelog`) displaying platform-wide release notes fetched from fusion-content via BFF `/api/content/api/v1/changelog`; paginated timeline grouped by date with Added/Changed/Fixed/Removed sections per project entry
+- Changelog button in the activity rail (bottom utility section, above Admin for admins, bottommost for regular users); navigates directly without opening the sidebar
+
 <!-- 2026-05-12 -->
 ### Changed
 - Nginx no longer runs as root: container switched to `USER nginx` (uid 101), listening on port 8080
