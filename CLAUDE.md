@@ -167,6 +167,9 @@ Fusion Index uses explicit routes (not a wildcard):
 ## Deployment
 - Dockerfile: 3-stage (deps → build → nginx:alpine); `NPM_REGISTRY` build arg for private registry
 - `nginx.conf`: SPA fallback, gzip, no-cache on `index.html`/`config.js`, immutable cache on hashed assets
+- nginx runs as non-root (`USER nginx`, uid 101) on **port 8080**; Dockerfile `chown`s `/usr/share/nginx/html`, `/var/cache/nginx`, `/var/log/nginx`, `/var/run/nginx.pid`
+- K8s security: `podSecurityContext: {runAsNonRoot: true, runAsUser: 101, fsGroup: 101}` + `containerSecurityContext: {readOnlyRootFilesystem: true, allowPrivilegeEscalation: false, capabilities.drop: [ALL]}`; three `emptyDir` volumes cover nginx's writable paths (`/var/cache/nginx`, `/var/run`, `/tmp`) — `fsGroup: 101` is what makes emptyDir mounts writable by nginx without an initContainer
+- Service exposes port 80 → `targetPort: http` (named port) → resolves to container 8080; no Service/Ingress change needed when only containerPort changes
 - Helm chart: `deployment/` — `values.yaml` (prod) + `values-dev.yaml` (minikube, `pullPolicy:Never`, `image.repository:fusion-spectra`)
 - Runtime config injected via ConfigMap → `/usr/share/nginx/html/config.js` (only `bffUrl` for now)
 - `mock-registry/` — Verdaccio docker-compose for offline npm builds
