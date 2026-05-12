@@ -177,6 +177,7 @@ Fusion Index uses explicit routes (not a wildcard):
 - Docker build MUST run inside minikube's daemon (`eval $(minikube docker-env)` first) — otherwise pod gets `ErrImageNeverPull`
 - After building, update `image.tag` in `values-dev.yaml` and run `helm upgrade`; tag change triggers pod replacement automatically
 - Helm field manager conflict: if `kubectl set image` was used on the deployment, subsequent `helm upgrade` may fail — bypass with `kubectl set image deployment/fusion-spectra frontend=fusion-spectra:X.Y.Z -n fusion && kubectl rollout status deployment/fusion-spectra -n fusion`
+- Stale probe ports: repeated `kubectl set image` bypasses Helm so probe ports stay frozen at their original value; if nginx moved to 8080 but probes still hit 80, pods crash-loop (nginx starts fine but kubelet can't connect) — fix alongside image update: `kubectl patch deployment fusion-spectra -n fusion --type=json -p='[{"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/httpGet/port","value":8080},{"op":"replace","path":"/spec/template/spec/containers/0/readinessProbe/httpGet/port","value":8080},{"op":"replace","path":"/spec/template/spec/containers/0/ports/0/containerPort","value":8080}]'`
 - Stale JS chunks after redeploy cause blank canvas on SPA navigation (silent failure, no console error) — `router.onError` in `src/router/index.ts` auto-reloads on chunk-not-found; if navigation still fails, a fresh build+redeploy is the fix
 - "Clean reinstall on minikube" = `eval $(minikube docker-env) && docker build -t fusion-spectra:X.Y.Z . && kubectl set image deployment/fusion-spectra frontend=fusion-spectra:X.Y.Z -n fusion`; NOT `npm install`
 
@@ -309,7 +310,7 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 Context `forge` has one group:
 - **Venv Builder**: Overview → `/forge`, Builds → `/forge/venvs`, Create Venv → `/forge/venvs/create`, Git Build → `/forge/gitbuilds/create`
 
-Forge routes (`router/index.ts`): `/forge` → `ForgeIndexPage`, `/forge/venvs` → `VenvListPage`, `/forge/venvs/create` → `VenvCreatePage`, `/forge/venvs/:id` → `VenvDetailPage`, `/forge/gitbuilds/create` → `GitBuildCreatePage`, `/forge/:pathMatch(.*)*` → `ForgeIndexPage`
+Forge routes (`router/index.ts`): `/forge` → `ForgeIndexPage`, `/forge/venvs` → `VenvListPage`, `/forge/venvs/create` → `VenvCreatePage`, `/forge/venvs/:id` → `VenvDetailPage`, `/forge/gitbuilds/create` → `GitBuildCreatePage`, `/forge/gitbuilds/:id` → `GitBuildDetailPage`, `/forge/:pathMatch(.*)*` → `ForgeIndexPage`
 
 ## fusion-weave deployment (minikube)
 - Both `fusion-weave-operator` (container: `manager`) and `fusion-weave-api` (container: `api-server`) share one image — build once, update both

@@ -151,6 +151,16 @@ export function createGitBuild(payload: GitBuildPayload): Promise<GitBuild> {
   }).then(r => r.json() as Promise<GitBuild>)
 }
 
+export function getGitBuild(id: number): Promise<GitBuild> {
+  return bffGet<GitBuild>(`${BASE}/gitbuilds/${id}`).then(b => normalizeStatus(b) as GitBuild)
+}
+
+export async function getGitBuildLogs(id: number): Promise<string> {
+  const res = await bffFetch(`${BASE}/gitbuilds/${id}/logs`)
+  if (res.status === 204) return ''
+  return res.text()
+}
+
 export async function validateGitBuild(payload: GitBuildPayload): Promise<ValidationResult> {
   const res = await fetch(`${getBffUrl()}${BASE}/gitbuilds/validate`, {
     method:      'POST',
