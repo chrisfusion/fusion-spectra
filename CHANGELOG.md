@@ -7,6 +7,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+<!-- 2026-05-12 -->
+### Changed
+- Nginx no longer runs as root: container switched to `USER nginx` (uid 101), listening on port 8080
+- Dockerfile fixes ownership of `/var/cache/nginx`, `/var/log/nginx`, and `/var/run/nginx.pid` for the nginx user
+- Helm deployment enforces `runAsNonRoot: true`, `readOnlyRootFilesystem: true`, `allowPrivilegeEscalation: false`, and drops all Linux capabilities
+- Three `emptyDir` volumes (`/var/cache/nginx`, `/var/run`, `/tmp`) mounted to satisfy nginx write needs under a read-only root filesystem
+- `fsGroup: 101` in pod security context ensures emptyDir mounts are writable by the nginx user
+
 ---
 
 ## [0.9.3] — 2026-05-11

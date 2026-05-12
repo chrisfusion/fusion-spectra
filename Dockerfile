@@ -43,5 +43,15 @@ FROM nginx:alpine AS serve
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 80
+# Fix ownership so the nginx user (uid 101) can read static files.
+# /var/cache/nginx, /var/run, /tmp are provided as emptyDir in K8s;
+# chowning them here ensures they are writable in plain-docker runs too.
+RUN chown -R nginx:nginx /usr/share/nginx/html \
+    && chown -R nginx:nginx /var/cache/nginx \
+    && chown -R nginx:nginx /var/log/nginx \
+    && touch /var/run/nginx.pid \
+    && chown nginx:nginx /var/run/nginx.pid
+
+USER nginx
+EXPOSE 8080
 CMD ["nginx", "-g", "daemon off;"]

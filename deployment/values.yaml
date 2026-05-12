@@ -34,15 +34,16 @@ resources:
 podAnnotations: {}
 podLabels: {}
 
-podSecurityContext: {}
-  # runAsNonRoot: true
-  # runAsUser: 101       # nginx user
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 101        # nginx user (uid in nginx:alpine)
+  fsGroup: 101          # ensures emptyDir mounts are writable by nginx
 
-containerSecurityContext: {}
-  # allowPrivilegeEscalation: false
-  # readOnlyRootFilesystem: true
-  # capabilities:
-  #   drop: [ALL]
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
 
 autoscaling:
   enabled: false
