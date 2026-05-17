@@ -22,6 +22,7 @@ const allRuns      = ref<monitorApi.RunSummary[]>([])
 const runsLoading  = ref(false)
 const runsError    = ref<string | null>(null)
 const deletingRuns = ref<Set<string>>(new Set())
+const stoppingRuns = ref<Set<string>>(new Set())
 
 // ─── Derived ──────────────────────────────────────────────────────────────────
 
@@ -86,6 +87,29 @@ async function loadRuns() {
 
 async function loadAll() {
   await Promise.all([loadStats(), loadRuns()])
+}
+
+function confirmStop(r: monitorApi.RunSummary) {
+  $q.dialog({
+    title:   'Stop Run',
+    message: `Stop run <strong>${r.name}</strong>? The run will be kept in history as Stopped.`,
+    html:    true,
+    ok:     { label: 'Stop', color: 'warning', flat: true },
+    cancel: { label: 'Cancel', flat: true },
+  }).onOk(async () => {
+    const origPhase = r.phase
+    stoppingRuns.value = new Set([...stoppingRuns.value, r.name])
+    allRuns.value = allRuns.value.map(x => x.name === r.name ? { ...x, phase: 'Stopped' as const } : x)
+    try {
+      await monitorApi.stopRun(r.name)
+      $q.notify({ type: 'positive', message: `Run ${r.name} stopped` })
+    } catch (e) {
+      allRuns.value = allRuns.value.map(x => x.name === r.name ? { ...x, phase: origPhase } : x)
+      $q.notify({ type: 'negative', message: e instanceof Error ? e.message : 'Stop failed' })
+    } finally {
+      stoppingRuns.value = new Set([...stoppingRuns.value].filter(n => n !== r.name))
+    }
+  })
 }
 
 function confirmDelete(r: monitorApi.RunSummary) {
@@ -230,6 +254,17 @@ onMounted(async () => {
               <td class="col-muted">{{ formatDate(r.startTime) }}</td>
               <td class="col-actions" @click.stop>
                 <button
+                  v-if="r.phase === 'Running'"
+                  class="icon-btn icon-btn--warn"
+                  :disabled="stoppingRuns.has(r.name)"
+                  title="Stop run (keeps history)"
+                  @click="confirmStop(r)"
+                >
+                  <q-spinner v-if="stoppingRuns.has(r.name)" size="13px" />
+                  <q-icon v-else name="mdi-stop-circle-outline" size="16px" />
+                  <q-tooltip>Stop run (keeps history)</q-tooltip>
+                </button>
+                <button
                   class="icon-btn icon-btn--danger"
                   :disabled="deletingRuns.has(r.name)"
                   :title="`Delete ${r.name}`"
@@ -237,6 +272,7 @@ onMounted(async () => {
                 >
                   <q-spinner v-if="deletingRuns.has(r.name)" size="13px" />
                   <q-icon v-else name="mdi-delete-outline" size="16px" />
+                  <q-tooltip>Delete run (removes from history)</q-tooltip>
                 </button>
               </td>
             </tr>
@@ -453,7 +489,7 @@ onMounted(async () => {
 .col-chain   { color: var(--fs-text-muted); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-num     { color: var(--fs-text-muted); text-align: center; }
 .col-muted   { color: var(--fs-text-muted); font-size: 12px; }
-.col-actions { width: 48px; text-align: center; white-space: nowrap; }
+.col-actions { width: 72px; text-align: center; white-space: nowrap; }
 .col-message {
   max-width: 200px;
   overflow: hidden;
@@ -516,6 +552,7 @@ onMounted(async () => {
 .icon-btn:hover                        { color: var(--fs-text-primary); background: var(--fs-bg-hover); }
 .icon-btn--active                      { color: var(--fs-accent); }
 .icon-btn--danger:hover:not(:disabled) { color: var(--fs-neg, #e57373); background: color-mix(in srgb, var(--fs-neg, #e57373) 10%, transparent); }
+.icon-btn--warn:hover:not(:disabled)  { color: var(--fs-warn, #ff9800); background: color-mix(in srgb, var(--fs-warn, #ff9800) 10%, transparent); }
 .icon-btn:disabled                     { opacity: 0.4; cursor: not-allowed; }
 
 .fs-mono { font-family: var(--fs-font-mono); }

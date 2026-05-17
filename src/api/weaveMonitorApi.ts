@@ -1,4 +1,4 @@
-import { bffGet, bffDelete, bffPatch } from './bffClient'
+import { bffGet, bffPost, bffDelete, bffPatch } from './bffClient'
 
 const BASE         = '/api/weave/monitor/v1'
 const CRUD_BASE    = '/api/weave/api/v1'
@@ -135,6 +135,10 @@ export function getStepLogs(runName: string, stepName: string): Promise<LogRespo
 
 export function deleteRun(name: string): Promise<void> {
   return bffDelete(`${CRUD_BASE}/runs/${encodeURIComponent(name)}`)
+}
+
+export function stopRun(name: string): Promise<WeaveRun> {
+  return bffPost<WeaveRun>(`${CRUD_BASE}/runs/${encodeURIComponent(name)}/stop`, {})
 }
 
 export function restartDeployStep(runName: string, stepName: string): Promise<void> {

@@ -30,6 +30,18 @@ const editSpecJson       = ref('')
 const editSpecValid      = ref(true)
 const editSubmitting     = ref(false)
 const editError          = ref<string | null>(null)
+const secCtxExpanded     = ref(false)
+
+interface SecCtxState {
+  runAsUser:           string
+  runAsGroup:          string
+  fsGroup:             string
+  runAsNonRoot:        string
+  allowPrivEscalation: string
+}
+const editSecCtx = ref<SecCtxState>({
+  runAsUser: '', runAsGroup: '', fsGroup: '', runAsNonRoot: '', allowPrivEscalation: '',
+})
 
 function openTemplateDialog(t: weaveApi.WeaveServiceTemplate) {
   selectedTemplate.value   = t
@@ -39,15 +51,41 @@ function openTemplateDialog(t: weaveApi.WeaveServiceTemplate) {
 }
 
 function enterEditMode() {
-  editSpecJson.value  = JSON.stringify(selectedTemplate.value!.spec, null, 2)
+  const spec = selectedTemplate.value!.spec
+  const pod  = spec.podSecurityContext
+  const ctr  = spec.containerSecurityContext
+  editSecCtx.value = {
+    runAsUser:           pod?.runAsUser    != null ? String(pod.runAsUser)    : '',
+    runAsGroup:          pod?.runAsGroup   != null ? String(pod.runAsGroup)   : '',
+    fsGroup:             pod?.fsGroup      != null ? String(pod.fsGroup)      : '',
+    runAsNonRoot:        ctr?.runAsNonRoot != null ? String(ctr.runAsNonRoot) : '',
+    allowPrivEscalation: ctr?.allowPrivilegeEscalation != null ? String(ctr.allowPrivilegeEscalation) : '',
+  }
+  secCtxExpanded.value = Object.values(editSecCtx.value).some(v => v !== '')
+  const { podSecurityContext: _p, containerSecurityContext: _c, ...rest } = spec
+  editSpecJson.value  = JSON.stringify(rest, null, 2)
   editSpecValid.value = true
   editError.value     = null
   editMode.value      = true
 }
 
 function cancelEdit() {
-  editMode.value  = false
-  editError.value = null
+  editMode.value       = false
+  editError.value      = null
+  secCtxExpanded.value = false
+}
+
+function applySecCtx(spec: weaveApi.WeaveServiceTemplateSpec) {
+  const sc = editSecCtx.value
+  const pod: weaveApi.PodSecurityContext = {}
+  if (sc.runAsUser  !== '') pod.runAsUser  = Number(sc.runAsUser)
+  if (sc.runAsGroup !== '') pod.runAsGroup = Number(sc.runAsGroup)
+  if (sc.fsGroup    !== '') pod.fsGroup    = Number(sc.fsGroup)
+  if (Object.keys(pod).length) spec.podSecurityContext = pod
+  const ctr: weaveApi.ContainerSecurityContext = {}
+  if (sc.runAsNonRoot        !== '') ctr.runAsNonRoot             = sc.runAsNonRoot === 'true'
+  if (sc.allowPrivEscalation !== '') ctr.allowPrivilegeEscalation = sc.allowPrivEscalation === 'true'
+  if (Object.keys(ctr).length) spec.containerSecurityContext = ctr
 }
 
 async function performUpdate(newSpec: weaveApi.WeaveServiceTemplateSpec) {
@@ -80,6 +118,8 @@ function saveEdit() {
     editError.value = 'Invalid JSON — fix syntax before saving'
     return
   }
+
+  applySecCtx(newSpec)
 
   const t            = selectedTemplate.value!
   const imageChanged = newSpec.image !== t.spec.image
@@ -329,13 +369,68 @@ onMounted(loadTemplates)
       <q-separator />
 
       <q-card-section class="tpl-dialog__spec">
+        <!-- Security context — view mode -->
+        <template v-if="!editMode && (selectedTemplate.spec.podSecurityContext || selectedTemplate.spec.containerSecurityContext)">
+          <details class="sec-ctx-details">
+            <summary class="sec-ctx-summary">
+              <q-icon name="mdi-shield-lock-outline" size="13px" />
+              Security Context
+            </summary>
+            <div class="sec-ctx-view-grid">
+              <template v-if="selectedTemplate.spec.podSecurityContext">
+                <span class="sec-ctx-key">runAsUser</span>
+                <span class="sec-ctx-val fs-mono">{{ selectedTemplate.spec.podSecurityContext.runAsUser ?? '—' }}</span>
+                <span class="sec-ctx-key">runAsGroup</span>
+                <span class="sec-ctx-val fs-mono">{{ selectedTemplate.spec.podSecurityContext.runAsGroup ?? '—' }}</span>
+                <span class="sec-ctx-key">fsGroup</span>
+                <span class="sec-ctx-val fs-mono">{{ selectedTemplate.spec.podSecurityContext.fsGroup ?? '—' }}</span>
+              </template>
+              <template v-if="selectedTemplate.spec.containerSecurityContext">
+                <span class="sec-ctx-key">runAsNonRoot</span>
+                <span class="sec-ctx-val fs-mono">{{ selectedTemplate.spec.containerSecurityContext.runAsNonRoot ?? '—' }}</span>
+                <span class="sec-ctx-key">allowPrivilegeEscalation</span>
+                <span class="sec-ctx-val fs-mono">{{ selectedTemplate.spec.containerSecurityContext.allowPrivilegeEscalation ?? '—' }}</span>
+              </template>
+            </div>
+          </details>
+        </template>
+
+        <!-- Security context — edit mode -->
+        <template v-if="editMode">
+          <div class="sec-ctx-toggle-row" @click="secCtxExpanded = !secCtxExpanded">
+            <q-icon :name="secCtxExpanded ? 'mdi-chevron-down' : 'mdi-chevron-right'" size="14px" />
+            <span class="sec-ctx-toggle-label">Security Context</span>
+            <span class="sec-ctx-toggle-hint">(optional)</span>
+          </div>
+          <div v-show="secCtxExpanded" class="sec-ctx-edit-grid">
+            <label class="sec-ctx-key">runAsUser</label>
+            <input v-model="editSecCtx.runAsUser" type="number" min="0" placeholder="— not set —" class="fs-input sec-ctx-input" />
+            <label class="sec-ctx-key">runAsGroup</label>
+            <input v-model="editSecCtx.runAsGroup" type="number" min="0" placeholder="— not set —" class="fs-input sec-ctx-input" />
+            <label class="sec-ctx-key">fsGroup</label>
+            <input v-model="editSecCtx.fsGroup" type="number" min="0" placeholder="— not set —" class="fs-input sec-ctx-input" />
+            <label class="sec-ctx-key">runAsNonRoot</label>
+            <select v-model="editSecCtx.runAsNonRoot" class="fs-input sec-ctx-input">
+              <option value="">— not set —</option>
+              <option value="true">true</option>
+              <option value="false">false</option>
+            </select>
+            <label class="sec-ctx-key">allowPrivilegeEscalation</label>
+            <select v-model="editSecCtx.allowPrivEscalation" class="fs-input sec-ctx-input">
+              <option value="">— not set —</option>
+              <option value="true">true</option>
+              <option value="false">false</option>
+            </select>
+          </div>
+        </template>
+
         <div class="spec-label">Spec</div>
         <pre v-if="!editMode" class="spec-pre">{{ formatSpecJson(selectedTemplate) }}</pre>
         <JsonEditor
           v-else
           v-model="editSpecJson"
-          min-height="260px"
-          max-height="55vh"
+          min-height="220px"
+          max-height="45vh"
           @valid="editSpecValid = $event"
         />
         <div v-if="editError" class="edit-error">
@@ -494,6 +589,62 @@ onMounted(loadTemplates)
   font-size: 12px;
   color: var(--fs-neg, #e57373);
 }
+
+/* ─── Security context ───────────────────────────────────────────────────────── */
+
+.sec-ctx-details { margin-bottom: 12px; }
+.sec-ctx-summary {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--fs-text-muted);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  padding: 4px 0;
+}
+.sec-ctx-summary::-webkit-details-marker { display: none; }
+.sec-ctx-view-grid {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 4px 12px;
+  padding: 8px 0 4px;
+}
+.sec-ctx-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 8px;
+  padding: 4px 0;
+}
+.sec-ctx-toggle-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--fs-text-muted);
+}
+.sec-ctx-toggle-hint { font-size: 10.5px; color: var(--fs-text-muted); opacity: 0.7; }
+.sec-ctx-edit-grid {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 6px 12px;
+  align-items: center;
+  margin-bottom: 14px;
+  padding: 8px 12px;
+  background: var(--fs-bg-elevated, var(--fs-bg-surface));
+  border: 1px solid var(--fs-border);
+  border-radius: 4px;
+}
+.sec-ctx-key { font-size: 11.5px; font-family: var(--fs-font-mono); color: var(--fs-text-secondary); }
+.sec-ctx-val { font-size: 12px; color: var(--fs-text-primary); }
+.sec-ctx-input { width: 100%; font-size: 12px; padding: 4px 8px; }
 
 .fs-btn--sm { padding: 5px 10px; font-size: 11.5px; }
 

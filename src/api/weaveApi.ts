@@ -31,6 +31,17 @@ export interface WeaveRetryPolicy {
   backoffSeconds: number
 }
 
+export interface PodSecurityContext {
+  runAsUser?:  number
+  runAsGroup?: number
+  fsGroup?:    number
+}
+
+export interface ContainerSecurityContext {
+  runAsNonRoot?:             boolean
+  allowPrivilegeEscalation?: boolean
+}
+
 export interface WeaveJobTemplateSpec {
   image:                  string
   command?:               string[]
@@ -41,8 +52,10 @@ export interface WeaveJobTemplateSpec {
   retryPolicy?:           WeaveRetryPolicy
   parallelism?:           number
   completions?:           number
-  activeDeadlineSeconds?: number
-  serviceAccountName?:    string
+  activeDeadlineSeconds?:   number
+  serviceAccountName?:      string
+  podSecurityContext?:      PodSecurityContext
+  containerSecurityContext?: ContainerSecurityContext
 }
 
 // ─── Service Template types ───────────────────────────────────────────────────
@@ -107,8 +120,10 @@ export interface WeaveServiceTemplateSpec {
   readinessProbe?:       WeaveProbe
   startupProbe?:         WeaveProbe
   ingress?:              WeaveIngressSpec
-  unhealthyDuration?:    string
-  revisionHistoryLimit?: number
+  unhealthyDuration?:       string
+  revisionHistoryLimit?:    number
+  podSecurityContext?:      PodSecurityContext
+  containerSecurityContext?: ContainerSecurityContext
 }
 
 export interface WeaveServiceTemplateStatus {

@@ -35,6 +35,33 @@ function stepKindLabel(step: monitorApi.RunStepStatus): string {
   return '—'
 }
 
+// stop run
+const stopping = ref(false)
+
+async function confirmStop() {
+  $q.dialog({
+    title:   'Stop Run',
+    message: `Stop run <strong>${runName}</strong>? The run will be kept in history as Stopped.`,
+    html:    true,
+    ok:     { label: 'Stop', color: 'warning', flat: true },
+    cancel: { label: 'Cancel', flat: true },
+  }).onOk(async () => {
+    stopping.value = true
+    if (detail.value?.run.status) detail.value.run.status.phase = 'Stopped'
+    stopPolling()
+    try {
+      await monitorApi.stopRun(runName)
+      $q.notify({ type: 'positive', message: `Run ${runName} stopped` })
+    } catch (e) {
+      if (detail.value?.run.status) detail.value.run.status.phase = 'Running'
+      if (autoRefresh.value) startPolling()
+      $q.notify({ type: 'negative', message: e instanceof Error ? e.message : 'Stop failed' })
+    } finally {
+      stopping.value = false
+    }
+  })
+}
+
 // restart
 const restartingSteps = ref<Set<string>>(new Set())
 
@@ -192,6 +219,17 @@ function runDuration(): string {
       @refresh="loadRun"
     >
       <template #actions>
+        <button
+          v-if="status?.phase === 'Running'"
+          class="icon-btn icon-btn--warn"
+          :disabled="stopping"
+          title="Stop run (keeps history)"
+          @click="confirmStop"
+        >
+          <q-spinner v-if="stopping" size="13px" />
+          <q-icon v-else name="mdi-stop-circle-outline" size="16px" />
+          <q-tooltip>Stop run (keeps history)</q-tooltip>
+        </button>
         <button
           class="icon-btn"
           :class="{ 'icon-btn--active': autoRefresh }"
@@ -716,8 +754,10 @@ function runDuration(): string {
   color: var(--fs-text-muted);
   transition: color var(--fs-ease), background var(--fs-ease);
 }
-.icon-btn:hover   { color: var(--fs-text-primary); background: var(--fs-bg-hover); }
-.icon-btn--active { color: var(--fs-accent); }
+.icon-btn:hover                       { color: var(--fs-text-primary); background: var(--fs-bg-hover); }
+.icon-btn--active                     { color: var(--fs-accent); }
+.icon-btn--warn:hover:not(:disabled)  { color: var(--fs-warn, #ff9800); background: color-mix(in srgb, var(--fs-warn, #ff9800) 10%, transparent); }
+.icon-btn:disabled                    { opacity: 0.4; cursor: not-allowed; }
 
 .fs-mono { font-family: var(--fs-font-mono); }
 .clickable-row { cursor: pointer; }
