@@ -7,6 +7,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+<!-- 2026-05-17 -->
+### Added
+- Run Stop action on WeaveRunsOverviewPage, WeaveRunsRunningPage, and WeaveRunDetailPage: orange stop-circle button patches `status.phase = Stopped` via the new `POST /runs/:name/stop` endpoint (keeps run history, triggers deploy-cleanup finalizer); optimistic UI update reverts on error
+- Security context fields in Job Template and Service Template edit dialogs: collapsible section exposes `runAsUser`, `runAsGroup`, `fsGroup` (pod-level) and `runAsNonRoot`, `allowPrivilegeEscalation` (container-level); fields are stripped from the JSON editor and merged back on save
+
 <!-- 2026-05-13 -->
 ### Fixed
 - User menu dropdown in the topbar now opens correctly; removed conflicting manual `@click` toggle that was fighting Quasar's built-in `q-menu` trigger and cancelling every click
