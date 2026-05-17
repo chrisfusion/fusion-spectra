@@ -7,10 +7,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+<!-- 2026-05-18 -->
+### Added
+- Home dashboard page (`/dashboard`): hero section with platform branding, 4 KPI stat tiles (artifacts, active runs, chains, forge builds), quick-access card grid linking to all contexts, and a recent activity feed; set as default landing page
+- Home icon as the first entry in the activity rail; clicking navigates directly to `/dashboard` without opening the sidebar
+- Logo click in the topbar navigates to `/dashboard`
+
 <!-- 2026-05-17 -->
 ### Added
 - Run Stop action on WeaveRunsOverviewPage, WeaveRunsRunningPage, and WeaveRunDetailPage: orange stop-circle button patches `status.phase = Stopped` via the new `POST /runs/:name/stop` endpoint (keeps run history, triggers deploy-cleanup finalizer); optimistic UI update reverts on error
 - Security context fields in Job Template and Service Template edit dialogs: collapsible section exposes `runAsUser`, `runAsGroup`, `fsGroup` (pod-level) and `runAsNonRoot`, `allowPrivilegeEscalation` (container-level); fields are stripped from the JSON editor and merged back on save
+- Log dialog auto-refresh: polling replaces log content on each tick; configurable interval input (default 10 s, min 5 s, max 300 s); pause/resume toggle and manual refresh button in dialog header; auto-scrolls to bottom only when already pinned there; flashes the log area on each update; polling stops automatically when the dialog is closed
 
 <!-- 2026-05-13 -->
 ### Fixed

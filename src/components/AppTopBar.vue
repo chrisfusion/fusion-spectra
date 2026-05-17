@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore, THEMES } from '@/stores/theme'
 
+const router          = useRouter()
 const auth            = useAuthStore()
 const themeStore      = useThemeStore()
 const userMenuOpen    = ref(false)
@@ -23,7 +25,7 @@ async function handleLogout() {
 <template>
   <header class="topbar">
     <!-- Logo -->
-    <div class="topbar__logo">
+    <div class="topbar__logo topbar__logo--clickable" @click="router.push('/dashboard')">
       <svg class="topbar__logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
         <!-- Atom nucleus -->
         <circle cx="16" cy="16" r="2.5" fill="#00d4ff" />
@@ -171,6 +173,14 @@ async function handleLogout() {
   flex-shrink: 0;
   padding-left: 14px;
 }
+
+.topbar__logo--clickable {
+  cursor: pointer;
+  border-radius: 4px;
+  transition: opacity var(--fs-ease);
+}
+
+.topbar__logo--clickable:hover { opacity: 0.8; }
 
 .topbar__logo-icon {
   width: 28px;

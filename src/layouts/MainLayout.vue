@@ -9,7 +9,7 @@ import AppSidebar from '@/components/AppSidebar.vue'
 const route  = useRoute()
 const router = useRouter()
 
-const activeContextId = ref<ContextId>('data')
+const activeContextId = ref<ContextId>('home')
 const sidebarOpen     = ref(true)
 
 const activeContext = computed(() => contexts.find(c => c.id === activeContextId.value)!)
@@ -45,7 +45,7 @@ function onContextSelect(id: ContextId) {
 
       <AppSidebar
         :context="activeContext"
-        :open="sidebarOpen"
+        :open="sidebarOpen && activeContext.groups.length > 0"
         @close="sidebarOpen = false"
       />
 

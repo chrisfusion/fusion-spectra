@@ -8,8 +8,9 @@ const router = createRouter({
     {
       path: '/',
       component: MainLayout,
-      redirect: '/data',
+      redirect: '/dashboard',
       children: [
+        { path: '/dashboard', component: () => import('@/pages/DashboardPage.vue'), meta: { context: 'home' } },
         { path: '/data/:pathMatch(.*)*',          component: () => import('@/pages/DataPage.vue'),        meta: { context: 'data' } },
         { path: '/pipelines/weave/jobtemplates',         component: () => import('@/pages/pipelines/JobTemplateListPage.vue'),   meta: { context: 'pipelines' } },
         { path: '/pipelines/weave/jobtemplates/create', component: () => import('@/pages/pipelines/JobTemplateCreatePage.vue'),  meta: { context: 'pipelines' } },

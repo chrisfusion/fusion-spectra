@@ -204,6 +204,7 @@ Fusion Index uses explicit routes (not a wildcard):
 - Vue 3: `Set.add()` / `Set.delete()` are NOT reactive — replace the whole ref: `s.value = new Set([...s.value, x])`
 - `--fs-bg-panel` is NOT defined in `app.scss` — use `--fs-bg-elevated` or `--fs-bg-surface` for solid backgrounds; `--fs-bg-panel` resolves to transparent
 - `q-dialog` and `q-tooltip` render as portals outside component DOM — CSS overrides must be in an unscoped `<style>` block (not `<style scoped>`)
+- Dialog-scoped polling: use `watch(dialogOpenRef, open => { if (!open) stopPolling() })` to tie a timer's lifecycle to a `q-dialog`; cleaner than hooking every close path individually
 
 ## Weave DAG (ChainDagView.vue)
 - `@vue-flow/core` + `@dagrejs/dagre` installed; node click/hover events go on `<VueFlow>`, NOT inside node slot divs
@@ -284,8 +285,9 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - Test against minikube at `http://spectra.fusion.local`, not the dev server
 - Use `browser_snapshot` (not screenshot) to get element `ref` values for clicks/fills
 - Use `browser_take_screenshot` with `fullPage: true` to save to `screenshots/`
-- After pod restart, browser may serve cached JS — navigate to `/#/` first, then to the target URL; this clears the Vue hash-router's cached module more reliably than a hard-reload in the Playwright browser
+- After pod restart, browser may serve cached JS — navigate to `/#/` first; if the canvas is completely blank (`<!---->`) across all routes, the Playwright browser has stale JS and needs `location.reload(true)` — navigating to `/#/` alone is not sufficient in that case
 - Quasar menus/dropdowns are portals — they don't appear in `browser_snapshot`; use `browser_evaluate` to read/click items inside `.q-menu`
+- `q-dialog` portals render elements in BOTH the component DOM and `#q-portal--dialog--N` — `button[title="..."]` selectors trigger Playwright strict-mode violations; use class-based selectors (e.g. `.log-dialog__controls button:first-of-type`) instead
 - Access Pinia stores in evaluate: `document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('storeName')`; theme store action is `.set(themeName)`
 - Playwright browser has its own separate session and cache from the user's browser — stale `config.js` there doesn't mean the user has the same problem
 - To call BFF APIs with auth during testing: `browser_evaluate` with `fetch('http://bff.fusion.local/api/...', { credentials: 'include' })` — uses the browser's session cookies

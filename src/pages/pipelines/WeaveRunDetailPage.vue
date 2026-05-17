@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import CanvasPanel from '@/components/CanvasPanel.vue'
@@ -86,12 +86,18 @@ async function restartStep(step: monitorApi.RunStepStatus) {
 }
 
 // log dialog
-const logDialogOpen = ref(false)
-const logStepName   = ref('')
-const logLines      = ref<string[]>([])
-const logLoading    = ref(false)
-const logError      = ref<string | null>(null)
-const logPodName    = ref<string>('')
+const logDialogOpen  = ref(false)
+const logStepName    = ref('')
+const logLines       = ref<string[]>([])
+const logLoading     = ref(false)
+const logError       = ref<string | null>(null)
+const logPodName     = ref<string>('')
+const logAutoRefresh = ref(true)
+const logInterval    = ref(10)       // seconds, user-configurable
+const logRefreshing  = ref(false)    // background poll in flight
+const logFlash       = ref(false)
+const logPreEl       = ref<HTMLPreElement | null>(null)
+let   logPollTimer: ReturnType<typeof setInterval> | null = null
 
 // ─── Derived ──────────────────────────────────────────────────────────────────
 
@@ -153,6 +159,49 @@ async function loadRun() {
   }
 }
 
+function isLogAtBottom(): boolean {
+  const el = logPreEl.value
+  if (!el) return true
+  return el.scrollTop + el.clientHeight >= el.scrollHeight - 4
+}
+
+function scrollLogToBottom() {
+  const el = logPreEl.value
+  if (el) el.scrollTop = el.scrollHeight
+}
+
+function triggerLogFlash() {
+  logFlash.value = true
+  setTimeout(() => { logFlash.value = false }, 400)
+}
+
+function stopLogPolling() {
+  if (logPollTimer) { clearInterval(logPollTimer); logPollTimer = null }
+}
+
+function startLogPolling() {
+  stopLogPolling()
+  logPollTimer = setInterval(doLogRefresh, logInterval.value * 1_000)
+}
+
+async function doLogRefresh() {
+  if (logRefreshing.value) return
+  logRefreshing.value = true
+  try {
+    const resp = await monitorApi.getStepLogs(runName, logStepName.value)
+    const wasAtBottom = isLogAtBottom()
+    logLines.value   = resp.lines
+    logPodName.value = resp.podName
+    logError.value   = null
+    triggerLogFlash()
+    if (wasAtBottom) await nextTick().then(scrollLogToBottom)
+  } catch {
+    // silent — don't overwrite displayed content on a background poll failure
+  } finally {
+    logRefreshing.value = false
+  }
+}
+
 async function openLogDialog(stepName: string) {
   logStepName.value   = stepName
   logLines.value      = []
@@ -160,16 +209,34 @@ async function openLogDialog(stepName: string) {
   logPodName.value    = ''
   logDialogOpen.value = true
   logLoading.value    = true
+  stopLogPolling()
   try {
     const resp = await monitorApi.getStepLogs(runName, stepName)
     logLines.value   = resp.lines
     logPodName.value = resp.podName
+    await nextTick().then(scrollLogToBottom)
   } catch (e) {
     logError.value = e instanceof Error ? e.message : 'Failed to load logs'
   } finally {
     logLoading.value = false
   }
+  if (logAutoRefresh.value) startLogPolling()
 }
+
+function manualLogRefresh() {
+  doLogRefresh()
+}
+
+function toggleLogAutoRefresh() {
+  logAutoRefresh.value = !logAutoRefresh.value
+  if (logAutoRefresh.value) startLogPolling()
+  else stopLogPolling()
+}
+
+watch(logDialogOpen, open => { if (!open) stopLogPolling() })
+watch(logInterval, () => { if (logAutoRefresh.value && logDialogOpen.value) startLogPolling() })
+
+onUnmounted(stopLogPolling)
 
 onMounted(async () => {
   await loadRun()
@@ -432,8 +499,39 @@ function runDuration(): string {
           <q-icon name="mdi-text-box-outline" size="15px" />
           <span class="fs-mono">{{ logStepName }}</span>
           <span v-if="logPodName" class="log-dialog__pod fs-mono">— {{ logPodName }}</span>
+          <q-spinner v-if="logRefreshing" size="11px" color="grey" class="log-dialog__poll-spinner" />
         </div>
-        <q-btn flat round dense icon="mdi-close" @click="logDialogOpen = false" />
+        <div class="log-dialog__controls">
+          <label class="log-dialog__interval-label">
+            <input
+              v-model.number="logInterval"
+              type="number"
+              min="5"
+              max="300"
+              class="log-dialog__interval-input"
+            />
+            <span class="log-dialog__interval-unit">s</span>
+          </label>
+          <button
+            class="icon-btn"
+            :class="{ 'icon-btn--active': logAutoRefresh }"
+            :title="logAutoRefresh ? 'Pause auto-refresh' : 'Resume auto-refresh'"
+            @click="toggleLogAutoRefresh"
+          >
+            <q-icon :name="logAutoRefresh ? 'mdi-pause-circle-outline' : 'mdi-play-circle-outline'" size="15px" />
+            <q-tooltip>{{ logAutoRefresh ? 'Pause' : 'Resume' }} auto-refresh ({{ logInterval }}s)</q-tooltip>
+          </button>
+          <button
+            class="icon-btn"
+            :disabled="logLoading || logRefreshing"
+            title="Refresh now"
+            @click="manualLogRefresh"
+          >
+            <q-icon name="mdi-refresh" size="15px" />
+            <q-tooltip>Refresh now</q-tooltip>
+          </button>
+          <q-btn flat round dense icon="mdi-close" @click="logDialogOpen = false" />
+        </div>
       </q-card-section>
 
       <q-separator />
@@ -444,7 +542,12 @@ function runDuration(): string {
           <span>Loading logs…</span>
         </div>
         <p v-else-if="logError" class="log-dlg-error">{{ logError }}</p>
-        <pre v-else-if="logLines.length" class="log-dlg-pre">{{ logLines.join('\n') }}</pre>
+        <pre
+          v-else-if="logLines.length"
+          ref="logPreEl"
+          class="log-dlg-pre"
+          :class="{ 'log-dlg-pre--flash': logFlash }"
+        >{{ logLines.join('\n') }}</pre>
         <p v-else class="log-dlg-empty">EOF — No LOG available at moment or yet</p>
       </q-card-section>
     </q-card>
@@ -878,6 +981,43 @@ function runDuration(): string {
   color: var(--fs-text-muted);
 }
 
+.log-dialog__poll-spinner {
+  opacity: 0.5;
+}
+
+.log-dialog__controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.log-dialog__interval-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--fs-text-muted);
+}
+
+.log-dialog__interval-input {
+  width: 40px;
+  background: var(--fs-bg-elevated, var(--fs-bg-surface));
+  border: 1px solid var(--fs-border);
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: 11px;
+  font-family: var(--fs-font-mono);
+  color: var(--fs-text-primary);
+  text-align: center;
+  outline: none;
+}
+.log-dialog__interval-input:focus { border-color: var(--fs-accent); }
+
+.log-dialog__interval-unit {
+  font-size: 11px;
+  color: var(--fs-text-muted);
+}
+
 .log-dialog__body {
   padding: 0 !important;
   max-height: 70vh;
@@ -914,6 +1054,14 @@ function runDuration(): string {
   overflow-y: auto;
   flex: 1;
   background: var(--fs-bg-elevated, var(--fs-bg-surface));
+}
+
+@keyframes log-flash {
+  0%   { background: color-mix(in srgb, var(--fs-accent) 14%, var(--fs-bg-elevated, var(--fs-bg-surface))); }
+  100% { background: var(--fs-bg-elevated, var(--fs-bg-surface)); }
+}
+.log-dlg-pre--flash {
+  animation: log-flash 0.4s ease-out;
 }
 
 .log-dlg-empty {
