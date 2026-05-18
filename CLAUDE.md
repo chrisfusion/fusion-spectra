@@ -221,6 +221,8 @@ Fusion Index uses explicit routes (not a wildcard):
 - Run detail log dialog: `openLogDialog(stepName)` fetches `getStepLogs()` and shows result in a `<q-dialog>` (separate from the step-info dialog); log button shown on ALL step rows regardless of `jobRef`/`deploymentRef` — show "EOF — No LOG available at moment or yet" when `lines` is empty
 - Run detail polling: VenvDetailPage pattern — `setInterval` inline, stops automatically when `isTerminal(phase)` (`Succeeded | Failed | Stopped`); `onUnmounted` clears timer
 - Run deletion: `DELETE /api/weave/api/v1/runs/:name` (CRUD_BASE in `weaveMonitorApi.ts`) works through the BFF proxy; no stop/cancel mechanism exists in the controller — `Stopped` phase is only set by the StopAll failure policy
+- `listRuns()` returns runs in undefined order — sort by `startTime` desc client-side to get most-recent-first
+- `RunStatsResponse` also carries `successRate`, `avgDurationMs`, `minDurationMs`, `maxDurationMs` beyond the phase counts
 
 ## Weave API — CRUD & edit patterns
 - Full CRUD on all four resource types: jobtemplates, servicetemplates, chains, triggers, runs all have `GET / POST / GET :name / PUT :name / PATCH :name / DELETE :name` via `registerCRUD()` — no BFF changes needed for any of these
@@ -332,7 +334,7 @@ Forge routes (`router/index.ts`): `/forge` → `ForgeIndexPage`, `/forge/venvs` 
 ## Service Health Overrides (admin)
 - BFF endpoints: `GET /bff/admin/service-status`, `PUT /bff/admin/service-status/:service`, `DELETE /bff/admin/service-status/:service` — all require `admin:health:manage`
 - `GET /bff/system-health` requires only a valid session (any logged-in user)
-- Valid services: `forge`, `index`, `weave`, `spectra`; valid statuses: `Healthy`, `Unhealthy`, `Offline`, `Maintenance`
+- Valid services: `forge`, `index`, `weave`, `spectra`; valid statuses: `Healthy`, `Unhealthy`, `Offline`, `Maintenance`; BFF also returns `content` in practice — guard display with `SERVICE_LABELS[svc.name] ?? svc.name` to handle unknown services safely
 - Admin UI page: `/admin/health` → `src/pages/admin/ServiceStatusOverridesPage.vue`
 - API methods in `src/api/bffAdminApi.ts`: `listServiceStatusOverrides`, `upsertServiceStatusOverride`, `deleteServiceStatusOverride`
 

@@ -13,6 +13,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Home icon as the first entry in the activity rail; clicking navigates directly to `/dashboard` without opening the sidebar
 - Logo click in the topbar navigates to `/dashboard`
 
+### Changed
+- Dashboard stat tiles now show live data (artifacts total, running runs, chain count, forge build total); each tile shows a spinner on load and `--` if its service is unavailable; all 7 API calls run in parallel with a 60 s auto-refresh timer
+- Dashboard activity feed replaced with real Pipeline Runs panel: lists 8 most recent runs (phase icon, run name, chain, relative time), 24 h stat chips (ok/failed/live) in the header, and an "All →" link to `/pipelines/runs`; clicking a run row navigates to run detail
+- Service Health strip added between stats and bottom grid: 4 compact clickable cards (one per service) showing live reachability + latency or override badge; left-border colour reflects status; clicking navigates to `/monitoring`
+- Pipeline Runs panel: 3-tile breakdown strip added at the bottom showing Running / Failed / Succeeded counts (24 h window); each tile is a link to its respective run list page (`/pipelines/runs/running`, `/pipelines/runs/failed`, `/pipelines/runs`)
+- Dashboard hero banner: subtle `↻ Ns` countdown chip (top-left corner) ticks down every second and resets to 60 after each data refresh
+
 <!-- 2026-05-17 -->
 ### Added
 - Run Stop action on WeaveRunsOverviewPage, WeaveRunsRunningPage, and WeaveRunDetailPage: orange stop-circle button patches `status.phase = Stopped` via the new `POST /runs/:name/stop` endpoint (keeps run history, triggers deploy-cleanup finalizer); optimistic UI update reverts on error

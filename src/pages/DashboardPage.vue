@@ -1,8 +1,13 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { usePermission } from '@/composables/usePermission'
+import { listArtifacts } from '@/api/indexApi'
+import { getRunStats, listRuns, type RunSummary, type RunPhase, type RunStatsResponse } from '@/api/weaveMonitorApi'
+import { listWeaveChains } from '@/api/weaveApi'
+import { listVenvs, listGitBuilds } from '@/api/forgeApi'
+import { getSystemHealth, type ServiceStatus, type ServiceOverride } from '@/api/bffStatusApi'
 
 const router = useRouter()
 const auth   = useAuthStore()
@@ -11,20 +16,142 @@ const { isAdmin } = usePermission()
 const displayName = computed(() => auth.user?.name ?? auth.user?.email ?? 'there')
 const firstName   = computed(() => displayName.value.split(' ')[0])
 
+// ─── Stat tiles ───────────────────────────────────────────────────────────────
+
 interface StatTile {
   icon:    string
   label:   string
-  value:   string | number
+  value:   string | number | null
   sub:     string
   variant: 'accent' | 'pos' | 'violet' | 'amber'
 }
 
-const stats: StatTile[] = [
-  { icon: 'mdi-package-variant-closed', label: 'Artifacts',    value: 42, sub: 'registered',       variant: 'accent'  },
-  { icon: 'mdi-play-circle-outline',    label: 'Active Runs',  value: 7,  sub: 'currently running', variant: 'pos'     },
-  { icon: 'mdi-link-chain',             label: 'Chains',       value: 12, sub: 'pipeline chains',   variant: 'violet'  },
-  { icon: 'mdi-hammer-wrench',          label: 'Forge Builds', value: 18, sub: 'build artifacts',   variant: 'amber'   },
-]
+const stats = ref<StatTile[]>([
+  { icon: 'mdi-package-variant-closed', label: 'Artifacts',    value: null, sub: 'registered',       variant: 'accent' },
+  { icon: 'mdi-play-circle-outline',    label: 'Active Runs',  value: null, sub: 'currently running', variant: 'pos'    },
+  { icon: 'mdi-link-chain',             label: 'Chains',       value: null, sub: 'pipeline chains',   variant: 'violet' },
+  { icon: 'mdi-hammer-wrench',          label: 'Forge Builds', value: null, sub: 'total builds',      variant: 'amber'  },
+])
+
+// ─── Service health ───────────────────────────────────────────────────────────
+
+const services   = ref<ServiceStatus[]>([])
+const runStats   = ref<RunStatsResponse | null>(null)
+const recentRuns = ref<RunSummary[]>([])
+
+const SERVICE_LABELS: Record<string, string> = {
+  forge: 'Forge', index: 'Fusion Index', weave: 'Weave', spectra: 'Spectra',
+}
+const SERVICE_ICONS: Record<string, string> = {
+  forge: 'mdi-hammer-wrench', index: 'mdi-database-search-outline',
+  weave: 'mdi-share-variant-outline', spectra: 'mdi-application-outline',
+}
+const OVERRIDE_BADGE: Record<string, string> = {
+  Healthy: 'pos', Unhealthy: 'neg', Offline: 'info', Maintenance: 'warn',
+}
+const OVERRIDE_DOT: Record<string, string> = {
+  Healthy: 'ok', Unhealthy: 'failed', Offline: 'idle', Maintenance: 'pending',
+}
+
+function overallDotClass(svc: ServiceStatus): string {
+  if (svc.override) return `fs-dot--${OVERRIDE_DOT[svc.override.status] ?? 'idle'}`
+  if (svc.live === null) return 'fs-dot--idle'
+  return svc.live.reachable ? 'fs-dot--ok' : 'fs-dot--failed'
+}
+
+function healthBorderClass(svc: ServiceStatus): string {
+  if (svc.override) {
+    const m: Record<string, string> = { Healthy: 'ok', Unhealthy: 'fail', Offline: 'idle', Maintenance: 'warn' }
+    return `health-card--${m[svc.override.status] ?? 'idle'}`
+  }
+  if (svc.live === null) return 'health-card--idle'
+  return svc.live.reachable ? 'health-card--ok' : 'health-card--fail'
+}
+
+function overrideBadgeClass(ov: ServiceOverride): string {
+  return `fs-badge--${OVERRIDE_BADGE[ov.status] ?? 'info'}`
+}
+
+// ─── Recent runs ──────────────────────────────────────────────────────────────
+
+const RUN_PHASE_ICON: Record<RunPhase, string> = {
+  Succeeded: 'mdi-check-circle-outline',
+  Failed:    'mdi-alert-circle-outline',
+  Running:   'mdi-play-circle-outline',
+  Pending:   'mdi-clock-outline',
+  Stopped:   'mdi-stop-circle-outline',
+}
+const RUN_PHASE_COLOR: Record<RunPhase, string> = {
+  Succeeded: 'pos', Failed: 'neg', Running: 'accent', Pending: 'violet', Stopped: 'amber',
+}
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1)  return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  return `${Math.floor(h / 24)}d ago`
+}
+
+function runTime(run: RunSummary): string {
+  const t = run.completionTime ?? run.startTime
+  return t ? relativeTime(t) : '—'
+}
+
+// ─── Data fetching ────────────────────────────────────────────────────────────
+
+const countdown = ref(60)
+
+async function fetchStats() {
+  const [artifactsRes, runsRes, chainsRes, venvsRes, gitRes, healthRes, runsListRes] = await Promise.allSettled([
+    listArtifacts({ pageSize: 1 }),
+    getRunStats('24h'),
+    listWeaveChains(),
+    listVenvs({ pageSize: 1 }),
+    listGitBuilds({ pageSize: 1 }),
+    getSystemHealth(),
+    listRuns(),
+  ])
+
+  const venvTotal       = venvsRes.status === 'fulfilled' ? venvsRes.value.total : null
+  const gitTotal        = gitRes.status   === 'fulfilled' ? gitRes.value.total   : null
+  const forgeBothFailed = venvTotal === null && gitTotal === null
+
+  stats.value[0].value = artifactsRes.status === 'fulfilled' ? artifactsRes.value.total     : '--'
+  stats.value[1].value = runsRes.status       === 'fulfilled' ? runsRes.value.running        : '--'
+  stats.value[2].value = chainsRes.status     === 'fulfilled' ? chainsRes.value.items.length : '--'
+  stats.value[3].value = forgeBothFailed ? '--' : (venvTotal ?? 0) + (gitTotal ?? 0)
+
+  if (healthRes.status   === 'fulfilled') services.value  = healthRes.value.services ?? []
+  if (runsRes.status     === 'fulfilled') runStats.value  = runsRes.value
+  if (runsListRes.status === 'fulfilled') {
+    recentRuns.value = [...runsListRes.value]
+      .sort((a, b) => {
+        const ta = a.startTime ? new Date(a.startTime).getTime() : 0
+        const tb = b.startTime ? new Date(b.startTime).getTime() : 0
+        return tb - ta
+      })
+      .slice(0, 8)
+  }
+
+  countdown.value = 60
+}
+
+let timer: ReturnType<typeof setInterval> | null = null
+let countdownTimer: ReturnType<typeof setInterval> | null = null
+
+onMounted(() => {
+  fetchStats()
+  timer          = setInterval(fetchStats, 60_000)
+  countdownTimer = setInterval(() => { if (countdown.value > 0) countdown.value-- }, 1000)
+})
+
+onUnmounted(() => {
+  if (timer          !== null) clearInterval(timer)
+  if (countdownTimer !== null) clearInterval(countdownTimer)
+})
 
 interface QuickLink {
   icon:    string
@@ -43,21 +170,6 @@ const quickLinks: QuickLink[] = [
   { icon: 'mdi-shield-crown-outline',   label: 'Admin',          desc: 'Users, roles & system config', route: '/admin', admin: true },
 ]
 
-interface ActivityItem {
-  icon:    string
-  color:   string
-  text:    string
-  time:    string
-}
-
-const activity: ActivityItem[] = [
-  { icon: 'mdi-check-circle-outline',  color: 'pos',    text: 'WeaveRun training-pipeline-v3 completed',  time: '12m ago' },
-  { icon: 'mdi-upload-outline',        color: 'accent', text: 'Artifact model-weights-v2 created',         time: '1h ago'  },
-  { icon: 'mdi-link-chain',            color: 'violet', text: 'Chain etl-daily configuration updated',     time: '2h ago'  },
-  { icon: 'mdi-hammer-wrench',         color: 'amber',  text: 'Forge build ml-env-1.4.2 succeeded',        time: '3h ago'  },
-  { icon: 'mdi-alert-circle-outline',  color: 'neg',    text: 'WeaveRun data-export-job failed',           time: '5h ago'  },
-  { icon: 'mdi-tag-outline',           color: 'accent', text: 'Tag stable moved to model-weights-v2:1.0.1', time: '6h ago' },
-]
 
 const visibleLinks = computed(() =>
   quickLinks.filter(l => !l.admin || isAdmin.value)
@@ -69,6 +181,7 @@ const visibleLinks = computed(() =>
 
     <!-- ── Hero ─────────────────────────────────────────────────────────────── -->
     <div class="dash-hero">
+      <span class="hero-countdown fs-mono">↻ {{ countdown }}s</span>
       <div class="dash-hero__inner">
         <svg class="dash-hero__atom" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <circle cx="16" cy="16" r="2.5" fill="#00d4ff" />
@@ -106,9 +219,44 @@ const visibleLinks = computed(() =>
         :class="`stat-card--${s.variant}`"
       >
         <q-icon :name="s.icon" size="22px" class="stat-card__icon" />
-        <div class="stat-card__value">{{ s.value }}</div>
+        <div class="stat-card__value">
+          <q-spinner-dots v-if="s.value === null" size="18px" color="grey-5" />
+          <span v-else>{{ s.value }}</span>
+        </div>
         <div class="stat-card__label">{{ s.label }}</div>
         <div class="stat-card__sub">{{ s.sub }}</div>
+      </div>
+    </div>
+
+    <!-- ── Service health ──────────────────────────────────────────────────── -->
+    <div v-if="services.length > 0" class="dash-health">
+      <div
+        v-for="svc in services"
+        :key="svc.name"
+        class="health-card"
+        :class="healthBorderClass(svc)"
+        @click="router.push('/monitoring')"
+      >
+        <div class="health-card__header">
+          <span class="fs-dot" :class="overallDotClass(svc)" />
+          <q-icon :name="SERVICE_ICONS[svc.name] ?? 'mdi-server-outline'" size="13px" class="health-card__icon" />
+          <span class="health-card__name">{{ SERVICE_LABELS[svc.name] ?? svc.name }}</span>
+        </div>
+        <div class="health-card__status">
+          <template v-if="svc.override">
+            <span class="fs-badge" :class="overrideBadgeClass(svc.override)">{{ svc.override.status }}</span>
+            <span v-if="svc.override.description" class="health-card__desc">{{ svc.override.description }}</span>
+          </template>
+          <template v-else-if="svc.live !== null">
+            <span class="health-card__live" :class="svc.live.reachable ? 'health-card__live--ok' : 'health-card__live--fail'">
+              {{ svc.live.reachable ? 'Reachable' : 'Unreachable' }}
+            </span>
+            <span v-if="svc.live.latency_ms != null" class="health-card__latency fs-mono">
+              · {{ svc.live.latency_ms }}ms
+            </span>
+          </template>
+          <span v-else class="health-card__none">No probe</span>
+        </div>
       </div>
     </div>
 
@@ -135,23 +283,60 @@ const visibleLinks = computed(() =>
         </div>
       </div>
 
-      <!-- Activity feed -->
+      <!-- Pipeline runs -->
       <div class="dash-panel">
         <div class="dash-panel__header">
-          <q-icon name="mdi-clock-fast" size="14px" />
-          <span>Recent Activity</span>
+          <q-icon name="mdi-play-circle-outline" size="14px" />
+          <span>Pipeline Runs</span>
+          <div v-if="runStats" class="run-chips">
+            <span class="run-chip run-chip--pos">{{ runStats.succeeded }} ok</span>
+            <span class="run-chip run-chip--neg">{{ runStats.failed }} failed</span>
+            <span class="run-chip run-chip--accent">{{ runStats.running }} live</span>
+          </div>
+          <button class="run-all-link" @click.stop="router.push('/pipelines/runs')">All →</button>
         </div>
-        <div class="activity-list">
-          <div v-for="(item, i) in activity" :key="i" class="activity-item">
+        <div v-if="recentRuns.length > 0" class="activity-list">
+          <div
+            v-for="run in recentRuns"
+            :key="run.name"
+            class="activity-item activity-item--link"
+            @click="router.push(`/pipelines/runs/${run.name}`)"
+          >
             <q-icon
-              :name="item.icon"
+              :name="RUN_PHASE_ICON[run.phase]"
               size="14px"
               class="activity-item__icon"
-              :class="`activity-item__icon--${item.color}`"
+              :class="`activity-item__icon--${RUN_PHASE_COLOR[run.phase]}`"
             />
-            <span class="activity-item__text">{{ item.text }}</span>
-            <span class="activity-item__time fs-mono">{{ item.time }}</span>
+            <span class="activity-item__text">
+              <span class="run-name">{{ run.name }}</span>
+              <span class="run-chain fs-mono"> · {{ run.chain }}</span>
+            </span>
+            <span class="activity-item__time fs-mono">{{ runTime(run) }}</span>
           </div>
+        </div>
+        <div v-else class="activity-empty">
+          <q-icon name="mdi-clock-outline" size="18px" />
+          <span>No recent runs</span>
+        </div>
+
+        <!-- 24h breakdown strip -->
+        <div class="run-breakdown">
+          <button class="run-breakdown__tile run-breakdown__tile--accent" @click="router.push('/pipelines/runs/running')">
+            <q-icon name="mdi-play-circle-outline" size="16px" />
+            <span class="run-breakdown__value">{{ runStats?.running ?? '--' }}</span>
+            <span class="run-breakdown__label">Running</span>
+          </button>
+          <button class="run-breakdown__tile run-breakdown__tile--neg" @click="router.push('/pipelines/runs/failed')">
+            <q-icon name="mdi-alert-circle-outline" size="16px" />
+            <span class="run-breakdown__value">{{ runStats?.failed ?? '--' }}</span>
+            <span class="run-breakdown__label">Failed</span>
+          </button>
+          <button class="run-breakdown__tile run-breakdown__tile--pos" @click="router.push('/pipelines/runs')">
+            <q-icon name="mdi-check-circle-outline" size="16px" />
+            <span class="run-breakdown__value">{{ runStats?.succeeded ?? '--' }}</span>
+            <span class="run-breakdown__label">Succeeded</span>
+          </button>
         </div>
       </div>
 
@@ -170,6 +355,7 @@ const visibleLinks = computed(() =>
 
 /* ── Hero ──────────────────────────────────────────────────────────────────── */
 .dash-hero {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -178,6 +364,16 @@ const visibleLinks = computed(() =>
   border-radius: 8px;
   padding: 24px 28px;
   gap: 16px;
+}
+
+.hero-countdown {
+  position: absolute;
+  top: 7px;
+  left: 10px;
+  font-size: 9.5px;
+  color: var(--fs-text-muted);
+  opacity: 0.55;
+  letter-spacing: 0.04em;
 }
 
 .dash-hero__inner {
@@ -335,6 +531,126 @@ const visibleLinks = computed(() =>
   line-height: 1.3;
 }
 
+/* ── Service health strip ──────────────────────────────────────────────────── */
+.dash-health {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.health-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  background: var(--fs-bg-elevated);
+  border: 1px solid var(--fs-border);
+  border-left-width: 3px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background var(--fs-ease);
+}
+
+.health-card:hover { background: var(--fs-bg-hover); }
+
+.health-card--ok   { border-left-color: var(--fs-pos); }
+.health-card--fail { border-left-color: var(--fs-red); }
+.health-card--idle { border-left-color: var(--fs-text-muted); }
+.health-card--warn { border-left-color: var(--fs-amber); }
+
+.health-card__header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.health-card__icon { color: var(--fs-text-muted); }
+
+.health-card__name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fs-text-primary);
+}
+
+.health-card__status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+}
+
+.health-card__live { font-size: 11px; }
+.health-card__live--ok   { color: var(--fs-pos); }
+.health-card__live--fail { color: var(--fs-red); }
+
+.health-card__latency {
+  font-size: 10.5px;
+  color: var(--fs-text-muted);
+}
+
+.health-card__desc {
+  font-size: 10.5px;
+  color: var(--fs-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+.health-card__none {
+  font-size: 11px;
+  color: var(--fs-text-muted);
+  font-style: italic;
+}
+
+/* ── Run chips in panel header ─────────────────────────────────────────────── */
+.run-chips {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+}
+
+.run-chip {
+  font-size: 10px;
+  font-family: var(--fs-font-mono);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.run-chip--pos    { background: rgba(16, 185, 129, 0.15); color: var(--fs-pos); }
+.run-chip--neg    { background: rgba(239, 68, 68, 0.15);  color: var(--fs-red); }
+.run-chip--accent { background: var(--fs-accent-soft);     color: var(--fs-accent); }
+
+.run-all-link {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--fs-accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: opacity var(--fs-ease);
+}
+.run-all-link:hover { opacity: 0.7; }
+
+/* ── Run rows ──────────────────────────────────────────────────────────────── */
+.activity-item--link { cursor: pointer; }
+
+.run-name  { color: var(--fs-text-secondary); }
+.run-chain { color: var(--fs-text-muted); font-size: 11px; }
+
+.activity-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 20px 14px;
+  font-size: 12px;
+  color: var(--fs-text-muted);
+}
+
 /* ── Activity feed ─────────────────────────────────────────────────────────── */
 .activity-list {
   display: flex;
@@ -373,5 +689,46 @@ const visibleLinks = computed(() =>
   color: var(--fs-text-muted);
   white-space: nowrap;
   padding-top: 1px;
+}
+
+/* ── Run breakdown strip ───────────────────────────────────────────────────── */
+.run-breakdown {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--fs-border);
+  border-top: 1px solid var(--fs-border);
+}
+
+.run-breakdown__tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 12px 8px;
+  background: var(--fs-bg-elevated);
+  border: none;
+  cursor: pointer;
+  transition: background var(--fs-ease);
+}
+
+.run-breakdown__tile:hover { background: var(--fs-bg-hover); }
+
+.run-breakdown__tile--accent { color: var(--fs-accent); }
+.run-breakdown__tile--neg    { color: var(--fs-red); }
+.run-breakdown__tile--pos    { color: var(--fs-pos); }
+
+.run-breakdown__value {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--fs-text-primary);
+}
+
+.run-breakdown__label {
+  font-size: 10.5px;
+  color: var(--fs-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 </style>
