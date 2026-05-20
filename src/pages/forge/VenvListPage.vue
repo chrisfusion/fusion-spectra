@@ -9,10 +9,10 @@ const router = useRouter()
 const PAGE_SIZE = 20
 
 type StatusChip    = 'ALL' | forgeApi.VenvBuild['status']
-type BuildTypeChip = 'ALL' | 'requirements' | 'git'
+type BuildTypeChip = 'ALL' | 'requirements' | 'git' | 'app'
 
 const STATUS_CHIPS:     StatusChip[]    = ['ALL', 'PENDING', 'BUILDING', 'SUCCEEDED', 'FAILED']
-const BUILD_TYPE_CHIPS: BuildTypeChip[] = ['ALL', 'requirements', 'git']
+const BUILD_TYPE_CHIPS: BuildTypeChip[] = ['ALL', 'requirements', 'git', 'app']
 
 const selectedStatuses  = ref<StatusChip[]>(['ALL'])
 const selectedBuildType = ref<BuildTypeChip>('ALL')
@@ -42,16 +42,21 @@ async function loadBuilds() {
       const r = await forgeApi.listVenvs({ page, pageSize: PAGE_SIZE, status: statuses, name })
       items.value = r.items
       total.value = r.total
+    } else if (selectedBuildType.value === 'app') {
+      const r = await forgeApi.listAppBuilds({ page, pageSize: PAGE_SIZE, status: statuses, name })
+      items.value = r.items
+      total.value = r.total
     } else {
-      // ALL: fetch both in parallel, merge by createdAt desc (no server-side pagination)
-      const [venvs, git] = await Promise.all([
+      // ALL: fetch all types in parallel, merge by createdAt desc (no server-side pagination)
+      const [venvs, git, app] = await Promise.all([
         forgeApi.listVenvs({ page: 0, pageSize: 50, status: statuses, name }),
         forgeApi.listGitBuilds({ page: 0, pageSize: 50, status: statuses, name }),
+        forgeApi.listAppBuilds({ page: 0, pageSize: 50, status: statuses, name }),
       ])
-      const merged = [...venvs.items, ...git.items]
+      const merged = [...venvs.items, ...git.items, ...app.items]
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       items.value = merged
-      total.value = venvs.total + git.total
+      total.value = venvs.total + git.total + app.total
     }
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to load builds'
@@ -97,7 +102,11 @@ watch(currentPage, loadBuilds)
 onMounted(loadBuilds)
 
 function openBuild(b: forgeApi.VenvBuild) {
-  const path = b.buildType === 'git' ? `/forge/gitbuilds/${b.id}` : `/forge/venvs/${b.id}`
+  const path = b.buildType === 'git'
+    ? `/forge/gitbuilds/${b.id}`
+    : b.buildType === 'app'
+      ? `/forge/appbuilds/${b.id}`
+      : `/forge/venvs/${b.id}`
   router.push(path)
 }
 
@@ -260,6 +269,7 @@ const STATUS_ICON: Record<forgeApi.VenvBuild['status'], string> = {
 .chip--type-ALL.chip--active          { background: var(--fs-accent);       border-color: var(--fs-accent);       color: #fff; }
 .chip--type-requirements.chip--active { background: #7b52ab;               border-color: #7b52ab;               color: #fff; }
 .chip--type-git.chip--active          { background: #f05033;               border-color: #f05033;               color: #fff; }
+.chip--type-app.chip--active          { background: #e8732a;               border-color: #e8732a;               color: #fff; }
 
 .toolbar--type { padding-bottom: 6px; border-bottom: 1px solid var(--fs-border); margin-bottom: 2px; }
 

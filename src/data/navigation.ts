@@ -195,10 +195,11 @@ export const contexts: Context[] = [
         label: 'Venv Builder',
         icon: 'mdi-language-python',
         children: [
-          { id: 'forge-overview',         label: 'Overview',      icon: 'mdi-view-dashboard-outline', route: '/forge', placeholder: true },
-          { id: 'forge-venv-list',        label: 'Builds',        icon: 'mdi-list-box-outline',       route: '/forge/venvs' },
-          { id: 'forge-venv-create',      label: 'Create Venv',   icon: 'mdi-plus-circle-outline',    route: '/forge/venvs/create' },
-          { id: 'forge-gitbuild-create',  label: 'Git Build',     icon: 'mdi-git',                    route: '/forge/gitbuilds/create' },
+          { id: 'forge-overview',         label: 'Overview',      icon: 'mdi-view-dashboard-outline',   route: '/forge', placeholder: true },
+          { id: 'forge-venv-list',        label: 'Builds',        icon: 'mdi-list-box-outline',         route: '/forge/venvs' },
+          { id: 'forge-venv-create',      label: 'Create Venv',   icon: 'mdi-plus-circle-outline',      route: '/forge/venvs/create' },
+          { id: 'forge-gitbuild-create',  label: 'Git Build',     icon: 'mdi-git',                      route: '/forge/gitbuilds/create' },
+          { id: 'forge-appbuild-create',  label: 'App Build',     icon: 'mdi-rocket-launch-outline',    route: '/forge/appbuilds/create' },
         ]
       }
     ]

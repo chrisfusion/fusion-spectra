@@ -7,6 +7,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+<!-- 2026-05-21 -->
+### Added
+- App Build wizard (`/forge/appbuilds/create`): 2-step form (repo URL + ref + project dir → review & validate & submit) backed by the new `/api/v1/appbuilds` forge endpoint; name, version, runner, and builder image resolved server-side from `metadata.yaml`
+- App Build detail page (`/forge/appbuilds/:id`): two-panel layout (build info + live logs) with 5 s polling while PENDING/BUILDING; shows runner badge (orange), baseDependenciesUrl if present, and link to fusion-index artifact
+- App Build type chip in Builds list (orange `#e8732a`); ALL mode now fetches requirements + git + app builds in parallel; row click routes to `/forge/appbuilds/:id`
+- `forge-appbuild-create` sidebar entry (rocket icon) in the Forge Venv Builder group
+- `forgeApi`: `AppBuildPayload`, `AppBuild`, `AppBuildPage` types; `listAppBuilds`, `createAppBuild`, `getAppBuild`, `getAppBuildLogs`, `validateAppBuild` functions
+
 <!-- 2026-05-18 -->
 ### Added
 - Home dashboard page (`/dashboard`): hero section with platform branding, 4 KPI stat tiles (artifacts, active runs, chains, forge builds), quick-access card grid linking to all contexts, and a recent activity feed; set as default landing page

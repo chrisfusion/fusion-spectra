@@ -298,23 +298,28 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - `src/api/forgeApi.ts` — typed forge API via BFF proxy path `/api/forge/api/v1/*`
 - `src/pages/forge/ForgeIndexPage.vue` — placeholder dashboard
 - `src/pages/forge/VenvCreatePage.vue` — 2-step wizard: package info → requirements.txt upload + live validation
-- `src/pages/forge/VenvListPage.vue` — unified Builds list (venv + git); build-type chips (ALL/requirements/git); ALL mode = parallel fetch both endpoints, merge by createdAt desc; per-type mode = server-side pagination
+- `src/pages/forge/VenvListPage.vue` — unified Builds list (venv + git + app); build-type chips (ALL/requirements/git/app); ALL mode = parallel fetch all three endpoints, merge by createdAt desc; per-type mode = server-side pagination; `openBuild()` routes by `b.buildType`
 - `src/pages/forge/VenvDetailPage.vue` — two-panel: metadata (left) + logs (right); auto-polls every 5s while PENDING/BUILDING; stops on terminal status or unmount; auto-scrolls logs to bottom
 - `src/pages/forge/GitBuildCreatePage.vue` — 2-step wizard (Repository → Review & Submit); metadata_source toggle controls field visibility: `full`→hide both name+version, `version`→show name only, `manual`→show both; `buildPayload()` omits name for `full`, omits version for non-`manual`
+- `src/pages/forge/AppBuildCreatePage.vue` — 2-step wizard (Repository → Review & Submit); only 3 inputs: `repo_url` (required), `repo_ref` (default main), `project_dir` (optional); name/version/runner resolved server-side from `metadata.yaml`; `validateAppBuild` on step 2
+- `src/pages/forge/AppBuildDetailPage.vue` — same two-panel polling pattern as GitBuildDetailPage; shows `runner` as an orange badge (#e8732a) and `baseDependenciesUrl` when present
 
 ## fusion-forge API quirks
 - Backend returns `SUCCESS` not `SUCCEEDED` — `normalizeStatus()` in `forgeApi.ts` normalizes on read; `denormalizeStatus()` converts back for filter query params
 - `validateVenv` uses raw `fetch` (not `bffFetch`) — forge returns meaningful `ValidationResult` JSON on 422, but `bffFetch` throws and consumes the body
 - `validateGitBuild` uses the same raw fetch pattern; `GitBuildPayload` fields are snake_case: `repo_url`, `repo_ref`, `metadata_source`, `entrypoint_file`, `project_dir`
+- `validateAppBuild` uses the same raw fetch pattern; `AppBuildPayload` fields are snake_case: `repo_url`, `repo_ref`, `project_dir` — name/version/runner NOT in payload (resolved server-side from `metadata.yaml`)
+- `AppBuild` response adds `runner: string | null`, `baseDependenciesUrl: string | null` on top of base `VenvBuild`; both may be absent — always guard with `?? null`
 - Git builds use a fully separate endpoint `/api/forge/api/v1/gitbuilds` — the venvs endpoint has no `buildType` filter; route requests by selected type
+- App builds use `/api/forge/api/v1/appbuilds` — same conventions as gitbuilds; BFF catch-all `GET /api/forge/*` (permission `forge:builds:read`) covers all new GET endpoints automatically; new POST/validate endpoints need explicit entries in `rbac.yaml` before the catch-all
 - `metadata_source` payload rules: `full`→omit name+version (forge reads both from pyproject.toml); `version`→send name only (forge reads version); `manual`→send both
 - Multi-value query params: use `q.append('status', s)` per value, not `q.set()`
 
 ## Forge navigation (navigation.ts)
 Context `forge` has one group:
-- **Venv Builder**: Overview → `/forge`, Builds → `/forge/venvs`, Create Venv → `/forge/venvs/create`, Git Build → `/forge/gitbuilds/create`
+- **Venv Builder**: Overview → `/forge`, Builds → `/forge/venvs`, Create Venv → `/forge/venvs/create`, Git Build → `/forge/gitbuilds/create`, App Build → `/forge/appbuilds/create`
 
-Forge routes (`router/index.ts`): `/forge` → `ForgeIndexPage`, `/forge/venvs` → `VenvListPage`, `/forge/venvs/create` → `VenvCreatePage`, `/forge/venvs/:id` → `VenvDetailPage`, `/forge/gitbuilds/create` → `GitBuildCreatePage`, `/forge/gitbuilds/:id` → `GitBuildDetailPage`, `/forge/:pathMatch(.*)*` → `ForgeIndexPage`
+Forge routes (`router/index.ts`): `/forge` → `ForgeIndexPage`, `/forge/venvs` → `VenvListPage`, `/forge/venvs/create` → `VenvCreatePage`, `/forge/venvs/:id` → `VenvDetailPage`, `/forge/gitbuilds/create` → `GitBuildCreatePage`, `/forge/gitbuilds/:id` → `GitBuildDetailPage`, `/forge/appbuilds/create` → `AppBuildCreatePage`, `/forge/appbuilds/:id` → `AppBuildDetailPage`, `/forge/:pathMatch(.*)*` → `ForgeIndexPage`
 
 ## fusion-weave deployment (minikube)
 - Both `fusion-weave-operator` (container: `manager`) and `fusion-weave-api` (container: `api-server`) share one image — build once, update both
@@ -330,6 +335,7 @@ Forge routes (`router/index.ts`): `/forge` → `ForgeIndexPage`, `/forge/venvs` 
 - Adding a new BFF permission requires BOTH: (1) add to `role_permissions` for each relevant role in `rbac.yaml`, AND (2) add a `route_permissions` rule before the `GET /api/weave/*` (or equivalent) catch-all; missing either silently blocks the request
 - `rbac.yaml` is mounted from the `fusion-bff-rbac` ConfigMap, not baked into the image — adding permissions to the source file does NOT update the running cluster; patch with: `kubectl create configmap fusion-bff-rbac --from-file=rbac.yaml=<file> -n fusion --dry-run=client -o yaml | kubectl apply -f - && kubectl rollout restart deployment/fusion-bff -n fusion`
 - The deployed ConfigMap can be stale vs the source — check with `kubectl get configmap fusion-bff-rbac -n fusion -o jsonpath='{.data.rbac\.yaml}'` before assuming permissions are live
+- `helm upgrade fusion-bff` fails locally with "config.oidcIssuerUrl is required" — use `kubectl set image` + manual rbac ConfigMap patch instead; the Helm chart requires OIDC values not present in the local override file
 
 ## Service Health Overrides (admin)
 - BFF endpoints: `GET /bff/admin/service-status`, `PUT /bff/admin/service-status/:service`, `DELETE /bff/admin/service-status/:service` — all require `admin:health:manage`
@@ -340,8 +346,9 @@ Forge routes (`router/index.ts`): `/forge` → `ForgeIndexPage`, `/forge/venvs` 
 
 ## fusion-forge deployment (minikube)
 - Two separate K8s deployments share one image: `fusion-forge-server` (container: `server`) and `fusion-forge-operator` (container: `operator`)
-- Build: `eval $(minikube docker-env) && docker build -t fusion-forge:X.Y.Z /path/to/fusion-forge/`
-- Update both: `kubectl set image deployment/fusion-forge-server server=fusion-forge:X.Y.Z -n fusion && kubectl set image deployment/fusion-forge-operator operator=fusion-forge:X.Y.Z -n fusion`
+- minikube uses `:local` tags: `eval $(minikube docker-env) && make docker-build IMG=fusion-forge:local` then `kubectl rollout restart deployment/fusion-forge-server deployment/fusion-forge-operator -n fusion`
+- When `builder/main.go` changes, ALSO rebuild the builder image separately: `make docker-build-builder BUILDER_IMG=fusion-venv-builder:local` — `make docker-build` never touches it
+- `helm upgrade fusion-forge deployment/ -n fusion` applies RBAC, ConfigMap, and other template changes; run after any chart-level change (not just image changes)
 
 ## Ext-BFF / Public API copy URLs (ArtifactDetailPage)
 

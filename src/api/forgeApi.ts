@@ -180,3 +180,77 @@ export async function getVenvLogs(id: number): Promise<string> {
   if (res.status === 204) return ''
   return res.text()
 }
+
+// ─── App Builds ───────────────────────────────────────────────────────────────
+
+export interface AppBuildPayload {
+  repo_url:     string
+  repo_ref?:    string
+  project_dir?: string
+}
+
+export interface AppBuild extends VenvBuild {
+  repoUrl:             string
+  repoRef:             string
+  projectDir:          string | null
+  runner:              string | null
+  baseDependenciesUrl: string | null
+}
+
+export interface AppBuildPage {
+  items:    AppBuild[]
+  total:    number
+  page:     number
+  pageSize: number
+}
+
+export function listAppBuilds(params?: {
+  page?:     number
+  pageSize?: number
+  status?:   string | string[]
+  name?:     string
+}): Promise<AppBuildPage> {
+  const q = new URLSearchParams()
+  if (params?.page !== undefined) q.set('page',     String(params.page))
+  if (params?.pageSize)           q.set('pageSize', String(params.pageSize))
+  if (params?.status) {
+    const statuses = Array.isArray(params.status) ? params.status : [params.status]
+    statuses.forEach(s => q.append('status', denormalizeStatus(s)))
+  }
+  if (params?.name) q.set('name', params.name)
+  const qs = q.toString()
+  return bffGet<AppBuildPage>(`${BASE}/appbuilds${qs ? '?' + qs : ''}`)
+    .then(p => ({ ...p, items: p.items.map(normalizeStatus) as AppBuild[] }))
+}
+
+export function createAppBuild(payload: AppBuildPayload): Promise<AppBuild> {
+  return bffFetch(`${BASE}/appbuilds`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(payload),
+  }).then(r => r.json() as Promise<AppBuild>)
+}
+
+export function getAppBuild(id: number): Promise<AppBuild> {
+  return bffGet<AppBuild>(`${BASE}/appbuilds/${id}`).then(b => normalizeStatus(b) as AppBuild)
+}
+
+export async function getAppBuildLogs(id: number): Promise<string> {
+  const res = await bffFetch(`${BASE}/appbuilds/${id}/logs`)
+  if (res.status === 204) return ''
+  return res.text()
+}
+
+export async function validateAppBuild(payload: AppBuildPayload): Promise<ValidationResult> {
+  const res = await fetch(`${getBffUrl()}${BASE}/appbuilds/validate`, {
+    method:      'POST',
+    headers:     { 'Content-Type': 'application/json' },
+    body:        JSON.stringify(payload),
+    credentials: 'include',
+  })
+  if (res.status === 401) {
+    window.location.href = `${getBffUrl()}/bff/login`
+    throw new ApiError(401, 'Unauthorized')
+  }
+  return res.json() as Promise<ValidationResult>
+}
