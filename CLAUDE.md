@@ -222,7 +222,16 @@ Fusion Index uses explicit routes (not a wildcard):
 - Run detail polling: VenvDetailPage pattern — `setInterval` inline, stops automatically when `isTerminal(phase)` (`Succeeded | Failed | Stopped`); `onUnmounted` clears timer
 - Run deletion: `DELETE /api/weave/api/v1/runs/:name` (CRUD_BASE in `weaveMonitorApi.ts`) works through the BFF proxy; no stop/cancel mechanism exists in the controller — `Stopped` phase is only set by the StopAll failure policy
 - `listRuns()` returns runs in undefined order — sort by `startTime` desc client-side to get most-recent-first
+- `listRuns()` returns `RunSummary[]` (monitor API, no `spec`/`activeDeployments`); use `listAllRuns()` (calls `CRUD_BASE/runs` → `{ items: WeaveRun[] }`) when full run objects are needed
+- BFF permission mapping for run mutations: `weave:runs:write` = `POST /runs` (create); `weave:steps:restart` = both `POST /runs/:name/stop` (stop) AND `PATCH /runs/:name` (restart annotation); `weave:runs:delete` = `DELETE /runs/:name`
 - `RunStatsResponse` also carries `successRate`, `avgDurationMs`, `minDurationMs`, `maxDurationMs` beyond the phase counts
+
+## Service Instances (WeaveRun with stepOverrides)
+- Pages: `ServiceInstanceListPage` (`/pipelines/services`), `ServiceInstanceCreatePage` (`/pipelines/services/create`), `ServiceInstanceDetailPage` (`/pipelines/services/:name`)
+- `spec.stepOverrides[]` fields: `stepName`, `artifactName`, `tag`, `ingressHost?` — operator creates run-owned Deployment `<runName>-<stepName>`; always create with `POST` (not PATCH/PUT — server-side apply silently drops stepOverrides on first reconcile)
+- `status.activeDeployments` — map keyed by `<runName>-<stepName>`; fields: `health`, `codeSourceDeployedVersion`, `codeSourceTag`, `codeSourceArtifact`, `unhealthyDurationSeconds?`; `health` values: `Healthy | Unhealthy | RollingBack | RolledBack | Unknown`
+- Run with active deploy step stays `Running` forever until stopped — `isTerminal` must exclude `Deployed`; poll until `status.steps[serve].phase === 'Deployed'` to confirm service is live
+- Run name for service instances: derive from artifact name (lowercase, replace non-DNS chars with `-`, strip leading/trailing `-`) + 4-char random suffix
 
 ## Weave API — CRUD & edit patterns
 - Full CRUD on all four resource types: jobtemplates, servicetemplates, chains, triggers, runs all have `GET / POST / GET :name / PUT :name / PATCH :name / DELETE :name` via `registerCRUD()` — no BFF changes needed for any of these

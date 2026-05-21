@@ -102,6 +102,15 @@ export const contexts: Context[] = [
         ]
       },
       {
+        id: 'services-group',
+        label: 'Services',
+        icon: 'mdi-server-network',
+        children: [
+          { id: 'svc-list',   label: 'Service Instances', icon: 'mdi-server-network-outline', route: '/pipelines/services' },
+          { id: 'svc-launch', label: 'Launch Service',    icon: 'mdi-plus-circle-outline',    route: '/pipelines/services/create' },
+        ]
+      },
+      {
         id: 'job-templates',
         label: 'Job Templates',
         icon: 'mdi-briefcase-outline',

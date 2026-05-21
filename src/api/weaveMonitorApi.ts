@@ -49,19 +49,42 @@ export interface RunStepStatus {
   outputCaptured?: boolean
 }
 
+export interface StepOverride {
+  stepName:     string
+  artifactName: string
+  tag:          string
+  ingressHost?: string
+  indexURL?:    string
+}
+
 export interface WeaveRunSpec {
   chainRef:             { name: string }
   triggerRef?:          { name: string } | null
   parameterOverrides?:  Array<{ name: string; value: string }>
+  stepOverrides?:       StepOverride[]
+}
+
+export type DeploymentHealth = 'Healthy' | 'Unhealthy' | 'RollingBack' | 'RolledBack' | 'Unknown'
+
+export interface ActiveDeploymentStatus {
+  deploymentName:            string
+  stepName:                  string
+  health:                    DeploymentHealth
+  codeSourceArtifact:        string
+  codeSourceTag:             string
+  codeSourceDeployedVersion: string
+  unhealthyDurationSeconds?: number
+  unhealthySince?:           string | null
 }
 
 export interface WeaveRunStatus {
-  phase:           RunPhase
-  steps:           RunStepStatus[]
-  startTime?:      string | null
-  completionTime?: string | null
-  message?:        string
-  sharedPVCName?:  string
+  phase:              RunPhase
+  steps:              RunStepStatus[]
+  startTime?:         string | null
+  completionTime?:    string | null
+  message?:           string
+  sharedPVCName?:     string
+  activeDeployments?: Record<string, ActiveDeploymentStatus>
 }
 
 export interface WeaveRun {
@@ -144,5 +167,24 @@ export function stopRun(name: string): Promise<WeaveRun> {
 export function restartDeployStep(runName: string, stepName: string): Promise<void> {
   return bffPatch(`${CRUD_BASE}/runs/${encodeURIComponent(runName)}`, {
     metadata: { annotations: { 'fusion-platform.io/restart-step': stepName } },
+  })
+}
+
+export interface WeaveRunList {
+  items: WeaveRun[]
+}
+
+export function listAllRuns(): Promise<WeaveRun[]> {
+  return bffGet<WeaveRunList>(`${CRUD_BASE}/runs`).then(r => r.items ?? [])
+}
+
+export function createServiceRun(payload: {
+  metadata: { name: string; namespace?: string }
+  spec: { chainRef: { name: string }; stepOverrides: StepOverride[] }
+}): Promise<WeaveRun> {
+  return bffPost<WeaveRun>(`${CRUD_BASE}/runs`, {
+    apiVersion: 'weave.fusion-platform.io/v1alpha1',
+    kind: 'WeaveRun',
+    ...payload,
   })
 }
