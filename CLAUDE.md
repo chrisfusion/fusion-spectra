@@ -63,6 +63,7 @@ No footer slot — add pagination below the table inside the default slot.
 ## API clients
 - `src/api/bffClient.ts` — base fetch with `credentials:'include'`; 401 auto-redirects to BFF login
   - FormData detection: skips `Content-Type: application/json` when `body instanceof FormData` (multipart uploads)
+  - `bffDelete` returns `Promise<void>` and discards the response body — for DELETE endpoints that return JSON (e.g. bulk-delete result), use `bffFetch(path, { method: 'DELETE' })` then `.json()` directly
 - `src/api/indexApi.ts` — typed methods for fusion-index via BFF proxy path `/api/index/api/v1/*`
 
 ## fusion-index API shape
@@ -83,6 +84,7 @@ No footer slot — add pagination below the table inside the default slot.
 - All fields camelCase; IDs are `number`
 - `Artifact` has `types: TypeResponse[]` (may be empty; guard with `?? []`)
 - `ArtifactVersion` has `major/minor/patch`, `tags: ArtifactTag[]` (may be missing; guard with `?? []`)
+- Admin maintenance (permission `index:admin:manage`, admin role only): `GET/DELETE /api/v1/admin/artifacts/empty`, `GET/DELETE /api/v1/admin/versions/empty`, `GET/DELETE /api/v1/admin/artifacts/no-files`; GETs take `?olderThan=<RFC3339>&page=&pageSize=`; DELETEs return `{ deleted: number, skipped: number }` (skipped = items with protected tag); BFF route rules for these must appear before the `GET /api/index/*` catch-all in `rbac.yaml`
 
 ## Shared utilities
 - `src/utils/format.ts` — `formatSize(bytes)`: human-readable file size (B / KB / MB / GB)
@@ -307,7 +309,7 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - `src/api/forgeApi.ts` — typed forge API via BFF proxy path `/api/forge/api/v1/*`
 - `src/pages/forge/ForgeIndexPage.vue` — placeholder dashboard
 - `src/pages/forge/VenvCreatePage.vue` — 2-step wizard: package info → requirements.txt upload + live validation
-- `src/pages/forge/VenvListPage.vue` — unified Builds list (venv + git + app); build-type chips (ALL/requirements/git/app); ALL mode = parallel fetch all three endpoints, merge by createdAt desc; per-type mode = server-side pagination; `openBuild()` routes by `b.buildType`
+- `src/pages/forge/VenvListPage.vue` — unified Builds list (venv + git + app); build-type chips (ALL/requirements/git/app); ALL mode = server-side paginated (fetches same `page`/`pageSize` from all three in parallel, merges by `createdAt` desc, slices to `PAGE_SIZE`, total = sum of all three); per-type mode = server-side pagination; `openBuild()` routes by `b.buildType`
 - `src/pages/forge/VenvDetailPage.vue` — two-panel: metadata (left) + logs (right); auto-polls every 5s while PENDING/BUILDING; stops on terminal status or unmount; auto-scrolls logs to bottom
 - `src/pages/forge/GitBuildCreatePage.vue` — 2-step wizard (Repository → Review & Submit); metadata_source toggle controls field visibility: `full`→hide both name+version, `version`→show name only, `manual`→show both; `buildPayload()` omits name for `full`, omits version for non-`manual`
 - `src/pages/forge/AppBuildCreatePage.vue` — 2-step wizard (Repository → Review & Submit); only 3 inputs: `repo_url` (required), `repo_ref` (default main), `project_dir` (optional); name/version/runner resolved server-side from `metadata.yaml`; `validateAppBuild` on step 2

@@ -47,15 +47,15 @@ async function loadBuilds() {
       items.value = r.items
       total.value = r.total
     } else {
-      // ALL: fetch all types in parallel, merge by createdAt desc (no server-side pagination)
+      // ALL: fetch same page from all three types in parallel, merge by createdAt desc
       const [venvs, git, app] = await Promise.all([
-        forgeApi.listVenvs({ page: 0, pageSize: 50, status: statuses, name }),
-        forgeApi.listGitBuilds({ page: 0, pageSize: 50, status: statuses, name }),
-        forgeApi.listAppBuilds({ page: 0, pageSize: 50, status: statuses, name }),
+        forgeApi.listVenvs({ page, pageSize: PAGE_SIZE, status: statuses, name }),
+        forgeApi.listGitBuilds({ page, pageSize: PAGE_SIZE, status: statuses, name }),
+        forgeApi.listAppBuilds({ page, pageSize: PAGE_SIZE, status: statuses, name }),
       ])
-      const merged = [...venvs.items, ...git.items, ...app.items]
+      items.value = [...venvs.items, ...git.items, ...app.items]
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      items.value = merged
+        .slice(0, PAGE_SIZE)
       total.value = venvs.total + git.total + app.total
     }
   } catch (e) {
@@ -204,7 +204,7 @@ const STATUS_ICON: Record<forgeApi.VenvBuild['status'], string> = {
       </div>
 
       <!-- Pagination -->
-      <div v-if="selectedBuildType !== 'ALL' && total > PAGE_SIZE" class="pagination-row">
+      <div v-if="total > PAGE_SIZE" class="pagination-row">
         <q-pagination
           v-model="currentPage"
           :max="Math.ceil(total / PAGE_SIZE)"

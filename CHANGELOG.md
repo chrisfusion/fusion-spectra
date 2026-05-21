@@ -7,6 +7,29 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.8] — 2026-05-21
+
+<!-- 2026-05-21 -->
+### Added
+- GitWatcher detail page: in-flight build name is now a clickable link navigating to `/forge/appbuilds/:id` or `/forge/gitbuilds/:id` based on the `lastBuildName` prefix (`forge-app-*` / `forge-git-*`)
+
+### Added
+- Index Cleanup admin page (`/admin/index-cleanup`): three panels — Empty Artifacts, Versions Without Files, Artifacts Without Files — each with an "older than" preset selector, paginated table, and a bulk delete button with confirmation dialog showing deleted/skipped counts; gated by `index:admin:manage` permission
+- `indexApi`: `listEmptyArtifacts`, `deleteEmptyArtifacts`, `listVersionsWithoutFiles`, `deleteVersionsWithoutFiles`, `listArtifactsWithoutFiles`, `deleteArtifactsWithoutFiles` admin methods; `BulkDeleteResult` type
+- BFF `rbac.yaml`: `index:admin:manage` permission added to `admin` role; route rules for `GET` and `DELETE /api/index/api/v1/admin/*` before the existing read catch-all
+
+### Fixed
+- GitWatcher create and edit forms: URL validation now accepts `http://` in addition to `https://` (allows testing against local git servers)
+- Builds list "All Types" mode now has server-side pagination (was capped at 50 per type with no page controls); fetches the same page from all three endpoints in parallel, merges by `createdAt` desc, and shows the standard `q-pagination` row
+
+<!-- 2026-05-21 -->
+### Added
+- GitOps Watchers UI: list page (`/forge/gitwatchers`), create wizard (`/forge/gitwatchers/create`), detail page (`/forge/gitwatchers/:name`), and edit page (`/forge/gitwatchers/:name/edit`) for managing `GitWatcher` CRs that auto-trigger forge builds when a new version appears in a git repository
+- `forgeApi`: `GitWatcher`, `GitWatcherSpec`, `GitWatcherStatus`, `GitWatcherPage`, `CreateGitWatcherPayload`, `UpdateGitWatcherPayload`, `SecretKeyRef` types; `listGitWatchers`, `getGitWatcher`, `createGitWatcher`, `updateGitWatcher`, `deleteGitWatcher` methods
+- New "GitOps" group in the Forge sidebar with Watchers list and Add Watcher navigation entries
+- Watcher create/edit form supports both `git` and `app` build types, all metadata source modes, token secret ref for private repos, enabled/disabled toggle, and Python version selection for git builds
+- Watcher detail page polls every 15 s while a build is in-flight (`status.lastBuildName` non-empty); shows phase badge, enabled chip, last built version, last commit SHA, consecutive failure count, and last error
+
 <!-- 2026-05-21 -->
 ### Added
 - App Build wizard (`/forge/appbuilds/create`): 2-step form (repo URL + ref + project dir → review & validate & submit) backed by the new `/api/v1/appbuilds` forge endpoint; name, version, runner, and builder image resolved server-side from `metadata.yaml`

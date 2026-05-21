@@ -254,3 +254,118 @@ export async function validateAppBuild(payload: AppBuildPayload): Promise<Valida
   }
   return res.json() as Promise<ValidationResult>
 }
+
+// ─── GitWatchers ──────────────────────────────────────────────────────────────
+
+export interface SecretKeyRef {
+  name: string
+  key:  string
+}
+
+export interface GitWatcherSpec {
+  repoURL:         string
+  repoRef?:        string
+  buildType:       'git' | 'app'
+  enabled?:        boolean
+  tokenSecretRef?: SecretKeyRef
+  name?:           string
+  metadataSource?: 'manual' | 'version' | 'full'
+  version?:        string
+  pythonVersion?:  string
+  entrypointFile?: string
+  projectDir?:     string
+  description?:    string
+}
+
+export interface GitWatcherStatus {
+  phase:               string
+  lastSeenCommit?:     string
+  lastBuiltVersion?:   string
+  lastBuildName?:      string
+  lastBuildVersion?:   string
+  consecutiveFailures: number
+  lastCheckedAt?:      string
+  lastError?:          string
+  message?:            string
+}
+
+export interface GitWatcher {
+  name:      string
+  namespace: string
+  createdAt: string
+  spec:      GitWatcherSpec
+  status:    GitWatcherStatus
+}
+
+export interface GitWatcherPage {
+  items:    GitWatcher[]
+  total:    number
+  page:     number
+  pageSize: number
+}
+
+export interface CreateGitWatcherPayload {
+  name:             string
+  repo_url:         string
+  repo_ref?:        string
+  build_type:       'git' | 'app'
+  enabled?:         boolean
+  token_secret_ref?: SecretKeyRef
+  artifact_name?:   string
+  metadata_source?: 'manual' | 'version' | 'full'
+  version?:         string
+  python_version?:  string
+  entrypoint_file?: string
+  project_dir?:     string
+  description?:     string
+}
+
+export interface UpdateGitWatcherPayload {
+  repo_url:         string
+  repo_ref?:        string
+  build_type:       'git' | 'app'
+  enabled?:         boolean
+  token_secret_ref?: SecretKeyRef
+  artifact_name?:   string
+  metadata_source?: 'manual' | 'version' | 'full'
+  version?:         string
+  python_version?:  string
+  entrypoint_file?: string
+  project_dir?:     string
+  description?:     string
+}
+
+export function listGitWatchers(params?: {
+  page?:     number
+  pageSize?: number
+}): Promise<GitWatcherPage> {
+  const q = new URLSearchParams()
+  if (params?.page !== undefined) q.set('page',     String(params.page))
+  if (params?.pageSize)           q.set('pageSize', String(params.pageSize))
+  const qs = q.toString()
+  return bffGet<GitWatcherPage>(`${BASE}/gitwatchers${qs ? '?' + qs : ''}`)
+}
+
+export function getGitWatcher(name: string): Promise<GitWatcher> {
+  return bffGet<GitWatcher>(`${BASE}/gitwatchers/${encodeURIComponent(name)}`)
+}
+
+export function createGitWatcher(payload: CreateGitWatcherPayload): Promise<GitWatcher> {
+  return bffFetch(`${BASE}/gitwatchers`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(payload),
+  }).then(r => r.json() as Promise<GitWatcher>)
+}
+
+export function updateGitWatcher(name: string, payload: UpdateGitWatcherPayload): Promise<GitWatcher> {
+  return bffFetch(`${BASE}/gitwatchers/${encodeURIComponent(name)}`, {
+    method:  'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(payload),
+  }).then(r => r.json() as Promise<GitWatcher>)
+}
+
+export async function deleteGitWatcher(name: string): Promise<void> {
+  await bffFetch(`${BASE}/gitwatchers/${encodeURIComponent(name)}`, { method: 'DELETE' })
+}

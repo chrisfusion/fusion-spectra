@@ -41,8 +41,12 @@ const router = createRouter({
         { path: '/forge/venvs/:id',        component: () => import('@/pages/forge/VenvDetailPage.vue'),      meta: { context: 'forge' } },
         { path: '/forge/gitbuilds/create',  component: () => import('@/pages/forge/GitBuildCreatePage.vue'),   meta: { context: 'forge' } },
         { path: '/forge/gitbuilds/:id',    component: () => import('@/pages/forge/GitBuildDetailPage.vue'),   meta: { context: 'forge' } },
-        { path: '/forge/appbuilds/create', component: () => import('@/pages/forge/AppBuildCreatePage.vue'),   meta: { context: 'forge' } },
+        { path: '/forge/appbuilds/create', component: () => import('@/pages/forge/AppBuildCreatePage.vue'),     meta: { context: 'forge' } },
         { path: '/forge/appbuilds/:id',    component: () => import('@/pages/forge/AppBuildDetailPage.vue'),   meta: { context: 'forge' } },
+        { path: '/forge/gitwatchers/create',    component: () => import('@/pages/forge/GitWatcherCreatePage.vue'), meta: { context: 'forge' } },
+        { path: '/forge/gitwatchers/:name/edit', component: () => import('@/pages/forge/GitWatcherEditPage.vue'),   meta: { context: 'forge' } },
+        { path: '/forge/gitwatchers/:name',      component: () => import('@/pages/forge/GitWatcherDetailPage.vue'), meta: { context: 'forge' } },
+        { path: '/forge/gitwatchers',            component: () => import('@/pages/forge/GitWatcherListPage.vue'),   meta: { context: 'forge' } },
         { path: '/forge/:pathMatch(.*)*',  component: () => import('@/pages/forge/ForgeIndexPage.vue'),       meta: { context: 'forge' } },
         { path: '/fusion-index',                   component: () => import('@/pages/FusionIndexPage.vue'),              meta: { context: 'fusion-index' } },
         { path: '/fusion-index/artifacts',         component: () => import('@/pages/index/ArtifactListPage.vue'),       meta: { context: 'fusion-index' } },
@@ -54,7 +58,8 @@ const router = createRouter({
         { path: '/admin/roles',       component: () => import('@/pages/admin/RoleAssignmentsPage.vue'),            meta: { context: 'admin', adminOnly: true } },
         { path: '/admin/permissions', component: () => import('@/pages/admin/ResourcePermissionsPage.vue'),       meta: { context: 'admin', adminOnly: true } },
         { path: '/admin/types',       component: () => import('@/pages/admin/ArtifactTypesPage.vue'),             meta: { context: 'admin', adminOnly: true } },
-        { path: '/admin/health',      component: () => import('@/pages/admin/ServiceStatusOverridesPage.vue'),    meta: { context: 'admin', adminOnly: true } },
+        { path: '/admin/health',         component: () => import('@/pages/admin/ServiceStatusOverridesPage.vue'),  meta: { context: 'admin', adminOnly: true } },
+        { path: '/admin/index-cleanup',  component: () => import('@/pages/admin/IndexCleanupPage.vue'),          meta: { context: 'admin', adminOnly: true } },
         { path: '/admin/:pathMatch(.*)*', component: () => import('@/pages/AdminPage.vue'),                      meta: { context: 'admin', adminOnly: true } },
       ]
     }

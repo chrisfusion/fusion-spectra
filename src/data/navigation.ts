@@ -210,6 +210,15 @@ export const contexts: Context[] = [
           { id: 'forge-gitbuild-create',  label: 'Git Build',     icon: 'mdi-git',                      route: '/forge/gitbuilds/create' },
           { id: 'forge-appbuild-create',  label: 'App Build',     icon: 'mdi-rocket-launch-outline',    route: '/forge/appbuilds/create' },
         ]
+      },
+      {
+        id: 'forge-gitops',
+        label: 'GitOps',
+        icon: 'mdi-source-branch-sync',
+        children: [
+          { id: 'forge-gitwatcher-list',   label: 'Watchers',     icon: 'mdi-eye-outline',          route: '/forge/gitwatchers' },
+          { id: 'forge-gitwatcher-create', label: 'Add Watcher',  icon: 'mdi-plus-circle-outline',  route: '/forge/gitwatchers/create' },
+        ]
       }
     ]
   },
@@ -292,7 +301,8 @@ export const contexts: Context[] = [
         label: 'Index',
         icon: 'mdi-package-variant-closed',
         children: [
-          { id: 'artifact-types', label: 'Artifact Types', icon: 'mdi-tag-multiple-outline', route: '/admin/types' },
+          { id: 'artifact-types',  label: 'Artifact Types', icon: 'mdi-tag-multiple-outline',   route: '/admin/types' },
+          { id: 'index-cleanup',   label: 'Index Cleanup',  icon: 'mdi-broom',                  route: '/admin/index-cleanup' },
         ]
       }
     ]

@@ -1,4 +1,4 @@
-import { bffGet, bffPost, bffPut, bffDelete, ApiError } from './bffClient'
+import { bffFetch, bffGet, bffPost, bffPut, bffDelete, ApiError } from './bffClient'
 import { getBffUrl } from '@/config/runtime'
 
 const BASE = '/api/index/api/v1'
@@ -188,6 +188,52 @@ export function updateType(id: number, body: { name: string; description?: strin
 
 export function deleteType(id: number): Promise<void> {
   return bffDelete(`${BASE}/types/${id}`)
+}
+
+// ─── Admin maintenance ────────────────────────────────────────────────────────
+
+const ADMIN_BASE = `${BASE}/admin`
+
+export interface BulkDeleteResult {
+  deleted: number
+  skipped: number
+}
+
+interface AdminListParams {
+  olderThan: string
+  page?:     number
+  pageSize?: number
+}
+
+function adminQS(p: AdminListParams): string {
+  const q = new URLSearchParams({ olderThan: p.olderThan })
+  if (p.page !== undefined) q.set('page',     String(p.page))
+  if (p.pageSize)           q.set('pageSize', String(p.pageSize))
+  return q.toString()
+}
+
+export function listEmptyArtifacts(p: AdminListParams): Promise<PagedResponse<Artifact>> {
+  return bffGet(`${ADMIN_BASE}/artifacts/empty?${adminQS(p)}`)
+}
+export async function deleteEmptyArtifacts(olderThan: string): Promise<BulkDeleteResult> {
+  const res = await bffFetch(`${ADMIN_BASE}/artifacts/empty?olderThan=${encodeURIComponent(olderThan)}`, { method: 'DELETE' })
+  return res.json() as Promise<BulkDeleteResult>
+}
+
+export function listVersionsWithoutFiles(p: AdminListParams): Promise<PagedResponse<ArtifactVersion>> {
+  return bffGet(`${ADMIN_BASE}/versions/empty?${adminQS(p)}`)
+}
+export async function deleteVersionsWithoutFiles(olderThan: string): Promise<BulkDeleteResult> {
+  const res = await bffFetch(`${ADMIN_BASE}/versions/empty?olderThan=${encodeURIComponent(olderThan)}`, { method: 'DELETE' })
+  return res.json() as Promise<BulkDeleteResult>
+}
+
+export function listArtifactsWithoutFiles(p: AdminListParams): Promise<PagedResponse<Artifact>> {
+  return bffGet(`${ADMIN_BASE}/artifacts/no-files?${adminQS(p)}`)
+}
+export async function deleteArtifactsWithoutFiles(olderThan: string): Promise<BulkDeleteResult> {
+  const res = await bffFetch(`${ADMIN_BASE}/artifacts/no-files?olderThan=${encodeURIComponent(olderThan)}`, { method: 'DELETE' })
+  return res.json() as Promise<BulkDeleteResult>
 }
 
 // ─── Tags ─────────────────────────────────────────────────────────────────────
