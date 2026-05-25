@@ -3,10 +3,12 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore, THEMES } from '@/stores/theme'
+import { useHelpDrawer } from '@/composables/useHelpDrawer'
 
 const router          = useRouter()
 const auth            = useAuthStore()
 const themeStore      = useThemeStore()
+const helpDrawer      = useHelpDrawer()
 const userMenuOpen    = ref(false)
 const searchQuery     = ref('')
 
@@ -74,6 +76,12 @@ async function handleLogout() {
 
     <!-- Right controls -->
     <div class="topbar__right">
+      <!-- Help -->
+      <button v-if="helpDrawer" class="topbar__icon-btn" :class="{ 'topbar__icon-btn--active': helpDrawer.open.value }" @click="helpDrawer.toggle()">
+        <q-icon name="mdi-help-circle-outline" size="18px" />
+        <q-tooltip anchor="bottom middle" self="top middle" :offset="[0, 6]">Help</q-tooltip>
+      </button>
+
       <!-- Notifications -->
       <button class="topbar__icon-btn">
         <q-icon name="mdi-bell-outline" size="18px" />
@@ -281,6 +289,11 @@ async function handleLogout() {
 .topbar__icon-btn:hover {
   background: var(--fs-bg-hover);
   color: var(--fs-text-primary);
+}
+
+.topbar__icon-btn--active {
+  background: var(--fs-bg-active);
+  color: var(--fs-accent);
 }
 
 .topbar__notif-dot {
