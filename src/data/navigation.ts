@@ -1,4 +1,4 @@
-export type ContextId = 'home' | 'data' | 'pipelines' | 'monitoring' | 'forge' | 'fusion-index' | 'changelog' | 'admin'
+export type ContextId = 'home' | 'data' | 'pipelines' | 'monitoring' | 'forge' | 'fusion-index' | 'changelog' | 'help' | 'admin'
 
 export interface NavLeaf {
   id: string
@@ -234,6 +234,15 @@ export const contexts: Context[] = [
     label: 'Changelog',
     icon: 'mdi-clipboard-text-clock-outline',
     rootPath: '/changelog',
+    bottomUtil: true,
+    groups: []
+  },
+
+  {
+    id: 'help',
+    label: 'Help',
+    icon: 'mdi-help-circle-outline',
+    rootPath: '/help',
     bottomUtil: true,
     groups: []
   },

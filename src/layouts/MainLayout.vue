@@ -5,12 +5,15 @@ import { contexts, type ContextId } from '@/data/navigation'
 import AppTopBar from '@/components/AppTopBar.vue'
 import ActivityRail from '@/components/ActivityRail.vue'
 import AppSidebar from '@/components/AppSidebar.vue'
+import HelpDrawer from '@/components/HelpDrawer.vue'
+import { provideHelpDrawer } from '@/composables/useHelpDrawer'
 
 const route  = useRoute()
 const router = useRouter()
 
 const activeContextId = ref<ContextId>('home')
 const sidebarOpen     = ref(true)
+const helpDrawer      = provideHelpDrawer()
 
 const activeContext = computed(() => contexts.find(c => c.id === activeContextId.value)!)
 
@@ -56,6 +59,11 @@ function onContextSelect(id: ContextId) {
           </transition>
         </router-view>
       </main>
+
+      <HelpDrawer
+        :open="helpDrawer.open.value"
+        @close="helpDrawer.close()"
+      />
     </div>
   </div>
 </template>

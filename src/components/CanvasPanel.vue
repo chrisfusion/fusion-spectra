@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useHelpDrawer } from '@/composables/useHelpDrawer'
 
 defineProps<{
   title:   string
@@ -7,11 +8,13 @@ defineProps<{
   wide?:   boolean
   loading?: boolean
   error?:  string | null
+  help?:   boolean
 }>()
 
 const emit = defineEmits<{ refresh: [] }>()
 
-const expanded = ref(false)
+const expanded   = ref(false)
+const helpDrawer = useHelpDrawer()
 </script>
 
 <template>
@@ -21,6 +24,10 @@ const expanded = ref(false)
       <span class="panel__title">{{ title }}</span>
       <div class="panel__actions">
         <slot name="actions" />
+        <button v-if="help && helpDrawer" class="panel__btn" @click="helpDrawer.toggle()">
+          <q-icon name="mdi-help-circle-outline" size="14px" />
+          <q-tooltip anchor="top middle" self="bottom middle" :offset="[0,4]">Help</q-tooltip>
+        </button>
         <button class="panel__btn" @click="emit('refresh')">
           <q-icon name="mdi-refresh" size="14px" />
           <q-tooltip anchor="top middle" self="bottom middle" :offset="[0,4]">Refresh</q-tooltip>

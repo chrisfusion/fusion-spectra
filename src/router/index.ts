@@ -56,6 +56,7 @@ const router = createRouter({
         { path: '/fusion-index/artifacts/:id',                 component: () => import('@/pages/index/ArtifactDetailPage.vue'),         meta: { context: 'fusion-index' } },
         { path: '/fusion-index/:pathMatch(.*)*',   component: () => import('@/pages/FusionIndexPage.vue'),              meta: { context: 'fusion-index' } },
         { path: '/changelog', component: () => import('@/pages/ChangelogPage.vue'), meta: { context: 'changelog' } },
+        { path: '/help',      component: () => import('@/pages/HelpPage.vue'),      meta: { context: 'help' } },
         { path: '/admin/roles',       component: () => import('@/pages/admin/RoleAssignmentsPage.vue'),            meta: { context: 'admin', adminOnly: true } },
         { path: '/admin/permissions', component: () => import('@/pages/admin/ResourcePermissionsPage.vue'),       meta: { context: 'admin', adminOnly: true } },
         { path: '/admin/types',       component: () => import('@/pages/admin/ArtifactTypesPage.vue'),             meta: { context: 'admin', adminOnly: true } },

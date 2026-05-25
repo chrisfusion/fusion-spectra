@@ -7,6 +7,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+<!-- 2026-05-25 -->
+### Added
+- Help system: `?` icon in activity rail utility zone navigates to `/help` full browsing page (videos grid + articles list with Diátaxis type badges, pagination, article detail dialog with rendered markdown)
+- Help context panel: `?` button added to `CanvasPanel` via optional `help` prop — opens a slide-in right drawer with "This page" tab (context-sensitive articles by route + videos by service) and "Browse all" tab (search, service/type filters)
+- `HelpDrawer.vue` — slide-in panel component (340 px); article detail sub-view with rendered markdown; video thumbnail cards linking to external video pages
+- `useHelpDrawer` composable — `provide`/`inject` pattern wires the drawer toggle from `MainLayout` down to any `CanvasPanel` without prop-drilling
+- `contentApi.ts` — `HelpArticle`, `HelpArticleDetail`, `VideoItem` types + `listHelp`, `getHelpArticle`, `listVideos` API functions
+- `marked@^12` dependency for markdown rendering in help article detail views
+
 ## [0.10.10] — 2026-05-25
 
 <!-- 2026-05-25 -->
