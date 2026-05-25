@@ -411,6 +411,18 @@ Getter functions in `src/config/runtime.ts`: `getExtBffDownloadPattern()`, `getE
 - `DateGroup`: `{ date: string ("unreleased" | "YYYY-MM-DD"), projects: ProjectEntry[] }`
 - `ProjectEntry`: `{ project, version, changes: { added?, changed?, fixed?, removed?: string[] } }`
 - Client: `src/api/contentApi.ts`; page: `src/pages/ChangelogPage.vue` at `/changelog`
+- `GET /api/content/api/v1/help` params: `service`, `type`, `tag`, `route`, `q`, `page`, `pageSize` → `{ data: HelpArticle[], pagination }`
+- `GET /api/content/api/v1/help/:service/:type/:slug` → `HelpArticleDetail` (same as `HelpArticle` + `body: string` — Markdown)
+- `HelpArticle` shape: `{ service, type: DiátaxisType, slug, title, tags, routes, summary }`; `DiátaxisType`: `'tutorial' | 'how-to' | 'reference' | 'explanation'`; labels/colors in `DIATAXIS_LABELS` / `DIATAXIS_COLORS` constants
+- `GET /api/content/api/v1/videos` params: `service`, `pageSize` → `{ data: VideoItem[], pagination }`; `VideoItem`: `{ service, slug, title, summary, thumbnailUrl, videoUrl, tags }` — external URLs only, no media hosting
+
+## Help system
+- `src/components/HelpDrawer.vue` — slide-over drawer; "This page" tab loads route-scoped articles + videos; "Browse all" tab has search + service/type filters; article body rendered from Markdown via `marked`
+- `src/composables/useHelpDrawer.ts` — `provideHelpDrawer()` called in `MainLayout`; `useHelpDrawer()` injects in any child; returns `{ open: Ref<boolean>, toggle, close }`
+- `src/pages/HelpPage.vue` — full-page help browser (articles + videos) at `/help`; `bottomUtil` nav entry with `groups: []` (direct navigate, no sidebar)
+- `CanvasPanel` `help?: boolean` prop — shows help icon button (`mdi-help-circle-outline`) that calls `helpDrawer.toggle()`; silently absent when no drawer is injected
+- `HelpDrawer` `CONTEXT_SERVICE` map: `pipelines → weave`, `fusion-index → index`; all others use context id directly; `''` when context has no mapping
+- `marked` npm package (`^12.0.2`) — renders Markdown article `body` to HTML; use `v-html="marked(article.body)"` (unscoped style needed for prose elements)
 
 ## Activity rail — utility zone
 - `Context.bottomUtil?: boolean` — renders between separator and admin; always visible (no `isAdmin` guard); use for standalone nav buttons with no sidebar
