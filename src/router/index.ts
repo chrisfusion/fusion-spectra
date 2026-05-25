@@ -68,10 +68,30 @@ const router = createRouter({
   ]
 })
 
+const CHUNK_RELOAD_KEY = '__chunk_reload__'
+
+function isChunkError(msg: string | undefined): boolean {
+  return /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Unable to preload/i.test(msg ?? '')
+}
+
+function reloadForChunk(path?: string): void {
+  if (sessionStorage.getItem(CHUNK_RELOAD_KEY)) return
+  sessionStorage.setItem(CHUNK_RELOAD_KEY, '1')
+  window.location.href = path
+    ? window.location.origin + '/#' + path
+    : window.location.href
+}
+
 router.onError((err, to) => {
-  if (/Failed to fetch dynamically imported module|Importing a module script failed/i.test(err.message)) {
-    window.location.href = window.location.origin + '/#' + to.fullPath
-  }
+  if (isChunkError(err.message)) reloadForChunk(to?.fullPath)
+})
+
+router.afterEach(() => {
+  sessionStorage.removeItem(CHUNK_RELOAD_KEY)
+})
+
+window.addEventListener('unhandledrejection', (event) => {
+  if (isChunkError(event.reason?.message)) reloadForChunk()
 })
 
 router.beforeEach(async (to) => {

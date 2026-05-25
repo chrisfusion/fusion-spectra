@@ -168,7 +168,7 @@ Fusion Index uses explicit routes (not a wildcard):
 
 ## Deployment
 - Dockerfile: 3-stage (deps → build → nginx:alpine); `NPM_REGISTRY` build arg for private registry
-- `nginx.conf`: SPA fallback, gzip, no-cache on `index.html`/`config.js`, immutable cache on hashed assets
+- `nginx.conf`: `location /` (SPA fallback) has `no-store, no-cache` — critical so browsers always fetch fresh `index.html` after redeploy; regex location `~* ^/(index\.html|config\.js)$` also no-cache; hashed assets get `immutable`; **`location /` must carry the no-cache header** — putting it only on the regex location leaves the root path cacheable and causes blank pages after redeploy
 - nginx runs as non-root (`USER nginx`, uid 101) on **port 8080**; Dockerfile `chown`s `/usr/share/nginx/html`, `/var/cache/nginx`, `/var/log/nginx`, `/var/run/nginx.pid`
 - K8s security: `podSecurityContext: {runAsNonRoot: true, runAsUser: 101, fsGroup: 101}` + `containerSecurityContext: {readOnlyRootFilesystem: true, allowPrivilegeEscalation: false, capabilities.drop: [ALL]}`; three `emptyDir` volumes cover nginx's writable paths (`/var/cache/nginx`, `/var/run`, `/tmp`) — `fsGroup: 101` is what makes emptyDir mounts writable by nginx without an initContainer
 - Service exposes port 80 → `targetPort: http` (named port) → resolves to container 8080; no Service/Ingress change needed when only containerPort changes
@@ -180,7 +180,7 @@ Fusion Index uses explicit routes (not a wildcard):
 - After building, update `image.tag` in `values-dev.yaml` and run `helm upgrade`; tag change triggers pod replacement automatically
 - Helm field manager conflict: if `kubectl set image` was used on the deployment, subsequent `helm upgrade` may fail — bypass with `kubectl set image deployment/fusion-spectra frontend=fusion-spectra:X.Y.Z -n fusion && kubectl rollout status deployment/fusion-spectra -n fusion`
 - Stale probe ports: repeated `kubectl set image` bypasses Helm so probe ports stay frozen at their original value; if nginx moved to 8080 but probes still hit 80, pods crash-loop (nginx starts fine but kubelet can't connect) — fix alongside image update: `kubectl patch deployment fusion-spectra -n fusion --type=json -p='[{"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/httpGet/port","value":8080},{"op":"replace","path":"/spec/template/spec/containers/0/readinessProbe/httpGet/port","value":8080},{"op":"replace","path":"/spec/template/spec/containers/0/ports/0/containerPort","value":8080}]'`
-- Stale JS chunks after redeploy cause blank canvas on SPA navigation (silent failure, no console error) — `router.onError` in `src/router/index.ts` auto-reloads on chunk-not-found; if navigation still fails, a fresh build+redeploy is the fix
+- Stale JS chunks after redeploy cause blank canvas on SPA navigation — `router.onError` + `window.addEventListener('unhandledrejection')` in `src/router/index.ts` auto-reload on chunk-not-found (with sessionStorage loop guard); root cause is usually `location /` in nginx not setting no-cache (browser caches old `index.html` → old chunk hashes → 404)
 - "Clean reinstall on minikube" = `eval $(minikube docker-env) && docker build -t fusion-spectra:X.Y.Z . && kubectl set image deployment/fusion-spectra frontend=fusion-spectra:X.Y.Z -n fusion`; NOT `npm install`
 
 ## Tag model (fusion-index)
