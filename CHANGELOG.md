@@ -15,6 +15,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `useHelpDrawer` composable — `provide`/`inject` pattern wires the drawer toggle from `MainLayout` down to any `CanvasPanel` without prop-drilling
 - `contentApi.ts` — `HelpArticle`, `HelpArticleDetail`, `VideoItem` types + `listHelp`, `getHelpArticle`, `listVideos` API functions
 - `marked@^12` dependency for markdown rendering in help article detail views
+- Global `?` help button in topbar (`AppTopBar.vue`) — toggles `HelpDrawer` from any page; highlights when drawer is open
+- 44 help articles in `help/` (forge, weave, index, admin, data, monitoring) — tutorial series, how-tos, reference, and explanations; served via fusion-content pointing at fusion-spectra repo
+- fusion-content repos Secret updated: `help:` source now points to `fusion-spectra` with `dir: "help"`
 
 ## [0.10.10] — 2026-05-25
 

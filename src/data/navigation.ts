@@ -241,7 +241,7 @@ export const contexts: Context[] = [
   {
     id: 'help',
     label: 'Help',
-    icon: 'mdi-help-circle-outline',
+    icon: 'mdi-book-open-outline',
     rootPath: '/help',
     bottomUtil: true,
     groups: []
