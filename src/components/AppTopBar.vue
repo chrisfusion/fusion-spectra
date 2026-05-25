@@ -78,8 +78,8 @@ async function handleLogout() {
     <div class="topbar__right">
       <!-- Help -->
       <button v-if="helpDrawer" class="topbar__icon-btn" :class="{ 'topbar__icon-btn--active': helpDrawer.open.value }" @click="helpDrawer.toggle()">
-        <q-icon name="mdi-help-circle-outline" size="18px" />
-        <q-tooltip anchor="bottom middle" self="top middle" :offset="[0, 6]">Help</q-tooltip>
+        <q-icon name="mdi-compass-outline" size="18px" />
+        <q-tooltip anchor="bottom middle" self="top middle" :offset="[0, 6]">Page Guide</q-tooltip>
       </button>
 
       <!-- Notifications -->
