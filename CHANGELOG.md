@@ -7,6 +7,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.10] — 2026-05-25
+
+<!-- 2026-05-25 -->
+### Changed
+- Pipelines Runs group split into **Monitoring** (Run Overview, GitOps Runs, Triggers) and **Control** (Add Trigger, Attach Step to GitOps, Edit Triggers); Running and Failed pages removed from nav (routes kept); Schedules placeholder removed; "All Runs" renamed to "Run Overview"
+
+## [0.10.9] — 2026-05-25
+
+<!-- 2026-05-25 -->
+### Changed
+- Pipelines context navigation reorganised: renamed from "Pipelines & Jobs" → "Pipelines"; consolidated 7 groups into 3 — **Runs** (running/all/failed/GitOps runs/schedules/triggers/attach), **Run Blueprints** (chains + wizards, formerly "Weave Chains"), **Step Blueprints** (job + service definitions, formerly separate "Job Templates" / "Service Templates" groups); all "templates" renamed to "blueprints" throughout labels; old placeholder Pipelines group (Active/Scheduled/Archive) removed; sidebar leaves now show full description on hover via tooltip
+
 ## [0.10.8] — 2026-05-21
 
 <!-- 2026-05-21 -->

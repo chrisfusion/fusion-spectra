@@ -59,10 +59,15 @@ function isLeafActive(route_: string): boolean {
     <!-- Tree navigation -->
     <div class="sidebar__tree">
       <div
-        v-for="group in context.groups"
+        v-for="(group, i) in context.groups"
         :key="group.id"
         class="sidebar__group"
       >
+        <!-- Section header — rendered when this group starts a new section -->
+        <div
+          v-if="group.section && (i === 0 || context.groups[i - 1].section !== group.section)"
+          class="sidebar__section-hdr"
+        >{{ group.section }}</div>
         <!-- Group header -->
         <button
           class="sidebar__group-hdr"
@@ -101,6 +106,9 @@ function isLeafActive(route_: string): boolean {
                 class="fs-badge"
                 :class="`fs-badge--${leaf.badge.variant}`"
               >{{ leaf.badge.text }}</span>
+              <q-tooltip v-if="leaf.tooltip" anchor="center right" self="center left" :offset="[8, 0]" :delay="400">
+                {{ leaf.tooltip }}
+              </q-tooltip>
             </router-link>
           </div>
         </transition>
@@ -177,6 +185,18 @@ function isLeafActive(route_: string): boolean {
   overflow-x: hidden;
   padding: 6px 0 16px;
   min-width: var(--fs-sidebar-w);
+}
+
+/* Section header */
+.sidebar__section-hdr {
+  padding: 10px 12px 3px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--fs-text-muted);
+  white-space: nowrap;
+  opacity: 0.7;
 }
 
 /* Group */

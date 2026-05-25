@@ -6,6 +6,7 @@ export interface NavLeaf {
   icon: string
   route: string
   placeholder?: boolean
+  tooltip?: string
   badge?: { text: string; variant: 'pos' | 'neg' | 'warn' | 'info' | 'accent' }
 }
 
@@ -13,6 +14,7 @@ export interface NavGroup {
   id: string
   label: string
   icon: string
+  section?: string
   children: NavLeaf[]
 }
 
@@ -76,81 +78,59 @@ export const contexts: Context[] = [
 
   {
     id: 'pipelines',
-    label: 'Pipelines & Jobs',
+    label: 'Pipelines',
     icon: 'mdi-pipe',
     rootPath: '/pipelines',
     groups: [
       {
-        id: 'pipelines-group',
-        label: 'Pipelines',
-        icon: 'mdi-transit-connection-variant',
+        id: 'runs-monitoring',
+        label: 'Monitoring',
+        section: 'Runs',
+        icon: 'mdi-chart-timeline-variant',
         children: [
-          { id: 'active-pipes', label: 'Active',    icon: 'mdi-play-circle-outline', route: '/pipelines/active',    placeholder: true, badge: { text: '3', variant: 'pos' } },
-          { id: 'scheduled',    label: 'Scheduled', icon: 'mdi-clock-outline',       route: '/pipelines/scheduled', placeholder: true },
-          { id: 'pipe-archive', label: 'Archive',   icon: 'mdi-archive-outline',     route: '/pipelines/archive',   placeholder: true },
+          { id: 'jobs-history',  label: 'Run Overview', icon: 'mdi-view-dashboard-outline', route: '/pipelines/runs',           tooltip: 'Run overview and history' },
+          { id: 'svc-list',      label: 'GitOps Runs',  icon: 'mdi-source-branch-sync',     route: '/pipelines/services',       tooltip: 'GitOps-controlled service runs' },
+          { id: 'triggers-list', label: 'Triggers',     icon: 'mdi-lightning-bolt-outline', route: '/pipelines/weave/triggers', tooltip: 'Event-based run triggers' },
         ]
       },
       {
-        id: 'jobs-group',
-        label: 'Jobs',
-        icon: 'mdi-briefcase-outline',
+        id: 'runs-control',
+        label: 'Control',
+        section: 'Runs',
+        icon: 'mdi-tune',
         children: [
-          { id: 'jobs-running',  label: 'Running',    icon: 'mdi-motion-play-outline',  route: '/pipelines/runs/running' },
-          { id: 'jobs-history',  label: 'Run History', icon: 'mdi-history',            route: '/pipelines/runs' },
-          { id: 'jobs-failed',   label: 'Failed',    icon: 'mdi-alert-circle-outline', route: '/pipelines/runs/failed' },
-          { id: 'jobs-schedule', label: 'Schedules', icon: 'mdi-calendar-clock',       route: '/pipelines/jobs/schedules', placeholder: true },
+          { id: 'triggers-create', label: 'Add Trigger',           icon: 'mdi-plus-circle-outline', route: '/pipelines/weave/triggers/create', tooltip: 'Create a new trigger' },
+          { id: 'svc-launch',      label: 'Attach Step to GitOps', icon: 'mdi-source-branch-plus',  route: '/pipelines/services/create',       tooltip: 'Attach a step blueprint to GitOps' },
+          { id: 'triggers-edit',   label: 'Edit Triggers',         icon: 'mdi-square-edit-outline', route: '/pipelines/weave/triggers',        tooltip: 'Manage and edit existing triggers' },
         ]
       },
       {
-        id: 'services-group',
-        label: 'Services',
-        icon: 'mdi-server-network',
+        id: 'run-blueprints',
+        label: 'Run Blueprints',
+        section: 'Blueprints',
+        icon: 'mdi-file-document-multiple-outline',
         children: [
-          { id: 'svc-list',   label: 'Service Instances', icon: 'mdi-server-network-outline', route: '/pipelines/services' },
-          { id: 'svc-launch', label: 'Launch Service',    icon: 'mdi-plus-circle-outline',    route: '/pipelines/services/create' },
+          { id: 'chains-list',          label: 'All Blueprints', icon: 'mdi-link-chain',          route: '/pipelines/weave/chains',              tooltip: 'All pipeline run blueprints' },
+          { id: 'chains-create',        label: 'Single Step',    icon: 'mdi-plus-circle-outline', route: '/pipelines/weave/chains/create',        tooltip: 'Single job/service wizard' },
+          { id: 'chains-simple-deploy', label: 'Webservice',     icon: 'mdi-auto-fix',            route: '/pipelines/weave/chains/simple-deploy', tooltip: 'Webservice deployment wizard' },
+          { id: 'chains-etl',           label: 'ETL',            icon: 'mdi-database-sync',       route: '/pipelines/weave/chains/etl',           tooltip: 'ETL pipeline wizard' },
+          { id: 'chains-advanced',      label: 'Advanced',       icon: 'mdi-sitemap',             route: '/pipelines/weave/chains/advanced',      tooltip: 'Advanced chain builder' },
         ]
       },
       {
-        id: 'job-templates',
-        label: 'Job Templates',
-        icon: 'mdi-briefcase-outline',
+        id: 'step-blueprints',
+        label: 'Step Blueprints',
+        section: 'Blueprints',
+        icon: 'mdi-layers-outline',
         children: [
-          { id: 'tpl-jobtemplates',        label: 'Job Templates',        icon: 'mdi-briefcase-outline',      route: '/pipelines/weave/jobtemplates' },
-          { id: 'tpl-jobtemplate-create',  label: 'Create Job Template',  icon: 'mdi-plus-circle-outline',    route: '/pipelines/weave/jobtemplates/create' },
-          { id: 'tpl-jobtemplate-expert',  label: 'Expert Create',        icon: 'mdi-briefcase-edit-outline', route: '/pipelines/weave/jobtemplates/expert' },
+          { id: 'tpl-jobtemplates',           label: 'Job Blueprints', icon: 'mdi-briefcase-outline',      route: '/pipelines/weave/jobtemplates',        tooltip: 'Batch/compute job definitions' },
+          { id: 'tpl-jobtemplate-create',     label: 'Add Job',        icon: 'mdi-plus-circle-outline',    route: '/pipelines/weave/jobtemplates/create', tooltip: 'Create a job blueprint' },
+          { id: 'tpl-jobtemplate-expert',     label: 'Job Expert',     icon: 'mdi-briefcase-edit-outline', route: '/pipelines/weave/jobtemplates/expert', tooltip: 'Expert YAML job create' },
+          { id: 'tpl-servicetemplates',       label: 'Svc Blueprints', icon: 'mdi-server-outline',         route: '/pipelines/weave/servicetemplates',        tooltip: 'Service deployment definitions' },
+          { id: 'tpl-servicetemplate-create', label: 'Add Service',    icon: 'mdi-plus-circle-outline',    route: '/pipelines/weave/servicetemplates/create', tooltip: 'Create a service blueprint' },
+          { id: 'tpl-servicetemplate-expert', label: 'Svc Expert',     icon: 'mdi-server-network',         route: '/pipelines/weave/servicetemplates/expert', tooltip: 'Expert YAML service create' },
         ]
       },
-      {
-        id: 'service-templates',
-        label: 'Service Templates',
-        icon: 'mdi-server-outline',
-        children: [
-          { id: 'tpl-servicetemplates',       label: 'Service Templates',       icon: 'mdi-server-outline',      route: '/pipelines/weave/servicetemplates' },
-          { id: 'tpl-servicetemplate-create', label: 'Create Service Template', icon: 'mdi-plus-circle-outline', route: '/pipelines/weave/servicetemplates/create' },
-          { id: 'tpl-servicetemplate-expert', label: 'Expert Create',           icon: 'mdi-server-network',      route: '/pipelines/weave/servicetemplates/expert' },
-        ]
-      },
-      {
-        id: 'weave-chains',
-        label: 'Weave Chains',
-        icon: 'mdi-link-chain',
-        children: [
-          { id: 'chains-list',          label: 'Chains',              icon: 'mdi-link-chain',           route: '/pipelines/weave/chains' },
-          { id: 'chains-create',        label: 'Single Job/Service Wizard', icon: 'mdi-plus-circle-outline',  route: '/pipelines/weave/chains/create' },
-          { id: 'chains-simple-deploy', label: 'Webservice Wizard',        icon: 'mdi-auto-fix',             route: '/pipelines/weave/chains/simple-deploy' },
-          { id: 'chains-etl',           label: 'ETL Wizard',               icon: 'mdi-database-sync',        route: '/pipelines/weave/chains/etl' },
-          { id: 'chains-advanced',      label: 'Advanced Chain Builder',   icon: 'mdi-sitemap',              route: '/pipelines/weave/chains/advanced' },
-        ]
-      },
-      {
-        id: 'weave-triggers',
-        label: 'Weave Triggers',
-        icon: 'mdi-lightning-bolt-outline',
-        children: [
-          { id: 'triggers-list',   label: 'Triggers',        icon: 'mdi-lightning-bolt-outline', route: '/pipelines/weave/triggers' },
-          { id: 'triggers-create', label: 'Create Trigger',  icon: 'mdi-plus-circle-outline',    route: '/pipelines/weave/triggers/create' },
-        ]
-      }
     ]
   },
 

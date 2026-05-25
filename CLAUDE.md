@@ -22,7 +22,7 @@ Type check: `npm run typecheck`
 ## Layout architecture
 - `src/layouts/MainLayout.vue` — shell: topbar + activity rail + sidebar + canvas
 - Activity rail (`src/components/ActivityRail.vue`) — three-zone model: regular (top) → separator (flex:1) → util (bottomUtil) → admin (adminOnly); admin section gated by `isAdmin`, util section always visible
-- Sidebar (`src/components/AppSidebar.vue`) — IDE-style tree, 2-level (group → leaf)
+- Sidebar (`src/components/AppSidebar.vue`) — IDE-style tree; 3-level when `NavGroup.section` is set (renders a small uppercase section header when label changes across sibling groups); `NavLeaf.tooltip` renders a `q-tooltip` on hover (400ms delay, anchors right)
 - Canvas panels use `src/components/CanvasPanel.vue`
 - Context/nav data: `src/data/navigation.ts` — single source of truth
 
@@ -33,7 +33,7 @@ No footer slot — add pagination below the table inside the default slot.
 
 ## Contexts (activity rail order)
 1. Data → `/data`
-2. Pipelines & Jobs → `/pipelines`
+2. Pipelines → `/pipelines` — groups use `section` to form two topics: **Runs** (Monitoring + Control sub-groups) and **Blueprints** (Run Blueprints + Step Blueprints); all "templates" renamed to "blueprints" in labels
 3. Monitoring → `/monitoring`
 4. Forge → `/forge` — async Python venv builder (fusion-forge backend)
 5. Fusion Index → `/fusion-index` — live registry UI backed by fusion-index API
