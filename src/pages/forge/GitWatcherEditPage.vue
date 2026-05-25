@@ -173,7 +173,7 @@ async function submit() {
   submitError.value = null
   try {
     await forgeApi.updateGitWatcher(name, buildPayload())
-    $q.notify({ type: 'positive', message: `Watcher ${name} updated.` })
+    $q.notify({ type: 'positive', message: `GitOps poller ${name} updated.` })
     router.push(`/forge/gitwatchers/${encodeURIComponent(name)}`)
   } catch (e) {
     submitError.value = e instanceof Error ? e.message : 'Save failed'
@@ -205,7 +205,7 @@ onMounted(loadWatcher)
     </div>
 
     <CanvasPanel
-      title="Edit Watcher"
+      title="Edit GitOps Poller"
       icon="mdi-pencil-outline"
       :wide="true"
       :loading="loadingInitial"
@@ -220,17 +220,17 @@ onMounted(loadWatcher)
           <span>Name <span class="fs-mono">{{ name }}</span> is immutable in Kubernetes — delete and recreate to rename.</span>
         </div>
 
-        <div class="form-section-title">Build Type</div>
+        <div class="form-section-title">Builder Type</div>
 
         <div class="form-row form-row--top">
-          <label class="form-label">Build Type <span class="required">*</span></label>
+          <label class="form-label">Type <span class="required">*</span></label>
           <div class="field-wrap">
             <div class="kind-toggle">
               <button class="kind-btn" :class="{ 'kind-btn--active': buildType === 'git' }" @click="buildType = 'git'">
-                <q-icon name="mdi-git" size="12px" /> Git Build
+                <q-icon name="mdi-language-python" size="12px" /> Python Builder
               </button>
               <button class="kind-btn" :class="{ 'kind-btn--active': buildType === 'app' }" @click="buildType = 'app'">
-                <q-icon name="mdi-rocket-launch-outline" size="12px" /> App Build
+                <q-icon name="mdi-rocket-launch-outline" size="12px" /> Generic Builder
               </button>
             </div>
           </div>

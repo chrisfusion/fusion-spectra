@@ -47,6 +47,7 @@ const router = createRouter({
         { path: '/forge/gitwatchers/:name/edit', component: () => import('@/pages/forge/GitWatcherEditPage.vue'),   meta: { context: 'forge' } },
         { path: '/forge/gitwatchers/:name',      component: () => import('@/pages/forge/GitWatcherDetailPage.vue'), meta: { context: 'forge' } },
         { path: '/forge/gitwatchers',            component: () => import('@/pages/forge/GitWatcherListPage.vue'),   meta: { context: 'forge' } },
+        { path: '/forge/gitops-builder/create', component: () => import('@/pages/forge/GitOpsBuilderPage.vue'),  meta: { context: 'forge' } },
         { path: '/forge/:pathMatch(.*)*',  component: () => import('@/pages/forge/ForgeIndexPage.vue'),       meta: { context: 'forge' } },
         { path: '/fusion-index',                   component: () => import('@/pages/FusionIndexPage.vue'),              meta: { context: 'fusion-index' } },
         { path: '/fusion-index/artifacts',         component: () => import('@/pages/index/ArtifactListPage.vue'),       meta: { context: 'fusion-index' } },

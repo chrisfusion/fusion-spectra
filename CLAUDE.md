@@ -33,7 +33,7 @@ No footer slot — add pagination below the table inside the default slot.
 
 ## Contexts (activity rail order)
 1. Data → `/data`
-2. Pipelines → `/pipelines` — groups use `section` to form two topics: **Runs** (Monitoring + Control sub-groups) and **Blueprints** (Run Blueprints + Step Blueprints); all "templates" renamed to "blueprints" in labels
+2. Weave → `/pipelines` (label "Weave", id `pipelines`) — groups use `section` to form two topics: **Runs** (Monitoring + Control sub-groups) and **Blueprints** (Run Blueprints + Step Blueprints); all "templates" renamed to "blueprints" in labels
 3. Monitoring → `/monitoring`
 4. Forge → `/forge` — async Python venv builder (fusion-forge backend)
 5. Fusion Index → `/fusion-index` — live registry UI backed by fusion-index API
@@ -327,10 +327,20 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - Multi-value query params: use `q.append('status', s)` per value, not `q.set()`
 
 ## Forge navigation (navigation.ts)
-Context `forge` has one group:
-- **Venv Builder**: Overview → `/forge`, Builds → `/forge/venvs`, Create Venv → `/forge/venvs/create`, Git Build → `/forge/gitbuilds/create`, App Build → `/forge/appbuilds/create`
+Context `forge` has two section-based groups:
+- Section **Monitoring** / group **Monitoring**: Build Overview → `/forge/venvs`, GitOps Builds → `/forge/gitwatchers`
+- Section **Build** / group **Builder**: Create Venv → `/forge/venvs/create`, GitOps Builder → `/forge/gitops-builder/create`
 
-Forge routes (`router/index.ts`): `/forge` → `ForgeIndexPage`, `/forge/venvs` → `VenvListPage`, `/forge/venvs/create` → `VenvCreatePage`, `/forge/venvs/:id` → `VenvDetailPage`, `/forge/gitbuilds/create` → `GitBuildCreatePage`, `/forge/gitbuilds/:id` → `GitBuildDetailPage`, `/forge/appbuilds/create` → `AppBuildCreatePage`, `/forge/appbuilds/:id` → `AppBuildDetailPage`, `/forge/:pathMatch(.*)*` → `ForgeIndexPage`
+Delinked (nav entries removed, routes kept for existing edit links): `/forge/gitbuilds/create` → `GitBuildCreatePage`, `/forge/appbuilds/create` → `AppBuildCreatePage`, `/forge/gitwatchers/create` → `GitWatcherCreatePage`
+
+Forge routes (`router/index.ts`): `/forge` → `ForgeIndexPage`, `/forge/venvs` → `VenvListPage`, `/forge/venvs/create` → `VenvCreatePage`, `/forge/venvs/:id` → `VenvDetailPage`, `/forge/gitbuilds/create` → `GitBuildCreatePage`, `/forge/gitbuilds/:id` → `GitBuildDetailPage`, `/forge/appbuilds/create` → `AppBuildCreatePage`, `/forge/appbuilds/:id` → `AppBuildDetailPage`, `/forge/gitwatchers/create` → `GitWatcherCreatePage`, `/forge/gitwatchers/:name/edit` → `GitWatcherEditPage`, `/forge/gitwatchers/:name` → `GitWatcherDetailPage`, `/forge/gitwatchers` → `GitWatcherListPage`, `/forge/gitops-builder/create` → `GitOpsBuilderPage`, `/forge/:pathMatch(.*)*` → `ForgeIndexPage`
+
+## GitOps Builder (forge)
+- `src/pages/forge/GitOpsBuilderPage.vue` — 3-step wizard at `/forge/gitops-builder/create`; replaces the separate Git Build, App Build, and Add Watcher create wizards as the single entry point
+- Step 1 (Build): type toggle + repo config + Python-specific fields; Step 2 (GitOps Polling): toggle — off = one-off build, on = poller config (name, active, token secret); Step 3 (Review & Submit)
+- Submit: polling OFF + Python Builder → `createGitBuild()`; polling OFF + Generic Builder → `createAppBuild()`; polling ON → `createGitWatcher()`
+- Terminology: `buildType: 'git'` displays as **Python Builder**; `buildType: 'app'` displays as **Generic Builder**; "watcher" / "GitWatcher" is referred to as **GitOps Poller** throughout the UI
+- Old wizards (`GitBuildCreatePage`, `AppBuildCreatePage`, `GitWatcherCreatePage`) are delinked from nav but routes kept — `GitWatcherEditPage` still links to edit flow; do not delete until edit flow is fully migrated
 
 ## fusion-weave deployment (minikube)
 - Both `fusion-weave-operator` (container: `manager`) and `fusion-weave-api` (container: `api-server`) share one image — build once, update both

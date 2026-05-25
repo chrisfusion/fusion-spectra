@@ -78,7 +78,7 @@ export const contexts: Context[] = [
 
   {
     id: 'pipelines',
-    label: 'Pipelines',
+    label: 'Weave',
     icon: 'mdi-pipe',
     rootPath: '/pipelines',
     groups: [
@@ -180,24 +180,23 @@ export const contexts: Context[] = [
     rootPath: '/forge',
     groups: [
       {
-        id: 'forge-venv',
-        label: 'Venv Builder',
-        icon: 'mdi-language-python',
+        id: 'forge-monitoring',
+        label: 'Monitoring',
+        section: 'Monitoring',
+        icon: 'mdi-monitor-dashboard',
         children: [
-          { id: 'forge-overview',         label: 'Overview',      icon: 'mdi-view-dashboard-outline',   route: '/forge', placeholder: true },
-          { id: 'forge-venv-list',        label: 'Builds',        icon: 'mdi-list-box-outline',         route: '/forge/venvs' },
-          { id: 'forge-venv-create',      label: 'Create Venv',   icon: 'mdi-plus-circle-outline',      route: '/forge/venvs/create' },
-          { id: 'forge-gitbuild-create',  label: 'Git Build',     icon: 'mdi-git',                      route: '/forge/gitbuilds/create' },
-          { id: 'forge-appbuild-create',  label: 'App Build',     icon: 'mdi-rocket-launch-outline',    route: '/forge/appbuilds/create' },
+          { id: 'forge-build-overview', label: 'Build Overview', icon: 'mdi-list-box-outline',       route: '/forge/venvs' },
+          { id: 'forge-gitops-builds',  label: 'GitOps Builds',  icon: 'mdi-source-branch-sync',     route: '/forge/gitwatchers' },
         ]
       },
       {
-        id: 'forge-gitops',
-        label: 'GitOps',
-        icon: 'mdi-source-branch-sync',
+        id: 'forge-venv-builder',
+        label: 'Builder',
+        section: 'Build',
+        icon: 'mdi-language-python',
         children: [
-          { id: 'forge-gitwatcher-list',   label: 'Watchers',     icon: 'mdi-eye-outline',          route: '/forge/gitwatchers' },
-          { id: 'forge-gitwatcher-create', label: 'Add Watcher',  icon: 'mdi-plus-circle-outline',  route: '/forge/gitwatchers/create' },
+          { id: 'forge-venv-create',     label: 'Create Venv',    icon: 'mdi-plus-circle-outline',  route: '/forge/venvs/create' },
+          { id: 'forge-gitops-builder',  label: 'GitOps Builder', icon: 'mdi-source-branch-plus',   route: '/forge/gitops-builder/create' },
         ]
       }
     ]

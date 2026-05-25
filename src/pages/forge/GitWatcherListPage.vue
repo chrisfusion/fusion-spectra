@@ -77,7 +77,7 @@ async function toggleEnabled(w: forgeApi.GitWatcher) {
       project_dir:      w.spec.projectDir,
       description:      w.spec.description,
     })
-    $q.notify({ type: 'positive', message: `Watcher ${w.name} ${enabled ? 'enabled' : 'disabled'}.` })
+    $q.notify({ type: 'positive', message: `GitOps poller ${w.name} ${enabled ? 'enabled' : 'disabled'}.` })
     await loadWatchers()
   } catch (e) {
     $q.notify({ type: 'negative', message: e instanceof Error ? e.message : 'Toggle failed' })
@@ -88,8 +88,8 @@ async function toggleEnabled(w: forgeApi.GitWatcher) {
 
 function confirmDelete(w: forgeApi.GitWatcher) {
   $q.dialog({
-    title:   'Delete Watcher',
-    message: `Delete watcher <strong>${w.name}</strong>? The watcher CR will be removed; existing builds are not affected.`,
+    title:   'Delete GitOps Poller',
+    message: `Delete poller <strong>${w.name}</strong>? The poller CR will be removed; existing builds are not affected.`,
     html:    true,
     ok:     { label: 'Delete', color: 'negative', flat: true },
     cancel: { label: 'Cancel', flat: true },
@@ -97,7 +97,7 @@ function confirmDelete(w: forgeApi.GitWatcher) {
     deletingNames.value = new Set([...deletingNames.value, w.name])
     try {
       await forgeApi.deleteGitWatcher(w.name)
-      $q.notify({ type: 'positive', message: `Watcher ${w.name} deleted.` })
+      $q.notify({ type: 'positive', message: `GitOps poller ${w.name} deleted.` })
       await loadWatchers()
     } catch (e) {
       $q.notify({ type: 'negative', message: e instanceof Error ? e.message : 'Delete failed' })
@@ -120,11 +120,11 @@ onMounted(loadWatchers)
         Forge
       </button>
       <q-icon name="mdi-chevron-right" size="14px" class="muted-icon" />
-      <span class="breadcrumb__current">GitOps Watchers</span>
+      <span class="breadcrumb__current">GitOps Builds</span>
     </div>
 
     <CanvasPanel
-      title="GitOps Watchers"
+      title="GitOps Builds"
       icon="mdi-source-branch-sync"
       :wide="true"
       :loading="loading"
@@ -135,10 +135,10 @@ onMounted(loadWatchers)
         <button
           v-if="can('forge:gitwatchers:write')"
           class="fs-btn fs-btn--primary"
-          @click="router.push('/forge/gitwatchers/create')"
+          @click="router.push('/forge/gitops-builder/create')"
         >
-          <q-icon name="mdi-plus" size="14px" />
-          Add Watcher
+          <q-icon name="mdi-source-branch-plus" size="14px" />
+          GitOps Builder
         </button>
       </template>
 
@@ -181,8 +181,8 @@ onMounted(loadWatchers)
               <td class="cell-name fs-mono">{{ w.name }}</td>
               <td>
                 <span class="type-badge" :class="w.spec.buildType === 'git' ? 'type-badge--git' : 'type-badge--app'">
-                  <q-icon :name="w.spec.buildType === 'git' ? 'mdi-git' : 'mdi-rocket-launch-outline'" size="11px" />
-                  {{ w.spec.buildType }}
+                  <q-icon :name="w.spec.buildType === 'git' ? 'mdi-language-python' : 'mdi-rocket-launch-outline'" size="11px" />
+                  {{ w.spec.buildType === 'git' ? 'Python Builder' : 'Generic Builder' }}
                 </span>
               </td>
               <td class="cell-url fs-mono">
@@ -249,15 +249,15 @@ onMounted(loadWatchers)
       <!-- Empty state -->
       <div v-else-if="!loading && !error" class="empty-state">
         <q-icon name="mdi-source-branch-sync" size="36px" class="empty-icon" />
-        <p class="empty-title">No watchers yet</p>
-        <p class="empty-sub">GitOps watchers automatically trigger builds when new versions appear in a repository.</p>
+        <p class="empty-title">No GitOps pollers yet</p>
+        <p class="empty-sub">GitOps pollers automatically trigger builds when new versions appear in a repository.</p>
         <button
           v-if="can('forge:gitwatchers:write')"
           class="fs-btn fs-btn--primary"
-          @click="router.push('/forge/gitwatchers/create')"
+          @click="router.push('/forge/gitops-builder/create')"
         >
-          <q-icon name="mdi-plus" size="14px" />
-          Add Watcher
+          <q-icon name="mdi-source-branch-plus" size="14px" />
+          GitOps Builder
         </button>
       </div>
 

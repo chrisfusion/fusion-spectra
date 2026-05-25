@@ -73,7 +73,7 @@ async function toggleEnabled() {
       project_dir:      spec.projectDir,
       description:      spec.description,
     })
-    $q.notify({ type: 'positive', message: `Watcher ${next ? 'enabled' : 'disabled'}.` })
+    $q.notify({ type: 'positive', message: `GitOps poller ${next ? 'enabled' : 'disabled'}.` })
     await loadWatcher()
   } catch (e) {
     $q.notify({ type: 'negative', message: e instanceof Error ? e.message : 'Toggle failed' })
@@ -84,8 +84,8 @@ async function toggleEnabled() {
 
 function confirmDelete() {
   $q.dialog({
-    title:   'Delete Watcher',
-    message: `Delete watcher <strong>${name}</strong>? The watcher CR will be removed; existing builds are not affected.`,
+    title:   'Delete GitOps Poller',
+    message: `Delete poller <strong>${name}</strong>? The poller CR will be removed; existing builds are not affected.`,
     html:    true,
     ok:     { label: 'Delete', color: 'negative', flat: true },
     cancel: { label: 'Cancel', flat: true },
@@ -93,7 +93,7 @@ function confirmDelete() {
     deleting.value = true
     try {
       await forgeApi.deleteGitWatcher(name)
-      $q.notify({ type: 'positive', message: `Watcher ${name} deleted.` })
+      $q.notify({ type: 'positive', message: `GitOps poller ${name} deleted.` })
       router.push('/forge/gitwatchers')
     } catch (e) {
       $q.notify({ type: 'negative', message: e instanceof Error ? e.message : 'Delete failed' })
@@ -141,7 +141,7 @@ onUnmounted(stopPolling)
     <div class="breadcrumb">
       <button class="breadcrumb__back" @click="router.push('/forge/gitwatchers')">
         <q-icon name="mdi-arrow-left" size="14px" />
-        Watchers
+        GitOps Builds
       </button>
       <q-icon name="mdi-chevron-right" size="14px" class="muted-icon" />
       <span class="breadcrumb__current fs-mono">{{ name }}</span>
@@ -176,8 +176,8 @@ onUnmounted(stopPolling)
             <span class="kv-key">Build Type</span>
             <span class="kv-val">
               <span class="type-badge" :class="watcher.spec.buildType === 'git' ? 'type-badge--git' : 'type-badge--app'">
-                <q-icon :name="watcher.spec.buildType === 'git' ? 'mdi-git' : 'mdi-rocket-launch-outline'" size="11px" />
-                {{ watcher.spec.buildType }}
+                <q-icon :name="watcher.spec.buildType === 'git' ? 'mdi-language-python' : 'mdi-rocket-launch-outline'" size="11px" />
+                {{ watcher.spec.buildType === 'git' ? 'Python Builder' : 'Generic Builder' }}
               </span>
             </span>
           </div>
