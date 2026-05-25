@@ -423,6 +423,11 @@ Getter functions in `src/config/runtime.ts`: `getExtBffDownloadPattern()`, `getE
 - `CanvasPanel` `help?: boolean` prop — shows help icon button (`mdi-help-circle-outline`) that calls `helpDrawer.toggle()`; silently absent when no drawer is injected
 - `HelpDrawer` `CONTEXT_SERVICE` map: `pipelines → weave`, `fusion-index → index`; all others use context id directly; `''` when context has no mapping
 - `marked` npm package (`^12.0.2`) — renders Markdown article `body` to HTML; use `v-html="marked(article.body)"` (unscoped style needed for prose elements)
+- **Page Guide** — global toggle in `AppTopBar.vue` (`mdi-compass-outline`, tooltip "Page Guide"); uses `useHelpDrawer()` inject; active state class `topbar__icon-btn--active`; this is the primary entry point — do NOT add per-panel `help` props to CanvasPanel instances
+- Activity rail help entry uses `mdi-book-open-outline` (navigates to full `/help` page); topbar uses `mdi-compass-outline` (opens drawer) — keep these distinct
+- `routes:` in help article frontmatter must be **exact static paths** (e.g. `/forge/venvs`) — parameterised paths like `/fusion-index/artifacts/:id` will NOT match `route.path` from the router; use the list page path instead
+- Help articles live in `help/<service>/<type>/<slug>.md` in this repo; fusion-content repos Secret `help:` points here with `dir: "help"`; service IDs: `forge`, `weave`, `index`, `admin`, `data`, `monitoring`
+- To update the fusion-content repos Secret: edit `/tmp/repos.yaml`, then `kubectl -n fusion create secret generic fusion-content-repos --from-file=repos.yaml=/tmp/repos.yaml --dry-run=client -o yaml | kubectl apply -f -` + `kubectl -n fusion rollout restart deployment/fusion-content-server`
 
 ## Activity rail — utility zone
 - `Context.bottomUtil?: boolean` — renders between separator and admin; always visible (no `isAdmin` guard); use for standalone nav buttons with no sidebar
