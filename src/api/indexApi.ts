@@ -190,6 +190,31 @@ export function deleteType(id: number): Promise<void> {
   return bffDelete(`${BASE}/types/${id}`)
 }
 
+// ─── Metrics ─────────────────────────────────────────────────────────────────
+
+export interface MetricsTypeCount {
+  typeName: string
+  count:    number
+}
+
+export interface RegistrySnapshot {
+  cachedAt:                 string
+  totalArtifacts:           number
+  totalVersions:            number
+  totalTags:                number
+  filesAvailable:           number
+  filesPending:             number
+  filesError:               number
+  totalStorageBytes:        number
+  artifactsWithoutTags:     number
+  artifactsWithoutVersions: number
+  typeCounts:               MetricsTypeCount[]
+}
+
+export function getMetrics(): Promise<RegistrySnapshot> {
+  return bffGet<RegistrySnapshot>('/api/index/q/metrics')
+}
+
 // ─── Admin maintenance ────────────────────────────────────────────────────────
 
 const ADMIN_BASE = `${BASE}/admin`

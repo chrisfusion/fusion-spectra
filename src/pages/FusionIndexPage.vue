@@ -2,27 +2,37 @@
 import { ref, onMounted } from 'vue'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import * as indexApi from '@/api/indexApi'
-import type { Artifact, ArtifactVersion } from '@/api/indexApi'
+import type { Artifact, ArtifactVersion, RegistrySnapshot } from '@/api/indexApi'
+import { formatSize } from '@/utils/format'
 
-// ─── Artifacts ────────────────────────────────────────────────────────────────
-const artifacts        = ref<Artifact[]>([])
-const artifactsLoading = ref(true)
-const artifactsError   = ref<string | null>(null)
+// ─── Metrics ──────────────────────────────────────────────────────────────────
+const metrics        = ref<RegistrySnapshot | null>(null)
+const metricsLoading = ref(true)
+const metricsError   = ref<string | null>(null)
 
-async function loadArtifacts() {
-  artifactsLoading.value = true
-  artifactsError.value   = null
+async function loadMetrics() {
+  metricsLoading.value = true
+  metricsError.value   = null
   try {
-    const page = await indexApi.listArtifacts({ pageSize: 20 })
-    artifacts.value = page.items
+    metrics.value = await indexApi.getMetrics()
   } catch (e) {
-    artifactsError.value = e instanceof Error ? e.message : 'Failed to load artifacts'
+    metricsError.value = e instanceof Error ? e.message : 'Failed to load metrics'
   } finally {
-    artifactsLoading.value = false
+    metricsLoading.value = false
   }
 }
 
-// ─── Recent versions (first 5 artifacts, latest version each) ─────────────────
+// ─── Artifacts (silent, feeds recent versions) ────────────────────────────────
+const artifacts = ref<Artifact[]>([])
+
+async function loadArtifacts() {
+  try {
+    const page = await indexApi.listArtifacts({ pageSize: 20 })
+    artifacts.value = page.items
+  } catch { /* silent — recent versions will show empty */ }
+}
+
+// ─── Recent versions ──────────────────────────────────────────────────────────
 const recentVersions        = ref<(ArtifactVersion & { artifactName: string })[]>([])
 const recentVersionsLoading = ref(true)
 const recentVersionsError   = ref<string | null>(null)
@@ -31,7 +41,7 @@ async function loadRecentVersions() {
   recentVersionsLoading.value = true
   recentVersionsError.value   = null
   try {
-    const slice  = artifacts.value.slice(0, 5)
+    const slice   = artifacts.value.slice(0, 5)
     const results = await Promise.all(
       slice.map(a =>
         indexApi.listVersions(a.id)
@@ -51,28 +61,9 @@ async function loadRecentVersions() {
 }
 
 onMounted(async () => {
-  await loadArtifacts()
+  await Promise.all([loadMetrics(), loadArtifacts()])
   await loadRecentVersions()
 })
-
-const searchQuery = ref('')
-
-async function onSearchInput(e: Event) {
-  searchQuery.value = (e.target as HTMLInputElement).value
-  artifactsLoading.value = true
-  artifactsError.value   = null
-  try {
-    const page = await indexApi.listArtifacts({
-      name:     searchQuery.value || undefined,
-      pageSize: 20
-    })
-    artifacts.value = page.items
-  } catch (err) {
-    artifactsError.value = err instanceof Error ? err.message : 'Failed to search'
-  } finally {
-    artifactsLoading.value = false
-  }
-}
 
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -83,41 +74,48 @@ function relativeTime(iso: string): string {
   if (h < 24) return `${h}h ago`
   return `${Math.floor(h / 24)}d ago`
 }
+
+const topTypes = (snap: RegistrySnapshot) =>
+  [...snap.typeCounts].sort((a, b) => b.count - a.count).slice(0, 6)
+
+const maxTypeCount = (snap: RegistrySnapshot) =>
+  Math.max(1, ...snap.typeCounts.map(t => t.count))
 </script>
 
 <template>
   <div class="page-grid">
-    <!-- Artifact registry -->
-    <CanvasPanel
-      title="Artifact Registry"
-      icon="mdi-package-variant"
-      :wide="true"
-      :loading="artifactsLoading"
-      :error="artifactsError"
-      @refresh="loadArtifacts"
-    >
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Description</th>
-            <th>Created</th>
-            <th>Updated</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="artifacts.length === 0">
-            <td colspan="4" class="empty-row">No artifacts yet</td>
-          </tr>
-          <tr v-for="a in artifacts" :key="a.id">
-            <td class="fs-mono accent-text">{{ a.fullName }}</td>
-            <td class="muted-text">{{ a.description ?? '—' }}</td>
-            <td class="muted-text fs-mono">{{ relativeTime(a.createdAt) }}</td>
-            <td class="muted-text fs-mono">{{ relativeTime(a.updatedAt) }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </CanvasPanel>
+
+    <!-- Stat cards row -->
+    <div class="stat-row">
+      <div class="stat-card" :class="{ 'stat-card--loading': metricsLoading }">
+        <q-icon name="mdi-package-variant-closed" size="18px" class="stat-card__icon" />
+        <div class="stat-card__value">{{ metricsLoading ? '—' : metrics?.totalArtifacts ?? '—' }}</div>
+        <div class="stat-card__label">Artifacts</div>
+      </div>
+      <div class="stat-card" :class="{ 'stat-card--loading': metricsLoading }">
+        <q-icon name="mdi-tag-multiple-outline" size="18px" class="stat-card__icon" />
+        <div class="stat-card__value">{{ metricsLoading ? '—' : metrics?.totalVersions ?? '—' }}</div>
+        <div class="stat-card__label">Versions</div>
+      </div>
+      <div class="stat-card" :class="{ 'stat-card--loading': metricsLoading }">
+        <q-icon name="mdi-bookmark-multiple-outline" size="18px" class="stat-card__icon" />
+        <div class="stat-card__value">{{ metricsLoading ? '—' : metrics?.totalTags ?? '—' }}</div>
+        <div class="stat-card__label">Tags</div>
+      </div>
+      <div class="stat-card" :class="{ 'stat-card--loading': metricsLoading }">
+        <q-icon name="mdi-harddisk" size="18px" class="stat-card__icon" />
+        <div class="stat-card__value">{{ metricsLoading ? '—' : metrics ? formatSize(metrics.totalStorageBytes) : '—' }}</div>
+        <div class="stat-card__label">Storage</div>
+      </div>
+      <div
+        class="stat-card"
+        :class="{ 'stat-card--loading': metricsLoading, 'stat-card--error': !metricsLoading && (metrics?.filesError ?? 0) > 0 }"
+      >
+        <q-icon name="mdi-file-check-outline" size="18px" class="stat-card__icon" />
+        <div class="stat-card__value">{{ metricsLoading ? '—' : metrics?.filesAvailable ?? '—' }}</div>
+        <div class="stat-card__label">Files OK{{ !metricsLoading && (metrics?.filesError ?? 0) > 0 ? ` · ${metrics!.filesError} error` : '' }}</div>
+      </div>
+    </div>
 
     <!-- Recent versions -->
     <CanvasPanel
@@ -138,24 +136,29 @@ function relativeTime(iso: string): string {
       </div>
     </CanvasPanel>
 
-    <!-- Quick search -->
-    <CanvasPanel title="Quick Search" icon="mdi-magnify">
-      <div class="search-panel">
-        <div class="search-panel__input-wrap">
-          <q-icon name="mdi-magnify" size="15px" class="muted-icon" />
-          <input
-            class="search-panel__input fs-mono"
-            placeholder="Filter by name prefix…"
-            type="text"
-            @input="onSearchInput"
-          />
-        </div>
-        <div class="search-panel__hint muted-text">
-          <q-icon name="mdi-information-outline" size="13px" />
-          <span>Connected to fusion-index · {{ artifacts.length }} artifact{{ artifacts.length === 1 ? '' : 's' }}</span>
+    <!-- By type -->
+    <CanvasPanel
+      title="By Type"
+      icon="mdi-shape-outline"
+      :loading="metricsLoading"
+      :error="metricsError"
+      @refresh="loadMetrics"
+    >
+      <div v-if="!metrics || metrics.typeCounts.length === 0" class="empty-row">No types assigned</div>
+      <div v-else class="type-list">
+        <div v-for="t in topTypes(metrics)" :key="t.typeName" class="type-row">
+          <span class="type-row__name fs-mono">{{ t.typeName }}</span>
+          <div class="type-row__bar-wrap">
+            <div
+              class="type-row__bar"
+              :style="{ width: `${Math.round((t.count / maxTypeCount(metrics!)) * 100)}%` }"
+            />
+          </div>
+          <span class="type-row__count muted-text fs-mono">{{ t.count }}</span>
         </div>
       </div>
     </CanvasPanel>
+
   </div>
 </template>
 
@@ -168,28 +171,32 @@ function relativeTime(iso: string): string {
   align-content: start;
 }
 
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
+/* Stat cards */
+.stat-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
 }
-.data-table th {
-  text-align: left;
-  padding: 0 10px 8px;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--fs-text-muted);
-  border-bottom: 1px solid var(--fs-border);
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 10px 12px;
+  background: var(--fs-bg-elevated);
+  border: 1px solid var(--fs-border);
+  border-radius: 6px;
+  transition: border-color var(--fs-ease);
 }
-.data-table td {
-  padding: 7px 10px;
-  border-bottom: 1px solid var(--fs-border-dim);
-  color: var(--fs-text-primary);
-}
-.data-table tr:last-child td { border-bottom: none; }
-.data-table tr:hover td { background: var(--fs-bg-hover); }
+.stat-card--loading { opacity: 0.5; }
+.stat-card--error   { border-color: var(--fs-neg); }
+.stat-card--error .stat-card__value { color: var(--fs-neg); }
+
+.stat-card__icon  { color: var(--fs-text-muted); }
+.stat-card__value { font-size: 22px; font-weight: 700; color: var(--fs-accent); line-height: 1.1; font-family: 'JetBrains Mono', monospace; }
+.stat-card__label { font-size: 10.5px; color: var(--fs-text-muted); text-transform: uppercase; letter-spacing: 0.06em; text-align: center; }
 
 .accent-text { color: var(--fs-accent) !important; }
 .muted-text  { color: var(--fs-text-muted) !important; font-size: 11.5px; }
@@ -206,34 +213,15 @@ function relativeTime(iso: string): string {
   border-radius: 3px;
   transition: background var(--fs-ease);
 }
-.version-item:hover { background: var(--fs-bg-hover); }
-.version-item__name { flex: 1; font-size: 12px; color: var(--fs-text-primary); }
-.version-item__time { flex-shrink: 0; }
+.version-item:hover       { background: var(--fs-bg-hover); }
+.version-item__name       { flex: 1; font-size: 12px; color: var(--fs-text-primary); }
+.version-item__time       { flex-shrink: 0; }
 
-/* Search */
-.search-panel { display: flex; flex-direction: column; gap: 12px; }
-.search-panel__input-wrap {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 34px;
-  padding: 0 10px;
-  background: var(--fs-bg-elevated);
-  border: 1px solid var(--fs-border-bright);
-  border-radius: 4px;
-}
-.search-panel__input-wrap:focus-within {
-  border-color: var(--fs-accent);
-  box-shadow: 0 0 0 2px var(--fs-accent-soft);
-}
-.search-panel__input {
-  flex: 1;
-  background: none;
-  border: none;
-  outline: none;
-  color: var(--fs-text-primary);
-  font-size: 12px;
-}
-.search-panel__input::placeholder { color: var(--fs-text-muted); }
-.search-panel__hint { display: flex; align-items: center; gap: 6px; font-size: 11.5px; }
+/* By type */
+.type-list { display: flex; flex-direction: column; gap: 8px; padding: 2px 0; }
+.type-row  { display: flex; align-items: center; gap: 8px; }
+.type-row__name { width: 120px; font-size: 11.5px; color: var(--fs-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
+.type-row__bar-wrap { flex: 1; height: 5px; background: var(--fs-border); border-radius: 3px; overflow: hidden; }
+.type-row__bar      { height: 100%; background: var(--fs-accent); border-radius: 3px; transition: width 0.3s ease; }
+.type-row__count    { width: 28px; text-align: right; font-size: 11.5px; flex-shrink: 0; }
 </style>

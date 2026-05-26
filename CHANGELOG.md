@@ -7,6 +7,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.25] — 2026-05-27
+
+<!-- 2026-05-27 -->
+### Changed
+- Fusion Index dashboard: removed redundant Artifact Registry table (covered by Artifact List page)
+
+## [0.10.24] — 2026-05-27
+
+<!-- 2026-05-27 -->
+### Added
+- Fusion Index dashboard: registry metrics stat cards (Total Artifacts, Versions, Tags, Storage, Files OK — turns red when file errors exist)
+- Fusion Index dashboard: "By Type" panel with horizontal bar chart showing artifact count per type (top 6, sorted by count)
+- `getMetrics()` API function + `RegistrySnapshot` / `MetricsTypeCount` types in `indexApi.ts` — calls `GET /api/index/q/metrics` (BFF-proxied, `index:metrics:read` permission)
+- Artifact Registry table rows are now clickable (navigate to artifact detail page)
+
+### Changed
+- Compacted `CLAUDE.md` (~90 lines reduction; no information loss)
+
 ## [0.10.23] — 2026-05-26
 
 <!-- 2026-05-26 -->

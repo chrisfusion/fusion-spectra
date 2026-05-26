@@ -67,62 +67,29 @@ No footer slot — add pagination below the table inside the default slot.
 - `src/api/indexApi.ts` — typed methods for fusion-index via BFF proxy path `/api/index/api/v1/*`
 
 ## fusion-index API shape
-- `listArtifacts(params?)` — params: `name`, `tag`, `type[]`, `page` (0-based), `pageSize`; returns `ArtifactsPage { items, total, page, pageSize }`
-- `getArtifact(id)` — returns single `Artifact`
-- `createArtifact(payload)` — `POST /artifacts`; payload: `{ fullName, description? }`
-- `deleteArtifact(id)` — `DELETE /artifacts/:id`; cascades all versions
-- `createVersion(artifactId, payload)` — `POST /artifacts/:id/versions`; payload: `{ version, config? }`
-- `deleteVersion(artifactId, semver)` — `DELETE /artifacts/:id/versions/:semver`; backend does best-effort file storage cleanup before DB cascade — frontend does NOT need to delete files individually
-- `uploadFile(artifactId, semver, file)` — `POST /artifacts/:id/versions/:semver/files`; multipart, field name `file`
-- `listVersions(artifactId)` — returns bare `ArtifactVersion[]` (no wrapper), newest first
-- `listFiles(artifactId, semver)` — returns bare `ArtifactFile[]`; each file has `sizeBytes`, `downloadUrl` (relative path), `contentType`, `status`
-- `getFileDownloadUrl(artifactId, semver, fileId)` — constructs full BFF download URL
-- `listTypes()` — returns `TypeResponse[]`
-- `createType(payload)` — `POST /types`; payload: `{ name, description? }`; 409 on duplicate name
-- `updateType(id, payload)` — `PUT /types/:id`; same payload shape
-- `deleteType(id)` — `DELETE /types/:id`; 204 on success
-- All fields camelCase; IDs are `number`
-- `Artifact` has `types: TypeResponse[]` (may be empty; guard with `?? []`)
-- `ArtifactVersion` has `major/minor/patch`, `tags: ArtifactTag[]` (may be missing; guard with `?? []`)
-- Admin maintenance (permission `index:admin:manage`, admin role only): `GET/DELETE /api/v1/admin/artifacts/empty`, `GET/DELETE /api/v1/admin/versions/empty`, `GET/DELETE /api/v1/admin/artifacts/no-files`; GETs take `?olderThan=<RFC3339>&page=&pageSize=`; DELETEs return `{ deleted: number, skipped: number }` (skipped = items with protected tag); BFF route rules for these must appear before the `GET /api/index/*` catch-all in `rbac.yaml`
+All fields camelCase; IDs are `number`. `Artifact` has `types: TypeResponse[]`; `ArtifactVersion` has `tags: ArtifactTag[]` — both may be absent, always guard with `?? []`.
+- Artifacts: `listArtifacts(params?)` (params: `name`, `tag`, `type[]`, `page` 0-based, `pageSize` → `ArtifactsPage`), `getArtifact(id)`, `createArtifact({fullName, description?})`, `deleteArtifact(id)` (cascades versions)
+- Versions: `createVersion(artifactId, {version, config?})`, `deleteVersion(artifactId, semver)` (backend cleans files — frontend does NOT delete individually), `listVersions(artifactId)` → bare `ArtifactVersion[]` newest first
+- Files: `uploadFile(artifactId, semver, file)` (multipart, field `file`), `listFiles(artifactId, semver)` → `ArtifactFile[]` with `sizeBytes/downloadUrl/contentType/status`, `getFileDownloadUrl(artifactId, semver, fileId)`
+- Types: `listTypes()`, `createType({name, description?})` (409 on duplicate), `updateType(id, payload)`, `deleteType(id)`
+- Admin maintenance (permission `index:admin:manage`): `GET/DELETE /api/v1/admin/artifacts/empty`, `/admin/versions/empty`, `/admin/artifacts/no-files`; GETs take `?olderThan=<RFC3339>&page=&pageSize=`; DELETEs return `{ deleted, skipped }` (skipped = protected tag); BFF rules must precede the `GET /api/index/*` catch-all in `rbac.yaml`
+
+## fusion-index metrics
+- `getMetrics()` in `indexApi.ts` → `GET /api/index/q/metrics` (permission `index:metrics:read`, all roles); returns `RegistrySnapshot`: `totalArtifacts`, `totalVersions`, `totalTags`, `filesAvailable`, `filesPending`, `filesError`, `totalStorageBytes`, `artifactsWithoutTags`, `artifactsWithoutVersions`, `typeCounts: {typeName, count}[]`; TTL-cached 60s server-side
 
 ## Shared utilities
 - `src/utils/format.ts` — `formatSize(bytes)`: human-readable file size (B / KB / MB / GB)
 
 ## Components
-- `src/components/TagChipInput.vue` — v-model `string[]` chip input for tag lists
-  - Props: `modelValue: string[]`, `placeholder?`, `disabled?`
-  - Emits: `update:modelValue`
-  - Enter or comma adds a chip; Backspace removes last; × removes specific chip
-  - Validation: `/^[a-zA-Z0-9-]+$/`, max 64 chars; trailing commas stripped before validation
-  - Used in: `ArtifactVersionCreatePage` step 1, `ArtifactCreatePage` step 2
-- `src/components/JsonEditor.vue` — CodeMirror 6 JSON editor
-  - Props: `modelValue: string`, `placeholder?`, `minHeight?`, `maxHeight?`
-  - Emits: `update:modelValue`, `valid` (false when non-empty invalid JSON; empty = valid)
-  - `{ } Format` button pretty-prints via `JSON.stringify(JSON.parse(...), null, 2)`
-  - Theme uses `--fs-*` CSS vars; syntax highlight via `@lezer/highlight` tags
-  - `defineExpose({ format })` for programmatic formatting
+- `src/components/TagChipInput.vue` — v-model `string[]` chip input; Enter/comma adds, Backspace removes last, × removes specific; validation `/^[a-zA-Z0-9-]+$/` max 64 chars; trailing commas stripped
+- `src/components/JsonEditor.vue` — CodeMirror 6 JSON editor; emits `valid` (false on non-empty invalid JSON); `{ } Format` button pretty-prints; `defineExpose({ format })` for programmatic use; theme via `--fs-*` CSS vars
 
 ## Fusion Index pages
-- `src/pages/FusionIndexPage.vue` — dashboard: artifact table, recent versions, quick search (loads page 0, size 20)
+- `src/pages/FusionIndexPage.vue` — dashboard: artifact table, recent versions, quick search (page 0, size 20)
 - `src/pages/index/ArtifactListPage.vue` — paginated list (20/page), debounced name search, clickable rows → detail
-- `src/pages/index/ArtifactDetailPage.vue` — metadata panel + versions table with size + download button per version
-  - Single file: direct `<a>` download link
-  - Multiple files: `q-btn-dropdown` listing each file with name, size, content-type
-  - "Add Version" button in Versions panel `actions` slot → navigates to `ArtifactVersionCreatePage`
-  - **Delete Artifact** button in metadata panel `actions` slot — gated with `can('index:artifacts:delete')`; `$q.dialog` confirmation → `deleteArtifact()` → navigate to artifact list
-  - **Delete version** trash icon per row — gated with `can('index:versions:delete')`; `$q.dialog` confirmation → `deleteVersion()`; if last version deleted, second dialog prompts to delete the artifact too
-  - `deletingVersions: ref<Set<string>>` tracks in-flight semver strings; button disabled and shows spinner while in flight
-- `src/pages/index/ArtifactCreatePage.vue` — 3-step wizard: Artifact → Version → Files
-  - Step 1: `fullName` (required) + `description`; async name-availability check on Next (exact match via `listArtifacts`)
-  - Step 2: semver `version` (required, validated) + optional `config` (JsonEditor)
-  - Step 3: drag-and-drop multi-file upload; duplicate name warning; orphan recovery if upload fails after artifact/version created
-  - Semver regex allows pre-release/build: `/^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$/`
-- `src/pages/index/ArtifactVersionCreatePage.vue` — 2-step wizard: Version → Files
-  - NaN guard: redirects to artifact list if `:id` param is not a valid number
-  - Loads artifact name for 3-level breadcrumb
-  - Step 1: semver `version` + optional `config` (JsonEditor)
-  - Step 2: drag-and-drop multi-file upload; same orphan recovery pattern (`createdVersion` ref locks Back/Submit once version exists)
+- `src/pages/index/ArtifactDetailPage.vue` — metadata panel + versions table; single file → `<a>` link, multiple → `q-btn-dropdown`; Delete Artifact (`can('index:artifacts:delete')`) + Delete version per row (`can('index:versions:delete')`), both with `$q.dialog` confirm; last-version delete prompts to delete artifact too; `deletingVersions: ref<Set<string>>` tracks in-flight rows
+- `src/pages/index/ArtifactCreatePage.vue` — 3-step wizard (Artifact → Version → Files): step 1 async name-availability check; step 2 semver + optional JsonEditor config; step 3 drag-and-drop upload with orphan recovery; semver regex `/^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$/`
+- `src/pages/index/ArtifactVersionCreatePage.vue` — 2-step wizard (Version → Files): NaN guard on `:id`; `createdVersion` ref locks Back/Submit once version exists (orphan recovery)
 
 ## Fusion Index navigation (navigation.ts)
 Context `fusion-index` has two groups:
@@ -131,7 +98,7 @@ Context `fusion-index` has two groups:
 
 ## Admin page
 - `src/pages/AdminPage.vue` — navigation hub: 2-column card grid, one card per admin section; live cards navigate on click, placeholder cards show "soon" badge
-  - Live: Role Assignments (`/admin/roles`), Resource Permissions (`/admin/permissions`), Artifact Types (`/admin/types`)
+  - Live: Role Assignments (`/admin/roles`), Resource Permissions (`/admin/permissions`), Artifact Types (`/admin/types`), Service Status Overrides (`/admin/health`), Index Cleanup (`/admin/index-cleanup`)
   - Placeholder: All Users, Platform Services, Configuration, Integrations, Audit Log
 
 ## Admin sub-pages (Stage 3)
@@ -149,17 +116,10 @@ Context `fusion-index` has two groups:
   - `getRBACConfig()` → `/bff/admin/rbac-config` returns `{roles, groups, permissions}` for dropdown population
 
 ## Router (router/index.ts)
-All routes are flat children under the `/` MainLayout route.
-Fusion Index uses explicit routes (not a wildcard):
-- `/fusion-index` → `FusionIndexPage`
-- `/fusion-index/artifacts` → `ArtifactListPage`
-- `/fusion-index/artifacts/create` → `ArtifactCreatePage`
-- `/fusion-index/artifacts/:id/versions/create` → `ArtifactVersionCreatePage`
-- `/fusion-index/artifacts/:id` → `ArtifactDetailPage`
-- `/fusion-index/:pathMatch(.*)*` → `FusionIndexPage` (catch-all for unimplemented leaves)
-- Route ordering matters: `create` literals must appear before `/:id` dynamic segments
-- Admin routes use `meta: { adminOnly: true }`; `beforeEach` guard redirects non-admin users to `/data`
-- Admin sub-pages (all with `adminOnly: true`): `/admin/roles` → `RoleAssignmentsPage`, `/admin/permissions` → `ResourcePermissionsPage`, `/admin/types` → `ArtifactTypesPage`, `/admin/:pathMatch(.*)*` → `AdminPage` (hub catch-all)
+All routes are flat children under the `/` MainLayout route. Route ordering matters: `create` literals before `/:id` dynamic segments.
+- Fusion Index: `/fusion-index` → `FusionIndexPage`, `/fusion-index/artifacts` → `ArtifactListPage`, `/fusion-index/artifacts/create` → `ArtifactCreatePage`, `/fusion-index/artifacts/:id/versions/create` → `ArtifactVersionCreatePage`, `/fusion-index/artifacts/:id` → `ArtifactDetailPage`, `/fusion-index/:pathMatch(.*)*` → `FusionIndexPage`
+- Admin (all `adminOnly: true`): `/admin/roles` → `RoleAssignmentsPage`, `/admin/permissions` → `ResourcePermissionsPage`, `/admin/types` → `ArtifactTypesPage`, `/admin/health` → `ServiceStatusOverridesPage`, `/admin/index-cleanup` → `IndexCleanupPage`, `/admin/:pathMatch(.*)*` → `AdminPage`
+- `beforeEach` guard calls `auth.init()`; `adminOnly` routes redirect non-admins to `/data`
 
 ## Themes
 - `src/stores/theme.ts` — 5 themes: midnight, azure, matrix, light, synthwave; persisted to localStorage
@@ -245,36 +205,14 @@ Fusion Index uses explicit routes (not a wildcard):
 - Template edit dialog pattern: view mode shows `<pre>` of `JSON.stringify(t.spec, null, 2)`; edit mode swaps in `<JsonEditor>`; on save compare `newSpec.image !== t.spec.image` and show `$q.dialog` confirm before calling `updateJobTemplate` / `updateServiceTemplate`; buttons inside `q-dialog` need CSS in an unscoped `<style>` block scoped to the dialog class (e.g. `.tpl-dialog .fs-btn { ... }`)
 
 ## Advanced Chain Builder (WeaveAdvancedChainPage)
-Route: `/pipelines/weave/chains/advanced` — the most feature-complete chain wizard.
-
-**3-step wizard** with split-panel step 2:
-- Step 1 (Identity): chain name + `failurePolicy` / `concurrencyPolicy` / `sharedStorage` (all chain-level fields)
-- Step 2 (Pipeline): left = dynamic step list, right = sticky `ChainDagView` live preview (split grid `1fr 340px`, preview col `position:sticky;top:16px`)
-- Step 3 (Review): full DAG + settings summary table + steps table; Submit → `createWeaveChain()`
-
-**Step interfaces**:
-```typescript
-interface EnvRow  { uid: number; key: string; value: string }
-interface StepRow {
-  uid: number; name: string; nameError: string | null
-  stepKind: 'Job' | 'Deploy'; templateName: string; templateError: string | null
-  dependsOn: string[]; runOnSuccess: boolean; runOnFailure: boolean
-  producesOutput: boolean; consumesOutputFrom: string[]
-  envRows: EnvRow[]; expanded: boolean
-}
-```
-
-**Key behaviors**:
-- `handleNameInput(idx, newName)` — propagates step renames to `dependsOn` + `consumesOutputFrom` in all other steps
-- `removeStep(i)` — cleans up references in other steps
-- `toggleDependsOn(stepIdx, dep)` — also removes dep from `consumesOutputFrom` when unchecked
-- `toggleProducesOutput(idx)` — removes step from others' `consumesOutputFrom` when turned off
-- `hasCycle()` — DFS cycle detection; builds adjacency list dep→dependent; blocks Next when a cycle exists
-- `templatesFor(kind)` — returns `jobTemplates.value` or `serviceTemplates.value`; DRY helper
-- Templates loaded lazily on entering step 2 (guard: only if both lists are empty — prevents re-fetch on Back+Next)
-- `previewSteps` computed — maps `StepRow[]` → `WeaveChainStep[]` for the live DAG; updates on every form change
-- Stable v-for keys via `uid` counters (`++_uid`) on both `EnvRow` and `StepRow` — never use array index as key on deletable lists
-- All array mutations use spread/filter — never `.push()`/`.splice()` on reactive arrays
+Route: `/pipelines/weave/chains/advanced`. 3-step wizard: step 1 Identity (chain name + `failurePolicy`/`concurrencyPolicy`/`sharedStorage`); step 2 Pipeline (dynamic step list left + sticky `ChainDagView` preview right, grid `1fr 340px`); step 3 Review + Submit → `createWeaveChain()`.
+- `StepRow` has `uid`, `name`, `stepKind: 'Job'|'Deploy'`, `templateName`, `dependsOn`, `runOnSuccess/Failure`, `producesOutput`, `consumesOutputFrom`, `envRows`
+- `handleNameInput` propagates renames to `dependsOn`/`consumesOutputFrom` across all steps; `removeStep` cleans references
+- `toggleDependsOn` also removes from `consumesOutputFrom`; `toggleProducesOutput` removes step from others' `consumesOutputFrom`
+- `hasCycle()` — DFS on dep→dependent adjacency list; blocks Next
+- Templates loaded lazily on entering step 2 (guard: only if both lists empty — prevents re-fetch on Back+Next)
+- `previewSteps` computed maps `StepRow[]` → `WeaveChainStep[]` for live DAG
+- Stable v-for keys via `uid` (`++_uid`); all array mutations use spread/filter — never `.push()`/`.splice()`
 
 ## Screenshots
 `screenshots/` — UI screenshots named `YYYY-MM-DD_<description>.png`
@@ -372,34 +310,11 @@ Forge routes (`router/index.ts`): `/forge` → `ForgeIndexPage`, `/forge/venvs` 
 - `helm upgrade fusion-forge deployment/ -n fusion` applies RBAC, ConfigMap, and other template changes; run after any chart-level change (not just image changes)
 
 ## Ext-BFF / Public API copy URLs (ArtifactDetailPage)
-
-Each file in the Versions table has two optional copy-to-clipboard buttons:
-
-1. **Copy ext-BFF URL** (`mdi-content-copy`) — always shown when `extBffDownloadPattern` is configured
-2. **Copy public API URL** (`mdi-earth`) — shown only for versions that carry the configured `extBffPublicTag` (default `public`)
-
-Both buttons are hidden via `v-if` when their pattern is an empty string — so deploying without config is safe.
-
-### URL patterns (runtime config)
-Patterns live in `window.FUSION_CONFIG` (overridden per-env by ConfigMap):
-```js
-extBffDownloadPattern: 'https://ext-bff.example.com/api/index/api/v1/artifacts/{artifactId}/versions/{semver}/files/{fileId}/download'
-extBffPublicPattern:   'https://ext-bff.example.com/api/public/index/api/v1/artifacts/{artifactId}/versions/{semver}/files/{fileId}/download'
-extBffPublicTag:       'public'
-```
-Supported placeholders: `{artifactId}`, `{semver}`, `{fileId}`.
-Getter functions in `src/config/runtime.ts`: `getExtBffDownloadPattern()`, `getExtBffPublicPattern()`, `getExtBffPublicTag()`.
-
-### Layout
-- **Single file**: icon buttons inline after the download `<a>` link
-- **Multi file**: separate `q-btn-dropdown` buttons alongside the download dropdown; each lists all files — clicking a file entry copies its resolved URL
-
-### Clipboard behaviour
-- Success → `$q.notify` positive toast
-- Failure (non-HTTPS / permission denied) → `$q.dialog` showing the URL in a selectable `<pre class="copy-fallback-url">` block with a hint
-
-### Helm values (deployment/values.yaml)
-`config.extBffDownloadPattern`, `config.extBffPublicPattern`, `config.extBffPublicTag` — rendered into the ConfigMap by `deployment/templates/configmap.yaml`.
+Two optional copy buttons per file: `mdi-content-copy` (ext-BFF URL, always shown when pattern configured) and `mdi-earth` (public URL, shown only for versions with `extBffPublicTag`, default `public`). Both hidden via `v-if` when pattern is empty string — safe without config.
+- Patterns in `window.FUSION_CONFIG`: `extBffDownloadPattern`, `extBffPublicPattern`, `extBffPublicTag`; placeholders: `{artifactId}`, `{semver}`, `{fileId}`; getters in `src/config/runtime.ts`
+- Single file: icon buttons inline after download link; multi-file: separate `q-btn-dropdown` buttons, each lists all files
+- Clipboard: success → `$q.notify` toast; failure → `$q.dialog` with selectable `<pre class="copy-fallback-url">`
+- Helm values: `config.extBffDownloadPattern/extBffPublicPattern/extBffPublicTag` in `values.yaml` → rendered by `templates/configmap.yaml`
 
 ## CodeMirror 6 gotchas
 - `@codemirror/lint` is a separate npm package (not bundled with `@codemirror/language`) — install explicitly
