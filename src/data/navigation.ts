@@ -100,13 +100,13 @@ export const contexts: Context[] = [
         icon: 'mdi-tune',
         children: [
           { id: 'triggers-create', label: 'Add Trigger',           icon: 'mdi-plus-circle-outline', route: '/pipelines/weave/triggers/create', tooltip: 'Create a new trigger' },
-          { id: 'svc-launch',      label: 'Attach Step to GitOps', icon: 'mdi-source-branch-plus',  route: '/pipelines/services/create',       tooltip: 'Attach a step blueprint to GitOps' },
+          { id: 'svc-launch',      label: 'Create GitOps Run',     icon: 'mdi-source-branch-plus',  route: '/pipelines/services/create',       tooltip: 'Create a GitOps-controlled service run' },
           { id: 'triggers-edit',   label: 'Edit Triggers',         icon: 'mdi-square-edit-outline', route: '/pipelines/weave/triggers',        tooltip: 'Manage and edit existing triggers' },
         ]
       },
       {
         id: 'run-blueprints',
-        label: 'Run Blueprints',
+        label: 'Run-Blueprints',
         section: 'Blueprints',
         icon: 'mdi-file-document-multiple-outline',
         children: [
@@ -119,7 +119,7 @@ export const contexts: Context[] = [
       },
       {
         id: 'step-blueprints',
-        label: 'Step Blueprints',
+        label: 'Step-Blueprints',
         section: 'Blueprints',
         icon: 'mdi-layers-outline',
         children: [

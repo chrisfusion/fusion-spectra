@@ -7,6 +7,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.23] — 2026-05-26
+
+<!-- 2026-05-26 -->
+### Changed
+- Navigation: renamed "Attach Step to GitOps" → "Create GitOps Run" in Pipelines Control group
+- Navigation: renamed sidebar section labels "Run Blueprints" → "Run-Blueprints" and "Step Blueprints" → "Step-Blueprints" for consistency
+
 <!-- 2026-05-25 -->
 ### Added
 - Help system: `?` icon in activity rail utility zone navigates to `/help` full browsing page (videos grid + articles list with Diátaxis type badges, pagination, article detail dialog with rendered markdown)
