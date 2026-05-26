@@ -62,6 +62,7 @@ const router = createRouter({
         { path: '/admin/types',       component: () => import('@/pages/admin/ArtifactTypesPage.vue'),             meta: { context: 'admin', adminOnly: true } },
         { path: '/admin/health',         component: () => import('@/pages/admin/ServiceStatusOverridesPage.vue'),  meta: { context: 'admin', adminOnly: true } },
         { path: '/admin/index-cleanup',  component: () => import('@/pages/admin/IndexCleanupPage.vue'),          meta: { context: 'admin', adminOnly: true } },
+        { path: '/admin/forge-cleanup',  component: () => import('@/pages/admin/ForgeCleanupPage.vue'),          meta: { context: 'admin', adminOnly: true } },
         { path: '/admin/:pathMatch(.*)*', component: () => import('@/pages/AdminPage.vue'),                      meta: { context: 'admin', adminOnly: true } },
       ]
     }

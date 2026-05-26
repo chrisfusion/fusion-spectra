@@ -369,3 +369,29 @@ export function updateGitWatcher(name: string, payload: UpdateGitWatcherPayload)
 export async function deleteGitWatcher(name: string): Promise<void> {
   await bffFetch(`${BASE}/gitwatchers/${encodeURIComponent(name)}`, { method: 'DELETE' })
 }
+
+// ─── Bulk Delete ──────────────────────────────────────────────────────────────
+
+export interface BulkDeleteBuildsRequest {
+  statuses:    string[]
+  older_than:  string
+  build_type?: string
+}
+
+export interface BulkDeleteFailure {
+  id:    number
+  error: string
+}
+
+export interface BulkDeleteBuildsResult {
+  deleted: number[]
+  failed:  BulkDeleteFailure[]
+}
+
+export function bulkDeleteBuilds(req: BulkDeleteBuildsRequest): Promise<BulkDeleteBuildsResult> {
+  return bffFetch(`${BASE}/builds`, {
+    method:  'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(req),
+  }).then(r => r.json() as Promise<BulkDeleteBuildsResult>)
+}

@@ -18,6 +18,7 @@ const cards: HubCard[] = [
   { icon: 'mdi-tag-multiple-outline',     title: 'Artifact Types',       subtitle: 'Manage artifact type definitions',        route: '/admin/types',           live: true  },
   { icon: 'mdi-heart-pulse',              title: 'Service Status Overrides', subtitle: 'Set manual status overrides for platform services', route: '/admin/health',          live: true  },
   { icon: 'mdi-broom',                    title: 'Index Cleanup',            subtitle: 'Delete empty artifacts and file-less versions',     route: '/admin/index-cleanup',   live: true  },
+  { icon: 'mdi-delete-clock-outline',    title: 'Forge Cleanup',            subtitle: 'Bulk-delete old failed and succeeded builds',        route: '/admin/forge-cleanup',   live: true  },
   { icon: 'mdi-server-network-outline',   title: 'Platform Services',    subtitle: 'Monitor running platform services',       route: '/admin/platform/services', live: false },
   { icon: 'mdi-tune',                     title: 'Configuration',        subtitle: 'Platform configuration settings',        route: '/admin/config',          live: false },
   { icon: 'mdi-puzzle-outline',           title: 'Integrations',         subtitle: 'External service integrations',          route: '/admin/integrations',    live: false },

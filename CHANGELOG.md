@@ -7,6 +7,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.26] — 2026-05-27
+
+<!-- 2026-05-27 -->
+### Added
+- Admin: Forge Cleanup page (`/admin/forge-cleanup`) — bulk-delete old FAILED and/or SUCCEEDED builds by type (requirements / Python Builder / Generic Builder) and age threshold; backed by `DELETE /api/forge/api/v1/builds` (`forge:builds:delete`)
+- `bulkDeleteBuilds()` in `forgeApi.ts` — typed wrapper for `DELETE /api/v1/builds` with `BulkDeleteBuildsRequest` / `BulkDeleteBuildsResult` types
+
 ## [0.10.25] — 2026-05-27
 
 <!-- 2026-05-27 -->
