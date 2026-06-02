@@ -70,7 +70,7 @@ No footer slot — add pagination below the table inside the default slot.
 - `src/components/JsonEditor.vue` — CodeMirror 6 JSON editor; emits `valid` (false on non-empty invalid JSON); `{ } Format` button pretty-prints; `defineExpose({ format })` for programmatic use; theme via `--fs-*` CSS vars
 
 ## Themes
-- `src/stores/theme.ts` — 5 themes: midnight, azure, matrix, light, synthwave; persisted to localStorage
+- `src/stores/theme.ts` — 5 themes: lumen (default), azure, carbon, matrix, synthwave; persisted to localStorage; `midnight`/`light` are gone — a `Set` guard coerces stale localStorage values to `lumen`
 - Applies `data-theme` on `<html>` + calls `Quasar.Dark.set()` — CSS vars alone don't affect Quasar portals (menus, tooltips)
 - CSS variable overrides per theme in `src/css/app.scss` under `[data-theme="<name>"]` blocks
 
@@ -131,7 +131,7 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - After building, update `image.tag` in `values-dev.yaml` and run `helm upgrade`; tag change triggers pod replacement automatically
 - Helm field manager conflict: if `kubectl set image` was used, bypass with `kubectl set image deployment/fusion-spectra frontend=fusion-spectra:X.Y.Z -n fusion`
 - Stale probe ports: if nginx moved to 8080 but probes still hit 80, pods crash-loop — patch: `kubectl patch deployment fusion-spectra -n fusion --type=json -p='[{"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/httpGet/port","value":8080},...]'`
-- Stale JS chunks after redeploy: `router.onError` + `window.addEventListener('unhandledrejection')` in `src/router/index.ts` auto-reload on chunk-not-found (with sessionStorage loop guard)
+- Stale JS chunks after redeploy: `router.onError` + `unhandledrejection` + `vite:preloadError` in `src/router/index.ts` auto-reload on chunk-not-found; guard is **timestamp-based** (8s cooldown in `__chunk_reload_ts__`) — do NOT use a boolean flag, Ctrl+Shift+R does not clear `sessionStorage` so a boolean guard permanently blocks recovery
 - "Clean reinstall on minikube" = `eval $(minikube docker-env) && docker build -t fusion-spectra:X.Y.Z . && kubectl set image deployment/fusion-spectra frontend=fusion-spectra:X.Y.Z -n fusion`
 
 ## Runtime config gotchas

@@ -69,18 +69,23 @@ const router = createRouter({
   ]
 })
 
-const CHUNK_RELOAD_KEY = '__chunk_reload__'
+// Timestamp-based guard: prevents reload loops within 8s but self-expires so
+// Ctrl+Shift+R or waiting recovers the page (unlike a boolean that sessionStorage
+// preserves indefinitely through hard refreshes).
+const CHUNK_RELOAD_KEY = '__chunk_reload_ts__'
+const CHUNK_RELOAD_COOLDOWN = 8_000
 
 function isChunkError(msg: string | undefined): boolean {
   return /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Unable to preload/i.test(msg ?? '')
 }
 
 function reloadForChunk(path?: string): void {
-  if (sessionStorage.getItem(CHUNK_RELOAD_KEY)) return
-  sessionStorage.setItem(CHUNK_RELOAD_KEY, '1')
-  window.location.href = path
-    ? window.location.origin + '/#' + path
-    : window.location.href
+  const last = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY) ?? 0)
+  if (Date.now() - last < CHUNK_RELOAD_COOLDOWN) return
+  sessionStorage.setItem(CHUNK_RELOAD_KEY, String(Date.now()))
+  window.location.replace(
+    path ? window.location.origin + '/#' + path : window.location.href
+  )
 }
 
 router.onError((err, to) => {
@@ -93,6 +98,13 @@ router.afterEach(() => {
 
 window.addEventListener('unhandledrejection', (event) => {
   if (isChunkError(event.reason?.message)) reloadForChunk()
+})
+
+// Vite 5 dispatches this for preloaded-module failures that don't always
+// surface through unhandledrejection.
+window.addEventListener('vite:preloadError', (event: Event) => {
+  event.preventDefault()
+  reloadForChunk()
 })
 
 router.beforeEach(async (to) => {
