@@ -7,6 +7,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+<!-- 2026-06-02 -->
+### Added
+- Admin: Forge Cleanup page extended with Zombie Build Cleanup panel — removes stuck PENDING/BUILDING builds whose Kubernetes CIBuild CR no longer exists; filter by build type and age threshold; orphaned index artifact versions cleaned up best-effort; backed by `POST /api/forge/api/v1/builds/zombie-cleanup` (`forge:admin:manage`)
+- `zombieCleanupBuilds()` in `forgeApi.ts` — typed wrapper for `POST /api/v1/builds/zombie-cleanup` with `ZombieCleanupRequest` type (reuses `BulkDeleteBuildsResult`)
+
 ## [0.10.26] — 2026-05-27
 
 <!-- 2026-05-27 -->

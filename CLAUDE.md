@@ -2,15 +2,15 @@
 
 Vue 3 + Quasar 2 + Vite micro-frontend shell (Module Federation host).
 Dev server: `npm run dev` → http://dev.fusion.local:5174
+Requires `127.0.0.1 dev.fusion.local` in `/etc/hosts` (localhost breaks SameSite=Lax cookie sharing with bff.fusion.local)
+Vite config: `server.host:'0.0.0.0'`, `server.port:5174`, `server.allowedHosts:['dev.fusion.local']`
+Type check: `npm run typecheck`
 
 ## CHANGELOG maintenance
 - `CHANGELOG.md` is the project changelog — update it for every feature and bugfix going forward
 - Format: add entries under `## [Unreleased]` with today's date as a comment; use `### Added`, `### Changed`, `### Fixed` subsections; one line per item
 - When a deployment bumps the image tag (values-dev.yaml), also promote `[Unreleased]` to a versioned section (e.g. `## [0.9.1] — YYYY-MM-DD`) matching the new tag
 - Use `date +%Y-%m-%d` in Bash to get today's date when writing changelog entries
-- Requires `127.0.0.1 dev.fusion.local` in `/etc/hosts` (localhost breaks SameSite=Lax cookie sharing with bff.fusion.local)
-- Vite config: `server.host:'0.0.0.0'`, `server.port:5174`, `server.allowedHosts:['dev.fusion.local']`
-Type check: `npm run typecheck`
 
 ## Stack
 - Vue 3, Quasar 2, Pinia, Vue Router 4, Vite 5
@@ -43,7 +43,7 @@ No footer slot — add pagination below the table inside the default slot.
 - BFF owns all OIDC — frontend knows nothing about Keycloak or tokens
 - Auth store (`src/stores/auth.ts`): `init()` calls `GET /bff/userinfo` with `credentials:'include'`; 401 → `window.location.href = bffUrl + '/bff/login'`
 - `UserInfo` shape: `{ sub, email, name, roles: string[], permissions: string[], resource_permissions: ResourcePermission[] }` — populated from BFF session
-- `ResourcePermission` shape: `{ permission: string, resource_type: string, resource_id: string }` — resource-scoped grants (Stage 3)
+- `ResourcePermission` shape: `{ permission: string, resource_type: string, resource_id: string }` — resource-scoped grants
 - Router guard in `src/router/index.ts` calls `auth.init()` on every navigation; routes with `meta.adminOnly: true` redirect non-admins to `/data`
 - BFF URL from `src/config/runtime.ts` → `window.FUSION_CONFIG.bffUrl` → `VITE_BFF_URL` → `http://bff.fusion.local`
 - Runtime config file: `public/config.js` (overridden by ConfigMap mount in K8s)
@@ -55,168 +55,24 @@ No footer slot — add pagination below the table inside the default slot.
   - `isAdmin` — computed: `hasRole('admin')`
 - Gate UI elements with `v-if="can('index:artifacts:delete')"` etc., NOT with role checks — roles are too coarse for UI gates
 - Resource-scoped gating: `v-if="can('index:artifacts:delete', artifact.id)"` — true only if user has global perm OR a specific grant for that resource
-- Resource permissions are loaded at login and stored in `auth.user.resource_permissions`; no async call needed in components
 - Admin icon in ActivityRail is hidden via `v-if="isAdmin"` — no admin entry renders for non-admin users
 - Admin routes (`/admin/*`) have `meta.adminOnly: true`; the router guard redirects to `/data` if user lacks `admin` role
-- Permission strings mirror the BFF `rbac.yaml` (e.g. `index:artifacts:read`, `index:versions:delete`, `forge:builds:create`, `admin:roles:manage`)
+- Permission strings mirror the BFF `rbac.yaml` (e.g. `index:artifacts:read`, `forge:builds:create`, `admin:roles:manage`)
 
 ## API clients
 - `src/api/bffClient.ts` — base fetch with `credentials:'include'`; 401 auto-redirects to BFF login
   - FormData detection: skips `Content-Type: application/json` when `body instanceof FormData` (multipart uploads)
   - `bffDelete` returns `Promise<void>` and discards the response body — for DELETE endpoints that return JSON (e.g. bulk-delete result), use `bffFetch(path, { method: 'DELETE' })` then `.json()` directly
-- `src/api/indexApi.ts` — typed methods for fusion-index via BFF proxy path `/api/index/api/v1/*`
 
-## fusion-index API shape
-All fields camelCase; IDs are `number`. `Artifact` has `types: TypeResponse[]`; `ArtifactVersion` has `tags: ArtifactTag[]` — both may be absent, always guard with `?? []`.
-- Artifacts: `listArtifacts(params?)` (params: `name`, `tag`, `type[]`, `page` 0-based, `pageSize` → `ArtifactsPage`), `getArtifact(id)`, `createArtifact({fullName, description?})`, `deleteArtifact(id)` (cascades versions)
-- Versions: `createVersion(artifactId, {version, config?})`, `deleteVersion(artifactId, semver)` (backend cleans files — frontend does NOT delete individually), `listVersions(artifactId)` → bare `ArtifactVersion[]` newest first
-- Files: `uploadFile(artifactId, semver, file)` (multipart, field `file`), `listFiles(artifactId, semver)` → `ArtifactFile[]` with `sizeBytes/downloadUrl/contentType/status`, `getFileDownloadUrl(artifactId, semver, fileId)`
-- Types: `listTypes()`, `createType({name, description?})` (409 on duplicate), `updateType(id, payload)`, `deleteType(id)`
-- Admin maintenance (permission `index:admin:manage`): `GET/DELETE /api/v1/admin/artifacts/empty`, `/admin/versions/empty`, `/admin/artifacts/no-files`; GETs take `?olderThan=<RFC3339>&page=&pageSize=`; DELETEs return `{ deleted, skipped }` (skipped = protected tag); BFF rules must precede the `GET /api/index/*` catch-all in `rbac.yaml`
-
-## fusion-index metrics
-- `getMetrics()` in `indexApi.ts` → `GET /api/index/q/metrics` (permission `index:metrics:read`, all roles); returns `RegistrySnapshot`: `totalArtifacts`, `totalVersions`, `totalTags`, `filesAvailable`, `filesPending`, `filesError`, `totalStorageBytes`, `artifactsWithoutTags`, `artifactsWithoutVersions`, `typeCounts: {typeName, count}[]`; TTL-cached 60s server-side
-
-## Shared utilities
+## Shared utilities & components
 - `src/utils/format.ts` — `formatSize(bytes)`: human-readable file size (B / KB / MB / GB)
-
-## Components
 - `src/components/TagChipInput.vue` — v-model `string[]` chip input; Enter/comma adds, Backspace removes last, × removes specific; validation `/^[a-zA-Z0-9-]+$/` max 64 chars; trailing commas stripped
 - `src/components/JsonEditor.vue` — CodeMirror 6 JSON editor; emits `valid` (false on non-empty invalid JSON); `{ } Format` button pretty-prints; `defineExpose({ format })` for programmatic use; theme via `--fs-*` CSS vars
-
-## Fusion Index pages
-- `src/pages/FusionIndexPage.vue` — dashboard: artifact table, recent versions, quick search (page 0, size 20)
-- `src/pages/index/ArtifactListPage.vue` — paginated list (20/page), debounced name search, clickable rows → detail
-- `src/pages/index/ArtifactDetailPage.vue` — metadata panel + versions table; single file → `<a>` link, multiple → `q-btn-dropdown`; Delete Artifact (`can('index:artifacts:delete')`) + Delete version per row (`can('index:versions:delete')`), both with `$q.dialog` confirm; last-version delete prompts to delete artifact too; `deletingVersions: ref<Set<string>>` tracks in-flight rows
-- `src/pages/index/ArtifactCreatePage.vue` — 3-step wizard (Artifact → Version → Files): step 1 async name-availability check; step 2 semver + optional JsonEditor config; step 3 drag-and-drop upload with orphan recovery; semver regex `/^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$/`
-- `src/pages/index/ArtifactVersionCreatePage.vue` — 2-step wizard (Version → Files): NaN guard on `:id`; `createdVersion` ref locks Back/Submit once version exists (orphan recovery)
-
-## Fusion Index navigation (navigation.ts)
-Context `fusion-index` has two groups:
-- **Registry**: Dashboard → `/fusion-index`, Artifact List → `/fusion-index/artifacts`, Create Artifact → `/fusion-index/artifacts/create`
-- **Monitoring**: Overview → `/fusion-index/monitoring` (placeholder)
-
-## Admin page
-- `src/pages/AdminPage.vue` — navigation hub: 2-column card grid, one card per admin section; live cards navigate on click, placeholder cards show "soon" badge
-  - Live: Role Assignments (`/admin/roles`), Resource Permissions (`/admin/permissions`), Artifact Types (`/admin/types`), Service Status Overrides (`/admin/health`), Index Cleanup (`/admin/index-cleanup`)
-  - Placeholder: All Users, Platform Services, Configuration, Integrations, Audit Log
-
-## Admin sub-pages (Stage 3)
-- `src/pages/admin/ArtifactTypesPage.vue` — Artifact Types CRUD; inline create row, inline edit, delete with `$q.dialog`; backed by `indexApi` types endpoints
-- `src/pages/admin/ResourcePermissionsPage.vue` — Resource Permissions CRUD at `/admin/permissions`
-  - Table: subject_type | subject | permission | resource_type | resource_id | created_by | actions
-  - Filter bar: resource_type dropdown + resource_id text (client-side)
-  - "Add Grant" create form: subject_type select → subject (select for role/group, text for user) + permission select + resource_type select + resource_id input
-  - Subjects, permissions, groups loaded from `GET /bff/admin/rbac-config`
-  - Delete with `$q.dialog` confirmation
-
-## BFF admin API (Stage 3)
-- `src/api/bffAdminApi.ts` — typed admin API client
-  - `listResourcePermissions()` / `createResourcePermission()` / `deleteResourcePermission()` → `/bff/admin/resource-permissions`
-  - `getRBACConfig()` → `/bff/admin/rbac-config` returns `{roles, groups, permissions}` for dropdown population
-
-## Router (router/index.ts)
-All routes are flat children under the `/` MainLayout route. Route ordering matters: `create` literals before `/:id` dynamic segments.
-- Fusion Index: `/fusion-index` → `FusionIndexPage`, `/fusion-index/artifacts` → `ArtifactListPage`, `/fusion-index/artifacts/create` → `ArtifactCreatePage`, `/fusion-index/artifacts/:id/versions/create` → `ArtifactVersionCreatePage`, `/fusion-index/artifacts/:id` → `ArtifactDetailPage`, `/fusion-index/:pathMatch(.*)*` → `FusionIndexPage`
-- Admin (all `adminOnly: true`): `/admin/roles` → `RoleAssignmentsPage`, `/admin/permissions` → `ResourcePermissionsPage`, `/admin/types` → `ArtifactTypesPage`, `/admin/health` → `ServiceStatusOverridesPage`, `/admin/index-cleanup` → `IndexCleanupPage`, `/admin/:pathMatch(.*)*` → `AdminPage`
-- `beforeEach` guard calls `auth.init()`; `adminOnly` routes redirect non-admins to `/data`
 
 ## Themes
 - `src/stores/theme.ts` — 5 themes: midnight, azure, matrix, light, synthwave; persisted to localStorage
 - Applies `data-theme` on `<html>` + calls `Quasar.Dark.set()` — CSS vars alone don't affect Quasar portals (menus, tooltips)
 - CSS variable overrides per theme in `src/css/app.scss` under `[data-theme="<name>"]` blocks
-
-## Deployment
-- Dockerfile: 3-stage (deps → build → nginx:alpine); `NPM_REGISTRY` build arg for private registry
-- `nginx.conf`: `location /` (SPA fallback) has `no-store, no-cache` — critical so browsers always fetch fresh `index.html` after redeploy; regex location `~* ^/(index\.html|config\.js)$` also no-cache; hashed assets get `immutable`; **`location /` must carry the no-cache header** — putting it only on the regex location leaves the root path cacheable and causes blank pages after redeploy
-- nginx runs as non-root (`USER nginx`, uid 101) on **port 8080**; Dockerfile `chown`s `/usr/share/nginx/html`, `/var/cache/nginx`, `/var/log/nginx`, `/var/run/nginx.pid`
-- K8s security: `podSecurityContext: {runAsNonRoot: true, runAsUser: 101, fsGroup: 101}` + `containerSecurityContext: {readOnlyRootFilesystem: true, allowPrivilegeEscalation: false, capabilities.drop: [ALL]}`; three `emptyDir` volumes cover nginx's writable paths (`/var/cache/nginx`, `/var/run`, `/tmp`) — `fsGroup: 101` is what makes emptyDir mounts writable by nginx without an initContainer
-- Service exposes port 80 → `targetPort: http` (named port) → resolves to container 8080; no Service/Ingress change needed when only containerPort changes
-- Helm chart: `deployment/` — `values.yaml` (prod) + `values-dev.yaml` (minikube, `pullPolicy:Never`, `image.repository:fusion-spectra`)
-- Runtime config injected via ConfigMap → `/usr/share/nginx/html/config.js` (only `bffUrl` for now)
-- `mock-registry/` — Verdaccio docker-compose for offline npm builds
-- Always use semver image tags (never `latest`/`local`): `eval $(minikube docker-env) && docker build -t fusion-spectra:X.Y.Z .`
-- Docker build MUST run inside minikube's daemon (`eval $(minikube docker-env)` first) — otherwise pod gets `ErrImageNeverPull`
-- After building, update `image.tag` in `values-dev.yaml` and run `helm upgrade`; tag change triggers pod replacement automatically
-- Helm field manager conflict: if `kubectl set image` was used on the deployment, subsequent `helm upgrade` may fail — bypass with `kubectl set image deployment/fusion-spectra frontend=fusion-spectra:X.Y.Z -n fusion && kubectl rollout status deployment/fusion-spectra -n fusion`
-- Stale probe ports: repeated `kubectl set image` bypasses Helm so probe ports stay frozen at their original value; if nginx moved to 8080 but probes still hit 80, pods crash-loop (nginx starts fine but kubelet can't connect) — fix alongside image update: `kubectl patch deployment fusion-spectra -n fusion --type=json -p='[{"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/httpGet/port","value":8080},{"op":"replace","path":"/spec/template/spec/containers/0/readinessProbe/httpGet/port","value":8080},{"op":"replace","path":"/spec/template/spec/containers/0/ports/0/containerPort","value":8080}]'`
-- Stale JS chunks after redeploy cause blank canvas on SPA navigation — `router.onError` + `window.addEventListener('unhandledrejection')` in `src/router/index.ts` auto-reload on chunk-not-found (with sessionStorage loop guard); root cause is usually `location /` in nginx not setting no-cache (browser caches old `index.html` → old chunk hashes → 404)
-- "Clean reinstall on minikube" = `eval $(minikube docker-env) && docker build -t fusion-spectra:X.Y.Z . && kubectl set image deployment/fusion-spectra frontend=fusion-spectra:X.Y.Z -n fusion`; NOT `npm install`
-
-## Tag model (fusion-index)
-- A tag (e.g. `stable`, `latest`) is an **artifact-level named pointer** to one semver at a time — like a git tag
-- `putTag(artifactId, tagName, semver)` upserts: if the tag already exists on another version it **moves** (old version silently loses it)
-- `deleteTag(artifactId, tagName)` removes the tag globally — no version has it afterwards
-- Inline tag editing on `ArtifactDetailPage`: `tagMutating: ref<Set<number>>` tracks in-flight version IDs; `tagAddingFor: ref<number|null>` is the row in add mode
-- `ArtifactTag` shape: `{ id, artifactId, tag, versionId, createdAt, updatedAt }`
-
-## Runtime config gotchas
-- Adding a new `FUSION_CONFIG` field requires updating BOTH `deployment/values.yaml` AND `deployment/templates/configmap.yaml` — missing either silently drops the field in K8s (`public/config.js` is irrelevant once the ConfigMap is mounted)
-- After a ConfigMap change + pod restart, browsers need a hard refresh (`Ctrl+Shift+R`) to pick up the new `config.js`; features gated with `v-if="configValue"` stay hidden until then
-- Direct ConfigMap patch when helm upgrade has a field manager conflict: `kubectl create configmap <name> --from-literal=config.js='...' --dry-run=client -o yaml | kubectl apply -f - && kubectl rollout restart deployment/<name> -n fusion`
-
-## Quasar + Vite gotchas
-- `sass-embedded` must be in `devDependencies` (not `dependencies`)
-- `sassVariables` path in `@quasar/vite-plugin` must be absolute (`resolve(__dirname, ...)`)
-- `build.target: 'esnext'` required when Module Federation is added
-- Import mdi css before quasar css in `main.ts`
-- Do NOT set `config: { dark: true }` in main.ts — let the theme store call `Dark.set()` instead; otherwise light theme still renders dark Quasar components
-- API fields like `types[]` and `tags[]` may be absent from responses even when typed — always guard with `?? []`
-- Vue 3: `ref` inside `v-for` resolves to an **array** — declare as `ref<El[]>([])` and access `[0]`; a `ref<El|null>(null)` silently becomes an array and `.focus()` fails
-- Vue 3: `Set.add()` / `Set.delete()` are NOT reactive — replace the whole ref: `s.value = new Set([...s.value, x])`
-- `--fs-bg-panel` is NOT defined in `app.scss` — use `--fs-bg-elevated` or `--fs-bg-surface` for solid backgrounds; `--fs-bg-panel` resolves to transparent
-- `q-dialog` and `q-tooltip` render as portals outside component DOM — CSS overrides must be in an unscoped `<style>` block (not `<style scoped>`)
-- Dialog-scoped polling: use `watch(dialogOpenRef, open => { if (!open) stopPolling() })` to tie a timer's lifecycle to a `q-dialog`; cleaner than hooking every close path individually
-
-## Weave DAG (ChainDagView.vue)
-- `@vue-flow/core` + `@dagrejs/dagre` installed; node click/hover events go on `<VueFlow>`, NOT inside node slot divs
-- Custom node slots receive `{ data, id }` — store full step object in `node.data.step` during `buildGraph()`
-- `stepKind 'Deploy'` (API value) displays as `'Service'` in spectra — always use a `displayKind()` helper; never render raw stepKind
-- fusion-weave source is at `../fusion-flux`; disable auth for local dev: `kubectl set env deployment/fusion-weave-api -n fusion ALLOW_UNAUTHENTICATED=true`
-
-## Weave run monitoring pages
-- `StepPhase` includes `'Deployed'` (non-terminal) — deploy steps never reach `Succeeded`; polling must not stop on `Deployed`; `phase-badge--deployed` uses green (`--fs-pos`)
-- `src/api/weaveMonitorApi.ts` — typed client for `/api/weave/monitor/v1/`; BFF catch-all `GET /api/weave/*` (permission `weave:resources:read`) already covers all monitoring GETs — no BFF changes needed
-- `MONITORING_ENABLED=true` is already set on `fusion-weave-api` in minikube — monitoring API is live
-- `src/composables/useRunsPolling.ts` — 10s polling composable for list pages; exports `{ polling, startPolling, stopPolling, togglePolling }`; calls `onUnmounted(stopPolling)` internally — callers don't need to
-- Pages: `WeaveRunsOverviewPage` (`/pipelines/runs`), `WeaveRunsRunningPage` (`/pipelines/runs/running`), `WeaveRunsFailedPage` (`/pipelines/runs/failed`), `WeaveRunDetailPage` (`/pipelines/runs/:name`)
-- Run detail log dialog: `openLogDialog(stepName)` fetches `getStepLogs()` and shows result in a `<q-dialog>` (separate from the step-info dialog); log button shown on ALL step rows regardless of `jobRef`/`deploymentRef` — show "EOF — No LOG available at moment or yet" when `lines` is empty
-- Run detail polling: VenvDetailPage pattern — `setInterval` inline, stops automatically when `isTerminal(phase)` (`Succeeded | Failed | Stopped`); `onUnmounted` clears timer
-- Run deletion: `DELETE /api/weave/api/v1/runs/:name` (CRUD_BASE in `weaveMonitorApi.ts`) works through the BFF proxy; no stop/cancel mechanism exists in the controller — `Stopped` phase is only set by the StopAll failure policy
-- `listRuns()` returns runs in undefined order — sort by `startTime` desc client-side to get most-recent-first
-- `listRuns()` returns `RunSummary[]` (monitor API, no `spec`/`activeDeployments`); use `listAllRuns()` (calls `CRUD_BASE/runs` → `{ items: WeaveRun[] }`) when full run objects are needed
-- BFF permission mapping for run mutations: `weave:runs:write` = `POST /runs` (create); `weave:steps:restart` = both `POST /runs/:name/stop` (stop) AND `PATCH /runs/:name` (restart annotation); `weave:runs:delete` = `DELETE /runs/:name`
-- `RunStatsResponse` also carries `successRate`, `avgDurationMs`, `minDurationMs`, `maxDurationMs` beyond the phase counts
-
-## Service Instances (WeaveRun with stepOverrides)
-- Pages: `ServiceInstanceListPage` (`/pipelines/services`), `ServiceInstanceCreatePage` (`/pipelines/services/create`), `ServiceInstanceDetailPage` (`/pipelines/services/:name`)
-- `spec.stepOverrides[]` fields: `stepName`, `artifactName`, `tag`, `ingressHost?` — operator creates run-owned Deployment `<runName>-<stepName>`; always create with `POST` (not PATCH/PUT — server-side apply silently drops stepOverrides on first reconcile)
-- `status.activeDeployments` — map keyed by `<runName>-<stepName>`; fields: `health`, `codeSourceDeployedVersion`, `codeSourceTag`, `codeSourceArtifact`, `unhealthyDurationSeconds?`; `health` values: `Healthy | Unhealthy | RollingBack | RolledBack | Unknown`
-- Run with active deploy step stays `Running` forever until stopped — `isTerminal` must exclude `Deployed`; poll until `status.steps[serve].phase === 'Deployed'` to confirm service is live
-- Run name for service instances: derive from artifact name (lowercase, replace non-DNS chars with `-`, strip leading/trailing `-`) + 4-char random suffix
-
-## Weave API — CRUD & edit patterns
-- Full CRUD on all four resource types: jobtemplates, servicetemplates, chains, triggers, runs all have `GET / POST / GET :name / PUT :name / PATCH :name / DELETE :name` via `registerCRUD()` — no BFF changes needed for any of these
-- `weaveMonitorApi.ts` imports only `bffGet`/`bffDelete` by default — add `bffPatch` or `bffPost` to the import line when adding write operations (same as `bffPut` gotcha in `weaveApi.ts`)
-- Rolling restart a Deploy step: `PATCH /api/weave/api/v1/runs/:name` with `{"metadata":{"annotations":{"fusion-platform.io/restart-step":"<stepName>"}}}` — annotation consumed by operator (one-shot); same pattern as `fireWeaveTrigger`
-- `PUT /:name` requires `resourceVersion`: the handler calls `client.Update` which enforces K8s optimistic concurrency — always include `metadata.resourceVersion` from the fetched object in the PUT body or the server returns 409 Conflict
-- K8s resource names are immutable: `metadata.name` cannot be changed via PUT; show it read-only (lock icon + tooltip "immutable in Kubernetes") in edit UIs; delete+recreate is the only rename path
-- `weaveApi.ts` imports: `bffPut` is exported by `bffClient.ts` but was not initially imported in `weaveApi.ts` — add it to the import line when adding PUT operations
-- Template edit dialog pattern: view mode shows `<pre>` of `JSON.stringify(t.spec, null, 2)`; edit mode swaps in `<JsonEditor>`; on save compare `newSpec.image !== t.spec.image` and show `$q.dialog` confirm before calling `updateJobTemplate` / `updateServiceTemplate`; buttons inside `q-dialog` need CSS in an unscoped `<style>` block scoped to the dialog class (e.g. `.tpl-dialog .fs-btn { ... }`)
-
-## Advanced Chain Builder (WeaveAdvancedChainPage)
-Route: `/pipelines/weave/chains/advanced`. 3-step wizard: step 1 Identity (chain name + `failurePolicy`/`concurrencyPolicy`/`sharedStorage`); step 2 Pipeline (dynamic step list left + sticky `ChainDagView` preview right, grid `1fr 340px`); step 3 Review + Submit → `createWeaveChain()`.
-- `StepRow` has `uid`, `name`, `stepKind: 'Job'|'Deploy'`, `templateName`, `dependsOn`, `runOnSuccess/Failure`, `producesOutput`, `consumesOutputFrom`, `envRows`
-- `handleNameInput` propagates renames to `dependsOn`/`consumesOutputFrom` across all steps; `removeStep` cleans references
-- `toggleDependsOn` also removes from `consumesOutputFrom`; `toggleProducesOutput` removes step from others' `consumesOutputFrom`
-- `hasCycle()` — DFS on dep→dependent adjacency list; blocks Next
-- Templates loaded lazily on entering step 2 (guard: only if both lists empty — prevents re-fetch on Back+Next)
-- `previewSteps` computed maps `StepRow[]` → `WeaveChainStep[]` for live DAG
-- Stable v-for keys via `uid` (`++_uid`); all array mutations use spread/filter — never `.push()`/`.splice()`
-
-## Screenshots
-`screenshots/` — UI screenshots named `YYYY-MM-DD_<description>.png`
-- Test/debug screenshots **must** use the prefix `test_` (e.g. `test_2026-05-11_wizard-step2.png`) — these are git-ignored
 
 ## Adding a new page / feature
 1. Add leaf to `src/data/navigation.ts` under the correct group
@@ -232,6 +88,24 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - For split-panel step 2 (builder + live preview): use CSS grid `1fr NNNpx`; preview col `position:sticky;top:16px`
 - Stable v-for keys: add a `uid: number` field to row interfaces; use `++_uid` counter; never use array index as key on deletable lists
 
+## Quasar + Vite gotchas
+- `sass-embedded` must be in `devDependencies` (not `dependencies`)
+- `sassVariables` path in `@quasar/vite-plugin` must be absolute (`resolve(__dirname, ...)`)
+- `build.target: 'esnext'` required when Module Federation is added
+- Import mdi css before quasar css in `main.ts`
+- Do NOT set `config: { dark: true }` in main.ts — let the theme store call `Dark.set()` instead; otherwise light theme still renders dark Quasar components
+- API fields like `types[]` and `tags[]` may be absent from responses even when typed — always guard with `?? []`
+- Vue 3: `ref` inside `v-for` resolves to an **array** — declare as `ref<El[]>([])` and access `[0]`; a `ref<El|null>(null)` silently becomes an array and `.focus()` fails
+- Vue 3: `Set.add()` / `Set.delete()` are NOT reactive — replace the whole ref: `s.value = new Set([...s.value, x])`
+- `--fs-bg-panel` is NOT defined in `app.scss` — use `--fs-bg-elevated` or `--fs-bg-surface` for solid backgrounds; `--fs-bg-panel` resolves to transparent
+- `q-dialog` and `q-tooltip` render as portals outside component DOM — CSS overrides must be in an unscoped `<style>` block (not `<style scoped>`)
+- Dialog-scoped polling: use `watch(dialogOpenRef, open => { if (!open) stopPolling() })` to tie a timer's lifecycle to a `q-dialog`; cleaner than hooking every close path individually
+- `@codemirror/lint` is a separate npm package — install explicitly; `lintGutter` lives there, not in `@codemirror/language`
+
+## Screenshots
+`screenshots/` — UI screenshots named `YYYY-MM-DD_<description>.png`
+- Test/debug screenshots **must** use the prefix `test_` (e.g. `test_2026-05-11_wizard-step2.png`) — these are git-ignored
+
 ## UI testing (Playwright)
 - Test against minikube at `http://spectra.fusion.local`, not the dev server
 - Use `browser_snapshot` (not screenshot) to get element `ref` values for clicks/fills
@@ -243,108 +117,50 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - Playwright browser has its own separate session and cache from the user's browser — stale `config.js` there doesn't mean the user has the same problem
 - To call BFF APIs with auth during testing: `browser_evaluate` with `fetch('http://bff.fusion.local/api/...', { credentials: 'include' })` — uses the browser's session cookies
 
-## Fusion Forge pages
-- `src/api/forgeApi.ts` — typed forge API via BFF proxy path `/api/forge/api/v1/*`
-- `src/pages/forge/ForgeIndexPage.vue` — placeholder dashboard
-- `src/pages/forge/VenvCreatePage.vue` — 2-step wizard: package info → requirements.txt upload + live validation
-- `src/pages/forge/VenvListPage.vue` — unified Builds list (venv + git + app); build-type chips (ALL/requirements/git/app); ALL mode = server-side paginated (fetches same `page`/`pageSize` from all three in parallel, merges by `createdAt` desc, slices to `PAGE_SIZE`, total = sum of all three); per-type mode = server-side pagination; `openBuild()` routes by `b.buildType`
-- `src/pages/forge/VenvDetailPage.vue` — two-panel: metadata (left) + logs (right); auto-polls every 5s while PENDING/BUILDING; stops on terminal status or unmount; auto-scrolls logs to bottom
-- `src/pages/forge/GitBuildCreatePage.vue` — 2-step wizard (Repository → Review & Submit); metadata_source toggle controls field visibility: `full`→hide both name+version, `version`→show name only, `manual`→show both; `buildPayload()` omits name for `full`, omits version for non-`manual`
-- `src/pages/forge/AppBuildCreatePage.vue` — 2-step wizard (Repository → Review & Submit); only 3 inputs: `repo_url` (required), `repo_ref` (default main), `project_dir` (optional); name/version/runner resolved server-side from `metadata.yaml`; `validateAppBuild` on step 2
-- `src/pages/forge/AppBuildDetailPage.vue` — same two-panel polling pattern as GitBuildDetailPage; shows `runner` as an orange badge (#e8732a) and `baseDependenciesUrl` when present
+## Activity rail — utility zone
+- `Context.bottomUtil?: boolean` — renders between separator and admin; always visible (no `isAdmin` guard); use for standalone nav buttons with no sidebar
+- Set `groups: []` on a `bottomUtil` context; `MainLayout` detects empty groups and navigates directly without opening the sidebar
+- To add a new utility button: add entry to `navigation.ts` with `bottomUtil: true, groups: []`, add route to `router/index.ts`
 
-## fusion-forge API quirks
-- Backend returns `SUCCESS` not `SUCCEEDED` — `normalizeStatus()` in `forgeApi.ts` normalizes on read; `denormalizeStatus()` converts back for filter query params
-- `validateVenv` uses raw `fetch` (not `bffFetch`) — forge returns meaningful `ValidationResult` JSON on 422, but `bffFetch` throws and consumes the body
-- `validateGitBuild` uses the same raw fetch pattern; `GitBuildPayload` fields are snake_case: `repo_url`, `repo_ref`, `metadata_source`, `entrypoint_file`, `project_dir`
-- `validateAppBuild` uses the same raw fetch pattern; `AppBuildPayload` fields are snake_case: `repo_url`, `repo_ref`, `project_dir` — name/version/runner NOT in payload (resolved server-side from `metadata.yaml`)
-- `AppBuild` response adds `runner: string | null`, `baseDependenciesUrl: string | null` on top of base `VenvBuild`; both may be absent — always guard with `?? null`
-- Git builds use a fully separate endpoint `/api/forge/api/v1/gitbuilds` — the venvs endpoint has no `buildType` filter; route requests by selected type
-- App builds use `/api/forge/api/v1/appbuilds` — same conventions as gitbuilds; BFF catch-all `GET /api/forge/*` (permission `forge:builds:read`) covers all new GET endpoints automatically; new POST/validate endpoints need explicit entries in `rbac.yaml` before the catch-all
-- `metadata_source` payload rules: `full`→omit name+version (forge reads both from pyproject.toml); `version`→send name only (forge reads version); `manual`→send both
-- Multi-value query params: use `q.append('status', s)` per value, not `q.set()`
+## Deployment (fusion-spectra)
+- Dockerfile: 3-stage (deps → build → nginx:alpine); `NPM_REGISTRY` build arg for private registry
+- `nginx.conf`: `location /` (SPA fallback) has `no-store, no-cache` — critical so browsers always fetch fresh `index.html` after redeploy; **`location /` must carry the no-cache header** — putting it only on the regex location leaves the root path cacheable and causes blank pages after redeploy
+- nginx runs as non-root (`USER nginx`, uid 101) on **port 8080**; `fsGroup: 101` makes emptyDir mounts writable without an initContainer
+- Always use semver image tags (never `latest`/`local`): `eval $(minikube docker-env) && docker build -t fusion-spectra:X.Y.Z .`
+- Docker build MUST run inside minikube's daemon (`eval $(minikube docker-env)` first) — otherwise pod gets `ErrImageNeverPull`
+- After building, update `image.tag` in `values-dev.yaml` and run `helm upgrade`; tag change triggers pod replacement automatically
+- Helm field manager conflict: if `kubectl set image` was used, bypass with `kubectl set image deployment/fusion-spectra frontend=fusion-spectra:X.Y.Z -n fusion`
+- Stale probe ports: if nginx moved to 8080 but probes still hit 80, pods crash-loop — patch: `kubectl patch deployment fusion-spectra -n fusion --type=json -p='[{"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/httpGet/port","value":8080},...]'`
+- Stale JS chunks after redeploy: `router.onError` + `window.addEventListener('unhandledrejection')` in `src/router/index.ts` auto-reload on chunk-not-found (with sessionStorage loop guard)
+- "Clean reinstall on minikube" = `eval $(minikube docker-env) && docker build -t fusion-spectra:X.Y.Z . && kubectl set image deployment/fusion-spectra frontend=fusion-spectra:X.Y.Z -n fusion`
 
-## Forge navigation (navigation.ts)
-Context `forge` has two section-based groups:
-- Section **Monitoring** / group **Monitoring**: Build Overview → `/forge/venvs`, GitOps Builds → `/forge/gitwatchers`
-- Section **Build** / group **Builder**: Create Venv → `/forge/venvs/create`, GitOps Builder → `/forge/gitops-builder/create`
-
-Delinked (nav entries removed, routes kept for existing edit links): `/forge/gitbuilds/create` → `GitBuildCreatePage`, `/forge/appbuilds/create` → `AppBuildCreatePage`, `/forge/gitwatchers/create` → `GitWatcherCreatePage`
-
-Forge routes (`router/index.ts`): `/forge` → `ForgeIndexPage`, `/forge/venvs` → `VenvListPage`, `/forge/venvs/create` → `VenvCreatePage`, `/forge/venvs/:id` → `VenvDetailPage`, `/forge/gitbuilds/create` → `GitBuildCreatePage`, `/forge/gitbuilds/:id` → `GitBuildDetailPage`, `/forge/appbuilds/create` → `AppBuildCreatePage`, `/forge/appbuilds/:id` → `AppBuildDetailPage`, `/forge/gitwatchers/create` → `GitWatcherCreatePage`, `/forge/gitwatchers/:name/edit` → `GitWatcherEditPage`, `/forge/gitwatchers/:name` → `GitWatcherDetailPage`, `/forge/gitwatchers` → `GitWatcherListPage`, `/forge/gitops-builder/create` → `GitOpsBuilderPage`, `/forge/:pathMatch(.*)*` → `ForgeIndexPage`
-
-## GitOps Builder (forge)
-- `src/pages/forge/GitOpsBuilderPage.vue` — 3-step wizard at `/forge/gitops-builder/create`; replaces the separate Git Build, App Build, and Add Watcher create wizards as the single entry point
-- Step 1 (Build): type toggle + repo config + Python-specific fields; Step 2 (GitOps Polling): toggle — off = one-off build, on = poller config (name, active, token secret); Step 3 (Review & Submit)
-- Submit: polling OFF + Python Builder → `createGitBuild()`; polling OFF + Generic Builder → `createAppBuild()`; polling ON → `createGitWatcher()`
-- Terminology: `buildType: 'git'` displays as **Python Builder**; `buildType: 'app'` displays as **Generic Builder**; "watcher" / "GitWatcher" is referred to as **GitOps Poller** throughout the UI
-- Old wizards (`GitBuildCreatePage`, `AppBuildCreatePage`, `GitWatcherCreatePage`) are delinked from nav but routes kept — `GitWatcherEditPage` still links to edit flow; do not delete until edit flow is fully migrated
-
-## fusion-weave deployment (minikube)
-- Both `fusion-weave-operator` (container: `manager`) and `fusion-weave-api` (container: `api-server`) share one image — build once, update both
-- Build: `eval $(minikube docker-env) && docker build -t fusion-weave-operator:X.Y.Z /path/to/fusion-flux/`
-- Deploy: `kubectl set image deployment/fusion-weave-operator manager=fusion-weave-operator:X.Y.Z -n fusion && kubectl set image deployment/fusion-weave-api api-server=fusion-weave-operator:X.Y.Z -n fusion`
-- Current semver: `0.2.0` (was `latest` — do not revert to `latest`)
+## Runtime config gotchas
+- Adding a new `FUSION_CONFIG` field requires updating BOTH `deployment/values.yaml` AND `deployment/templates/configmap.yaml` — missing either silently drops the field in K8s
+- After a ConfigMap change + pod restart, browsers need a hard refresh (`Ctrl+Shift+R`) to pick up the new `config.js`
+- Direct ConfigMap patch when helm upgrade has a field manager conflict: `kubectl create configmap <name> --from-literal=config.js='...' --dry-run=client -o yaml | kubectl apply -f - && kubectl rollout restart deployment/<name> -n fusion`
 
 ## fusion-bff deployment (minikube)
 - Build: `cd /path/to/fusion-bff && eval $(minikube docker-env) && docker build -t fusion-bff:X.Y.Z .`
 - Deploy: `kubectl set image deployment/fusion-bff fusion-bff=fusion-bff:X.Y.Z -n fusion && kubectl rollout status deployment/fusion-bff -n fusion`
 - Container name in the deployment is `fusion-bff` (not `bff`) — required for `kubectl set image`
 - BFF session store is **in-memory** — every pod restart wipes all sessions; Playwright browser (and users) must re-login after any BFF redeploy
-- Adding a new BFF permission requires BOTH: (1) add to `role_permissions` for each relevant role in `rbac.yaml`, AND (2) add a `route_permissions` rule before the `GET /api/weave/*` (or equivalent) catch-all; missing either silently blocks the request
+- Adding a new BFF permission requires BOTH: (1) add to `role_permissions` for each relevant role in `rbac.yaml`, AND (2) add a `route_permissions` rule before the catch-all; missing either silently blocks the request
 - `rbac.yaml` is mounted from the `fusion-bff-rbac` ConfigMap, not baked into the image — adding permissions to the source file does NOT update the running cluster; patch with: `kubectl create configmap fusion-bff-rbac --from-file=rbac.yaml=<file> -n fusion --dry-run=client -o yaml | kubectl apply -f - && kubectl rollout restart deployment/fusion-bff -n fusion`
 - The deployed ConfigMap can be stale vs the source — check with `kubectl get configmap fusion-bff-rbac -n fusion -o jsonpath='{.data.rbac\.yaml}'` before assuming permissions are live
-- `helm upgrade fusion-bff` fails locally with "config.oidcIssuerUrl is required" — use `kubectl set image` + manual rbac ConfigMap patch instead; the Helm chart requires OIDC values not present in the local override file
-
-## Service Health Overrides (admin)
-- BFF endpoints: `GET /bff/admin/service-status`, `PUT /bff/admin/service-status/:service`, `DELETE /bff/admin/service-status/:service` — all require `admin:health:manage`
-- `GET /bff/system-health` requires only a valid session (any logged-in user)
-- Valid services: `forge`, `index`, `weave`, `spectra`; valid statuses: `Healthy`, `Unhealthy`, `Offline`, `Maintenance`; BFF also returns `content` in practice — guard display with `SERVICE_LABELS[svc.name] ?? svc.name` to handle unknown services safely
-- Admin UI page: `/admin/health` → `src/pages/admin/ServiceStatusOverridesPage.vue`
-- API methods in `src/api/bffAdminApi.ts`: `listServiceStatusOverrides`, `upsertServiceStatusOverride`, `deleteServiceStatusOverride`
-
-## fusion-forge deployment (minikube)
-- Two separate K8s deployments share one image: `fusion-forge-server` (container: `server`) and `fusion-forge-operator` (container: `operator`)
-- minikube uses `:local` tags: `eval $(minikube docker-env) && make docker-build IMG=fusion-forge:local` then `kubectl rollout restart deployment/fusion-forge-server deployment/fusion-forge-operator -n fusion`
-- When `builder/main.go` changes, ALSO rebuild the builder image separately: `make docker-build-builder BUILDER_IMG=fusion-venv-builder:local` — `make docker-build` never touches it
-- `helm upgrade fusion-forge deployment/ -n fusion` applies RBAC, ConfigMap, and other template changes; run after any chart-level change (not just image changes)
-
-## Ext-BFF / Public API copy URLs (ArtifactDetailPage)
-Two optional copy buttons per file: `mdi-content-copy` (ext-BFF URL, always shown when pattern configured) and `mdi-earth` (public URL, shown only for versions with `extBffPublicTag`, default `public`). Both hidden via `v-if` when pattern is empty string — safe without config.
-- Patterns in `window.FUSION_CONFIG`: `extBffDownloadPattern`, `extBffPublicPattern`, `extBffPublicTag`; placeholders: `{artifactId}`, `{semver}`, `{fileId}`; getters in `src/config/runtime.ts`
-- Single file: icon buttons inline after download link; multi-file: separate `q-btn-dropdown` buttons, each lists all files
-- Clipboard: success → `$q.notify` toast; failure → `$q.dialog` with selectable `<pre class="copy-fallback-url">`
-- Helm values: `config.extBffDownloadPattern/extBffPublicPattern/extBffPublicTag` in `values.yaml` → rendered by `templates/configmap.yaml`
-
-## CodeMirror 6 gotchas
-- `@codemirror/lint` is a separate npm package (not bundled with `@codemirror/language`) — install explicitly
-- `lintGutter` lives in `@codemirror/lint`, not `@codemirror/language`
-
-## fusion-content API
-- BFF proxies `/api/content/*` → fusion-content service; permission `content:changelog:read`
-- `GET /api/content/api/v1/changelog?page=1&pageSize=20` → `{ data: DateGroup[], pagination: { page, pageSize, total } }`
-- `DateGroup`: `{ date: string ("unreleased" | "YYYY-MM-DD"), projects: ProjectEntry[] }`
-- `ProjectEntry`: `{ project, version, changes: { added?, changed?, fixed?, removed?: string[] } }`
-- Client: `src/api/contentApi.ts`; page: `src/pages/ChangelogPage.vue` at `/changelog`
-- `GET /api/content/api/v1/help` params: `service`, `type`, `tag`, `route`, `q`, `page`, `pageSize` → `{ data: HelpArticle[], pagination }`
-- `GET /api/content/api/v1/help/:service/:type/:slug` → `HelpArticleDetail` (same as `HelpArticle` + `body: string` — Markdown)
-- `HelpArticle` shape: `{ service, type: DiátaxisType, slug, title, tags, routes, summary }`; `DiátaxisType`: `'tutorial' | 'how-to' | 'reference' | 'explanation'`; labels/colors in `DIATAXIS_LABELS` / `DIATAXIS_COLORS` constants
-- `GET /api/content/api/v1/videos` params: `service`, `pageSize` → `{ data: VideoItem[], pagination }`; `VideoItem`: `{ service, slug, title, summary, thumbnailUrl, videoUrl, tags }` — external URLs only, no media hosting
+- `helm upgrade fusion-bff` fails locally with "config.oidcIssuerUrl is required" — use `kubectl set image` + manual rbac ConfigMap patch instead
 
 ## Help system
 - `src/components/HelpDrawer.vue` — slide-over drawer; "This page" tab loads route-scoped articles + videos; "Browse all" tab has search + service/type filters; article body rendered from Markdown via `marked`
 - `src/composables/useHelpDrawer.ts` — `provideHelpDrawer()` called in `MainLayout`; `useHelpDrawer()` injects in any child; returns `{ open: Ref<boolean>, toggle, close }`
-- `src/pages/HelpPage.vue` — full-page help browser (articles + videos) at `/help`; `bottomUtil` nav entry with `groups: []` (direct navigate, no sidebar)
-- `CanvasPanel` `help?: boolean` prop — shows help icon button (`mdi-help-circle-outline`) that calls `helpDrawer.toggle()`; silently absent when no drawer is injected
-- `HelpDrawer` `CONTEXT_SERVICE` map: `pipelines → weave`, `fusion-index → index`; all others use context id directly; `''` when context has no mapping
-- `marked` npm package (`^12.0.2`) — renders Markdown article `body` to HTML; use `v-html="marked(article.body)"` (unscoped style needed for prose elements)
-- **Page Guide** — global toggle in `AppTopBar.vue` (`mdi-compass-outline`, tooltip "Page Guide"); uses `useHelpDrawer()` inject; active state class `topbar__icon-btn--active`; this is the primary entry point — do NOT add per-panel `help` props to CanvasPanel instances
-- Activity rail help entry uses `mdi-book-open-outline` (navigates to full `/help` page); topbar uses `mdi-compass-outline` (opens drawer) — keep these distinct
-- `routes:` in help article frontmatter must be **exact static paths** (e.g. `/forge/venvs`) — parameterised paths like `/fusion-index/artifacts/:id` will NOT match `route.path` from the router; use the list page path instead
-- Help articles live in `help/<service>/<type>/<slug>.md` in this repo; fusion-content repos Secret `help:` points here with `dir: "help"`; service IDs: `forge`, `weave`, `index`, `admin`, `data`, `monitoring`
+- `src/pages/HelpPage.vue` — full-page help browser at `/help`; `bottomUtil` nav entry with `groups: []`
+- **Page Guide** — global toggle in `AppTopBar.vue` (`mdi-compass-outline`); uses `useHelpDrawer()` inject; this is the primary entry point — do NOT add per-panel `help` props to CanvasPanel instances
+- Activity rail help entry uses `mdi-book-open-outline` (navigates to `/help`); topbar uses `mdi-compass-outline` (opens drawer) — keep these distinct
+- `routes:` in help article frontmatter must be **exact static paths** — parameterised paths will NOT match; use the list page path instead
+- Help articles live in `help/<service>/<type>/<slug>.md`; service IDs: `forge`, `weave`, `index`, `admin`, `data`, `monitoring`
 - To update the fusion-content repos Secret: edit `/tmp/repos.yaml`, then `kubectl -n fusion create secret generic fusion-content-repos --from-file=repos.yaml=/tmp/repos.yaml --dry-run=client -o yaml | kubectl apply -f -` + `kubectl -n fusion rollout restart deployment/fusion-content-server`
 
-## Activity rail — utility zone
-- `Context.bottomUtil?: boolean` — renders between separator and admin; always visible (no `isAdmin` guard); use for standalone nav buttons with no sidebar
-- Set `groups: []` on a `bottomUtil` context; `MainLayout` detects empty groups and navigates directly without opening the sidebar
-- To add a new utility button: add entry to `navigation.ts` with `bottomUtil: true, groups: []`, add route to `router/index.ts`
+## fusion-content API
+- BFF proxies `/api/content/*` → fusion-content service; permission `content:changelog:read`
+- `GET /api/content/api/v1/changelog?page=1&pageSize=20` → `{ data: DateGroup[], pagination }`; `DateGroup`: `{ date, projects: ProjectEntry[] }`; `ProjectEntry`: `{ project, version, changes: { added?, changed?, fixed?, removed? } }`
+- `GET /api/content/api/v1/help` params: `service`, `type`, `tag`, `route`, `q`, `page`, `pageSize` → `{ data: HelpArticle[], pagination }`; `HelpArticle`: `{ service, type: DiátaxisType, slug, title, tags, routes, summary }`
+- `GET /api/content/api/v1/videos` params: `service`, `pageSize` → `{ data: VideoItem[], pagination }`; `VideoItem`: `{ service, slug, title, summary, thumbnailUrl, videoUrl, tags }`

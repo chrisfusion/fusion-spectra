@@ -370,7 +370,7 @@ export async function deleteGitWatcher(name: string): Promise<void> {
   await bffFetch(`${BASE}/gitwatchers/${encodeURIComponent(name)}`, { method: 'DELETE' })
 }
 
-// ─── Bulk Delete ──────────────────────────────────────────────────────────────
+// ─── Bulk Delete / Zombie Cleanup ─────────────────────────────────────────────
 
 export interface BulkDeleteBuildsRequest {
   statuses:    string[]
@@ -391,6 +391,19 @@ export interface BulkDeleteBuildsResult {
 export function bulkDeleteBuilds(req: BulkDeleteBuildsRequest): Promise<BulkDeleteBuildsResult> {
   return bffFetch(`${BASE}/builds`, {
     method:  'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(req),
+  }).then(r => r.json() as Promise<BulkDeleteBuildsResult>)
+}
+
+export interface ZombieCleanupRequest {
+  older_than:  string
+  build_type?: string
+}
+
+export function zombieCleanupBuilds(req: ZombieCleanupRequest): Promise<BulkDeleteBuildsResult> {
+  return bffFetch(`${BASE}/builds/zombie-cleanup`, {
+    method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(req),
   }).then(r => r.json() as Promise<BulkDeleteBuildsResult>)

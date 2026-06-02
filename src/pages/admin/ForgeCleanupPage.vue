@@ -28,11 +28,22 @@ const STATUS_OPTIONS = [
   { label: 'Succeeded', value: 'SUCCESS' },
 ]
 
+// ─── Bulk delete state ────────────────────────────────────────────────────────
+
 const olderThanMs  = ref(86_400_000)
 const buildType    = ref('')
 const statuses     = ref<string[]>(['FAILED'])
 const deleting     = ref(false)
 const result       = ref<forgeApi.BulkDeleteBuildsResult | null>(null)
+
+// ─── Zombie cleanup state ─────────────────────────────────────────────────────
+
+const zombieOlderThanMs = ref(86_400_000)
+const zombieBuildType   = ref('')
+const zombieRunning     = ref(false)
+const zombieResult      = ref<forgeApi.BulkDeleteBuildsResult | null>(null)
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function toISO(ms: number): string {
   return new Date(Date.now() - ms).toISOString()
@@ -69,15 +80,41 @@ function doDelete() {
     }
   })
 }
+
+function doZombieCleanup() {
+  const typLabel = BUILD_TYPE_OPTIONS.find(o => o.value === zombieBuildType.value)?.label ?? 'all types'
+  const ageLabel = OLDER_THAN_OPTIONS.find(o => o.ms === zombieOlderThanMs.value)?.label ?? '?'
+
+  $q.dialog({
+    title: 'Confirm zombie cleanup',
+    message: `Remove stuck PENDING/BUILDING ${typLabel} builds older than ${ageLabel} whose Kubernetes CIBuild CR no longer exists? This cannot be undone.`,
+    ok:     { label: 'Run Cleanup', color: 'negative', flat: true },
+    cancel: { label: 'Cancel', flat: true },
+  }).onOk(async () => {
+    zombieRunning.value = true
+    zombieResult.value  = null
+    try {
+      zombieResult.value = await forgeApi.zombieCleanupBuilds({
+        older_than: toISO(zombieOlderThanMs.value),
+        build_type: zombieBuildType.value || undefined,
+      })
+    } catch (e) {
+      $q.notify({ type: 'negative', message: e instanceof Error ? e.message : 'Zombie cleanup failed' })
+    } finally {
+      zombieRunning.value = false
+    }
+  })
+}
 </script>
 
 <template>
-  <div v-if="!can('forge:builds:delete')" class="no-perm">
-    You do not have permission to delete forge builds.
+  <div v-if="!can('forge:builds:delete') && !can('forge:admin:manage')" class="no-perm">
+    You do not have permission to manage forge builds.
   </div>
   <div v-else class="page-grid">
 
     <CanvasPanel
+      v-if="can('forge:builds:delete')"
       title="Forge Build Cleanup"
       icon="mdi-broom"
       :wide="true"
@@ -140,6 +177,57 @@ function doDelete() {
         </span>
         <div v-if="result.failed.length" class="failure-list">
           <div v-for="f in result.failed" :key="f.id" class="failure-row">
+            <span class="fs-mono">id {{ f.id }}</span> — {{ f.error }}
+          </div>
+        </div>
+      </div>
+    </CanvasPanel>
+
+    <CanvasPanel
+      v-if="can('forge:admin:manage')"
+      title="Zombie Build Cleanup"
+      icon="mdi-ghost-outline"
+      :wide="true"
+    >
+      <div class="cleanup-form">
+        <div class="form-row">
+          <label class="form-label">Build type</label>
+          <select v-model="zombieBuildType" class="ctrl-select">
+            <option v-for="o in BUILD_TYPE_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">Older than</label>
+          <select v-model="zombieOlderThanMs" class="ctrl-select">
+            <option v-for="o in OLDER_THAN_OPTIONS" :key="o.ms" :value="o.ms">{{ o.label }}</option>
+          </select>
+        </div>
+
+        <div class="form-row form-row--action">
+          <button
+            class="fs-btn fs-btn--danger"
+            :disabled="zombieRunning"
+            @click="doZombieCleanup"
+          >
+            <q-icon name="mdi-ghost-off-outline" size="14px" />
+            {{ zombieRunning ? 'Running…' : 'Run Zombie Cleanup' }}
+          </button>
+          <span class="form-hint">
+            Removes PENDING/BUILDING builds whose Kubernetes CIBuild CR no longer exists.
+            Cleans up orphaned index versions (best-effort).
+            At most 1 000 builds inspected per call.
+          </span>
+        </div>
+      </div>
+
+      <div v-if="zombieResult" class="result-bar" :class="zombieResult.failed.length ? 'result-bar--warn' : 'result-bar--done'">
+        <span>Removed {{ zombieResult.deleted.length }} zombie build{{ zombieResult.deleted.length !== 1 ? 's' : '' }}</span>
+        <span v-if="zombieResult.failed.length" class="result-failed">
+          · {{ zombieResult.failed.length }} failed to remove
+        </span>
+        <div v-if="zombieResult.failed.length" class="failure-list">
+          <div v-for="f in zombieResult.failed" :key="f.id" class="failure-row">
             <span class="fs-mono">id {{ f.id }}</span> — {{ f.error }}
           </div>
         </div>
