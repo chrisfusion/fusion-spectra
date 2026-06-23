@@ -136,7 +136,11 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 
 ## Runtime config gotchas
 - Adding a new `FUSION_CONFIG` field requires updating BOTH `deployment/values.yaml` AND `deployment/templates/configmap.yaml` — missing either silently drops the field in K8s
-- After a ConfigMap change + pod restart, browsers need a hard refresh (`Ctrl+Shift+R`) to pick up the new `config.js`
+- After a ConfigMap change + pod restart, browsers need a hard refresh (`Ctrl+Shift+R`) to pick up the new
+  `config.js` — it's served with `Cache-Control: public, immutable, max-age=31536000` (matched by nginx's
+  static-asset rule, unlike `index.html`'s no-cache rule), so a normal reload isn't enough. In Playwright,
+  a hard reload may still serve the cached copy from the shared browser-context disk cache — use a CDP
+  session (`page.context().newCDPSession(page)` → `Network.clearBrowserCache`) or a fresh browser context.
 - Direct ConfigMap patch when helm upgrade has a field manager conflict: `kubectl create configmap <name> --from-literal=config.js='...' --dry-run=client -o yaml | kubectl apply -f - && kubectl rollout restart deployment/<name> -n fusion`
 
 ## fusion-bff deployment (minikube)
