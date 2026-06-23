@@ -149,6 +149,24 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - The deployed ConfigMap can be stale vs the source — check with `kubectl get configmap fusion-bff-rbac -n fusion -o jsonpath='{.data.rbac\.yaml}'` before assuming permissions are live
 - `helm upgrade fusion-bff` fails locally with "config.oidcIssuerUrl is required" — use `kubectl set image` + manual rbac ConfigMap patch instead
 
+## Local DNS for *.fusion.local (minikube)
+- No more manual `/etc/hosts` entries for minikube ingress hosts (`spectra.`, `bff.`, `index.`, `gitea.`,
+  `keycloak.fusion.local`, and any future ones) — a dedicated `dnsmasq` instance on the host resolves the
+  whole `*.fusion.local` wildcard to the current minikube IP
+- `dev.fusion.local` is the one exception — stays in `/etc/hosts` as `127.0.0.1` (Vite dev server, unrelated
+  to minikube); `files` beats `dns` in `/etc/nsswitch.conf`, so don't add a `192.168.49.2` hosts entry for
+  any other `*.fusion.local` name or it'll silently shadow the DNS answer
+- Components: `/etc/dnsmasq-fusion.conf` (`address=/fusion.local/<minikube-ip>`, listens on
+  `127.0.0.1:5353` — a non-standard port so it doesn't collide with systemd-resolved's stub on
+  `127.0.0.53/54:53`), `dnsmasq-fusion.service`, and `/etc/systemd/resolved.conf.d/fusion-local.conf`
+  (`Domains=~fusion.local` routes only that domain to the dnsmasq instance — everything else still uses the
+  normal upstream)
+- Self-healing: `fusion-dns-sync.timer` (every 60s) re-reads `minikube ip` and rewrites
+  `/etc/dnsmasq-fusion.conf` + restarts `dnsmasq-fusion.service` if it drifted (e.g. after
+  `minikube delete && start`) — no manual fixup needed
+- Check it's working: `resolvectl query spectra.fusion.local` should return the minikube IP; if not, check
+  `systemctl status dnsmasq-fusion fusion-dns-sync.timer`
+
 ## Help system
 - `src/components/HelpDrawer.vue` — slide-over drawer; "This page" tab loads route-scoped articles + videos; "Browse all" tab has search + service/type filters; article body rendered from Markdown via `marked`
 - `src/composables/useHelpDrawer.ts` — `provideHelpDrawer()` called in `MainLayout`; `useHelpDrawer()` injects in any child; returns `{ open: Ref<boolean>, toggle, close }`
