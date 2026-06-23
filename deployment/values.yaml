@@ -2,9 +2,6 @@
 # fusion-spectra — Helm Values (production defaults)
 # =============================================================================
 
-# Kubernetes namespace
-namespace: fusion
-
 # Set to true only if fusion-spectra is the first chart installed in this namespace
 createNamespace: false
 
