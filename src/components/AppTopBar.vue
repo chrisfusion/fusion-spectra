@@ -4,11 +4,17 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore, THEMES } from '@/stores/theme'
 import { useHelpDrawer } from '@/composables/useHelpDrawer'
+import { useGitlabIssue, type IssueType } from '@/composables/useGitlabIssue'
 
 const router          = useRouter()
 const auth            = useAuthStore()
 const themeStore      = useThemeStore()
 const helpDrawer      = useHelpDrawer()
+const gitlabIssue     = useGitlabIssue()
+
+function reportIssue(type: IssueType) {
+  gitlabIssue.openIssue(type)
+}
 const userMenuOpen    = ref(false)
 const searchQuery     = ref('')
 
@@ -80,6 +86,24 @@ async function handleLogout() {
       <button v-if="helpDrawer" class="topbar__icon-btn" :class="{ 'topbar__icon-btn--active': helpDrawer.open.value }" @click="helpDrawer.toggle()">
         <q-icon name="mdi-compass-outline" size="18px" />
         <q-tooltip anchor="bottom middle" self="top middle" :offset="[0, 6]">Page Guide</q-tooltip>
+      </button>
+
+      <!-- Report issue -->
+      <button class="topbar__icon-btn">
+        <q-icon name="mdi-bug-outline" size="18px" />
+        <q-tooltip anchor="bottom middle" self="top middle" :offset="[0, 6]">Report issue</q-tooltip>
+        <q-menu anchor="bottom right" self="top right" :offset="[0, 8]" class="report-issue-menu">
+          <div class="report-issue">
+            <button class="report-issue__item" @click="reportIssue('bug')">
+              <q-icon name="mdi-bug-outline" size="15px" />
+              <span>Bug</span>
+            </button>
+            <button class="report-issue__item" @click="reportIssue('feature')">
+              <q-icon name="mdi-lightbulb-outline" size="15px" />
+              <span>Feature request</span>
+            </button>
+          </div>
+        </q-menu>
       </button>
 
       <!-- Notifications -->
@@ -434,6 +458,41 @@ async function handleLogout() {
 
 .usermenu__item--danger { color: var(--fs-red); }
 .usermenu__item--danger:hover { background: rgba(239, 68, 68, 0.08); color: var(--fs-red); }
+
+/* Report issue */
+:deep(.report-issue-menu .q-menu) {
+  background: var(--fs-bg-elevated) !important;
+  border: 1px solid var(--fs-border-bright) !important;
+  border-radius: 6px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+}
+
+.report-issue {
+  padding: 6px;
+  min-width: 160px;
+}
+
+.report-issue__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  color: var(--fs-text-secondary);
+  font-size: 12.5px;
+  font-family: var(--fs-font-ui);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--fs-ease), color var(--fs-ease);
+}
+
+.report-issue__item:hover {
+  background: var(--fs-bg-hover);
+  color: var(--fs-text-primary);
+}
 
 /* Theme picker */
 :deep(.theme-picker-menu .q-menu) {

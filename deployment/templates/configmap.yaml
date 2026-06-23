@@ -13,4 +13,6 @@ data:
       extBffPublicPattern:   {{ .Values.config.extBffPublicPattern | quote }},
       extBffPublicTag:       {{ .Values.config.extBffPublicTag | quote }},
       etlStorageClass:       {{ .Values.config.etlStorageClass | quote }},
+      gitlabUrl:             {{ .Values.config.gitlabUrl | quote }},
+      gitlabProjectPath:     {{ .Values.config.gitlabProjectPath | quote }},
     };

@@ -7,6 +7,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+<!-- 2026-06-23 -->
+### Added
+- Topbar: "Report issue" button (bug icon) opens a dropdown with Bug / Feature request — launches a prefilled GitLab new-issue page in a new tab with a markdown template, the current page path, and browser user agent; GitLab instance/project configurable via `gitlabUrl` / `gitlabProjectPath` runtime config fields
+
 <!-- 2026-06-02 -->
 ### Changed
 - Themes: removed `midnight` and `light` themes; `lumen` is now the default; stale localStorage values are coerced to `lumen` on first load

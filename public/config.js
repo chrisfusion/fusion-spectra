@@ -5,4 +5,6 @@ window.FUSION_CONFIG = {
   extBffPublicPattern:   'http://ext-bff.fusion.local/api/public/index/api/v1/artifacts/{artifactId}/versions/{semver}/files/{fileId}/download',
   extBffPublicTag:       'public',
   etlStorageClass:       '',
+  gitlabUrl:             'https://gitlab.fusion.local',
+  gitlabProjectPath:     'fusion-platform/fusion-spectra',
 }
