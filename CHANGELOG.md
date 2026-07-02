@@ -7,6 +7,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+<!-- 2026-07-02 -->
+### Added
+- Weave trigger wizard: "Kafka" activation type alongside OnDemand/Cron/Webhook — brokers, topic, consumer group (required) plus SASL secretRef, S3 event/bucket filters, and max concurrent runs (optional); Kafka triggers are created/deleted via fusion-weave's dedicated `/api/weave/api/v1/kafkatriggers` endpoint (`weave:kafkatriggers:write`/`:delete`), while list/get still use the generic triggers endpoint
+- Weave Triggers list: Kafka type badge + topic shown in the Schedule/Path column
+
 <!-- 2026-06-23 -->
 ### Added
 - Topbar: "Report issue" button (bug icon) opens a dropdown with Bug / Feature request — launches a prefilled GitLab new-issue page in a new tab with a markdown template, the current page path, and browser user agent; GitLab instance/project configurable via `gitlabUrl` / `gitlabProjectPath` runtime config fields

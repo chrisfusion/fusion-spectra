@@ -351,11 +351,22 @@ export interface WeaveWebhookConfig {
   secretRef?: { name: string }
 }
 
+export interface WeaveKafkaConfig {
+  brokers:            string[]
+  topic:              string
+  consumerGroup:      string
+  secretRef?:         { name: string }
+  eventFilter?:       string[]
+  bucketFilter?:      string[]
+  maxConcurrentRuns?: number
+}
+
 export interface WeaveTriggerSpec {
   chainRef:            { name: string }
-  type:                'OnDemand' | 'Cron' | 'Webhook'
+  type:                'OnDemand' | 'Cron' | 'Webhook' | 'Kafka'
   schedule?:           string
   webhook?:            WeaveWebhookConfig
+  kafka?:              WeaveKafkaConfig
   parameterOverrides?: EnvVar[]
 }
 
@@ -418,4 +429,20 @@ export function fireWeaveTrigger(name: string): Promise<void> {
 
 export function deleteWeaveTrigger(name: string): Promise<void> {
   return bffDelete(`${BASE}/triggers/${encodeURIComponent(name)}`)
+}
+
+// Kafka triggers go through a dedicated endpoint (separate RBAC permission
+// from generic triggers); request body shape is flat, not a full WeaveTrigger.
+export interface CreateKafkaTriggerPayload {
+  name:     string
+  chainRef: { name: string }
+  kafka:    WeaveKafkaConfig
+}
+
+export function createKafkaTrigger(payload: CreateKafkaTriggerPayload): Promise<WeaveTrigger> {
+  return bffPost<WeaveTrigger>(`${BASE}/kafkatriggers`, payload)
+}
+
+export function deleteKafkaTrigger(name: string): Promise<void> {
+  return bffDelete(`${BASE}/kafkatriggers/${encodeURIComponent(name)}`)
 }

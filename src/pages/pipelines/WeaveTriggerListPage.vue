@@ -77,6 +77,10 @@ function confirmFire(t: weaveApi.WeaveTrigger) {
   })
 }
 
+function canDelete(t: weaveApi.WeaveTrigger): boolean {
+  return t.spec.type === 'Kafka' ? can('weave:kafkatriggers:delete') : can('weave:triggers:delete')
+}
+
 function confirmDelete(t: weaveApi.WeaveTrigger) {
   $q.dialog({
     title:   'Delete Trigger',
@@ -87,7 +91,11 @@ function confirmDelete(t: weaveApi.WeaveTrigger) {
   }).onOk(async () => {
     deletingNames.value = new Set([...deletingNames.value, t.metadata.name])
     try {
-      await weaveApi.deleteWeaveTrigger(t.metadata.name)
+      if (t.spec.type === 'Kafka') {
+        await weaveApi.deleteKafkaTrigger(t.metadata.name)
+      } else {
+        await weaveApi.deleteWeaveTrigger(t.metadata.name)
+      }
       await loadTriggers()
     } catch (e) {
       $q.notify({ type: 'negative', message: e instanceof Error ? e.message : 'Delete failed' })
@@ -152,7 +160,7 @@ onMounted(loadTriggers)
               <td class="col-name fs-mono">{{ t.metadata.name }}</td>
               <td>
                 <span class="type-badge" :class="`type-badge--${t.spec.type.toLowerCase()}`">
-                  <q-icon :name="t.spec.type === 'Cron' ? 'mdi-clock-outline' : t.spec.type === 'Webhook' ? 'mdi-webhook' : 'mdi-hand-back-right-outline'" size="11px" />
+                  <q-icon :name="t.spec.type === 'Cron' ? 'mdi-clock-outline' : t.spec.type === 'Webhook' ? 'mdi-webhook' : t.spec.type === 'Kafka' ? 'mdi-apache-kafka' : 'mdi-hand-back-right-outline'" size="11px" />
                   {{ t.spec.type }}
                 </span>
               </td>
@@ -160,6 +168,7 @@ onMounted(loadTriggers)
               <td class="col-muted fs-mono">
                 <span v-if="t.spec.type === 'Cron'">{{ t.spec.schedule ?? '—' }}</span>
                 <span v-else-if="t.spec.type === 'Webhook'">{{ t.spec.webhook?.path ?? '—' }}</span>
+                <span v-else-if="t.spec.type === 'Kafka'">{{ t.spec.kafka?.topic ?? '—' }}</span>
                 <span v-else>—</span>
               </td>
               <td>
@@ -184,7 +193,7 @@ onMounted(loadTriggers)
                   <q-icon v-else name="mdi-play-circle-outline" size="16px" />
                 </button>
                 <button
-                  v-if="can('weave:triggers:delete')"
+                  v-if="canDelete(t)"
                   class="icon-btn icon-btn--danger"
                   :disabled="deletingNames.has(t.metadata.name)"
                   :title="`Delete ${t.metadata.name}`"
@@ -283,6 +292,7 @@ onMounted(loadTriggers)
 .type-badge--ondemand { background: color-mix(in srgb, var(--fs-text-muted) 12%, transparent); color: var(--fs-text-muted); }
 .type-badge--cron     { background: color-mix(in srgb, var(--fs-accent) 12%, transparent);     color: var(--fs-accent); }
 .type-badge--webhook  { background: color-mix(in srgb, var(--fs-pos, #4caf50) 12%, transparent); color: var(--fs-pos, #4caf50); }
+.type-badge--kafka    { background: color-mix(in srgb, var(--fs-warn, #ffa726) 12%, transparent); color: var(--fs-warn, #ffa726); }
 
 /* Active badge */
 .active-badge {

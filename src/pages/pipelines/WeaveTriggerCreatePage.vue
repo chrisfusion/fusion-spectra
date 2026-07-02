@@ -2,9 +2,11 @@
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import CanvasPanel from '@/components/CanvasPanel.vue'
+import { usePermission } from '@/composables/usePermission'
 import * as weaveApi from '@/api/weaveApi'
 
 const router = useRouter()
+const { can } = usePermission()
 
 // ─── Wizard state ─────────────────────────────────────────────────────────────
 
@@ -67,19 +69,44 @@ function goToStep2() {
 
 // ─── Step 2: trigger type + conditional fields ────────────────────────────────
 
-const triggerType  = ref<'OnDemand' | 'Cron' | 'Webhook'>('OnDemand')
+const triggerType  = ref<'OnDemand' | 'Cron' | 'Webhook' | 'Kafka'>('OnDemand')
 const schedule     = ref('')
 const scheduleError = ref<string | null>(null)
 const webhookPath  = ref('/trigger/')
 const webhookPathError = ref<string | null>(null)
 const webhookSecret = ref('')
 
+// Kafka fields (comma-separated inputs for list values — broker/bucket names
+// may contain dots and colons, which TagChipInput's tag regex disallows)
+const kafkaBrokers          = ref('')
+const kafkaBrokersError     = ref<string | null>(null)
+const kafkaTopic            = ref('')
+const kafkaTopicError       = ref<string | null>(null)
+const kafkaConsumerGroup    = ref('')
+const kafkaConsumerGroupError = ref<string | null>(null)
+const kafkaSecretRef        = ref('')
+const kafkaEventFilter      = ref<Set<'put' | 'delete' | 'get'>>(new Set())
+const kafkaBucketFilter     = ref('')
+const kafkaMaxConcurrentRuns = ref('')
+const kafkaMaxConcurrentRunsError = ref<string | null>(null)
+
+function toggleKafkaEvent(kind: 'put' | 'delete' | 'get') {
+  const next = new Set(kafkaEventFilter.value)
+  if (next.has(kind)) next.delete(kind)
+  else next.add(kind)
+  kafkaEventFilter.value = next
+}
+
 // Minimal cron expression format check (5 or 6 fields)
 const CRON_RE = /^(\S+\s+){4}\S+(\s+\S+)?$/
 
 watch(triggerType, () => {
-  scheduleError.value    = null
-  webhookPathError.value = null
+  scheduleError.value             = null
+  webhookPathError.value          = null
+  kafkaBrokersError.value         = null
+  kafkaTopicError.value           = null
+  kafkaConsumerGroupError.value   = null
+  kafkaMaxConcurrentRunsError.value = null
 })
 
 function validateStep2(): boolean {
@@ -108,7 +135,38 @@ function validateStep2(): boolean {
       webhookPathError.value = null
     }
   }
+  if (triggerType.value === 'Kafka') {
+    if (parseCsv(kafkaBrokers.value).length === 0) {
+      kafkaBrokersError.value = 'At least one broker is required'
+      ok = false
+    } else {
+      kafkaBrokersError.value = null
+    }
+    if (!kafkaTopic.value.trim()) {
+      kafkaTopicError.value = 'Topic is required'
+      ok = false
+    } else {
+      kafkaTopicError.value = null
+    }
+    if (!kafkaConsumerGroup.value.trim()) {
+      kafkaConsumerGroupError.value = 'Consumer group is required'
+      ok = false
+    } else {
+      kafkaConsumerGroupError.value = null
+    }
+    const rawMax = kafkaMaxConcurrentRuns.value.trim()
+    if (rawMax && (!/^\d+$/.test(rawMax) || Number(rawMax) < 0)) {
+      kafkaMaxConcurrentRunsError.value = 'Must be a non-negative integer'
+      ok = false
+    } else {
+      kafkaMaxConcurrentRunsError.value = null
+    }
+  }
   return ok
+}
+
+function parseCsv(raw: string): string[] {
+  return raw.split(',').map(s => s.trim()).filter(Boolean)
 }
 
 function goToStep3() {
@@ -151,6 +209,10 @@ function buildSpec(): weaveApi.WeaveTriggerSpec {
     }
   }
 
+  if (triggerType.value === 'Kafka') {
+    spec.kafka = buildKafkaConfig()
+  }
+
   const overrides = paramRows.value
     .filter(r => r.key.trim())
     .map(r => ({ name: r.key.trim(), value: r.value }))
@@ -159,14 +221,37 @@ function buildSpec(): weaveApi.WeaveTriggerSpec {
   return spec
 }
 
+function buildKafkaConfig(): weaveApi.WeaveKafkaConfig {
+  const kafka: weaveApi.WeaveKafkaConfig = {
+    brokers:       parseCsv(kafkaBrokers.value),
+    topic:         kafkaTopic.value.trim(),
+    consumerGroup: kafkaConsumerGroup.value.trim(),
+  }
+  if (kafkaSecretRef.value.trim()) kafka.secretRef = { name: kafkaSecretRef.value.trim() }
+  if (kafkaEventFilter.value.size) kafka.eventFilter = [...kafkaEventFilter.value]
+  const buckets = parseCsv(kafkaBucketFilter.value)
+  if (buckets.length) kafka.bucketFilter = buckets
+  const rawMax = kafkaMaxConcurrentRuns.value.trim()
+  if (rawMax) kafka.maxConcurrentRuns = Number(rawMax)
+  return kafka
+}
+
 async function submit() {
   submitting.value  = true
   submitError.value = null
   try {
-    createdTrigger.value = await weaveApi.createWeaveTrigger({
-      metadata: { name: triggerName.value.trim() },
-      spec:     buildSpec(),
-    })
+    if (triggerType.value === 'Kafka') {
+      createdTrigger.value = await weaveApi.createKafkaTrigger({
+        name:     triggerName.value.trim(),
+        chainRef: { name: selectedChain.value },
+        kafka:    buildKafkaConfig(),
+      })
+    } else {
+      createdTrigger.value = await weaveApi.createWeaveTrigger({
+        metadata: { name: triggerName.value.trim() },
+        spec:     buildSpec(),
+      })
+    }
   } catch (e) {
     submitError.value = e instanceof Error ? e.message : 'Creation failed'
   } finally {
@@ -185,6 +270,17 @@ function createAnother() {
   webhookPath.value      = '/trigger/'
   webhookPathError.value = null
   webhookSecret.value    = ''
+  kafkaBrokers.value              = ''
+  kafkaBrokersError.value         = null
+  kafkaTopic.value                = ''
+  kafkaTopicError.value           = null
+  kafkaConsumerGroup.value        = ''
+  kafkaConsumerGroupError.value   = null
+  kafkaSecretRef.value            = ''
+  kafkaEventFilter.value          = new Set()
+  kafkaBucketFilter.value         = ''
+  kafkaMaxConcurrentRuns.value    = ''
+  kafkaMaxConcurrentRunsError.value = null
   paramRows.value        = [{ key: '', value: '' }]
   submitError.value      = null
   createdTrigger.value   = null
@@ -343,11 +439,21 @@ loadChains()
                   <q-icon name="mdi-webhook" size="14px" />
                   Webhook
                 </button>
+                <button
+                  v-if="can('weave:kafkatriggers:write')"
+                  class="kind-btn"
+                  :class="{ 'kind-btn--active': triggerType === 'Kafka' }"
+                  @click="triggerType = 'Kafka'"
+                >
+                  <q-icon name="mdi-apache-kafka" size="14px" />
+                  Kafka
+                </button>
               </div>
               <span class="field-hint">
                 <template v-if="triggerType === 'OnDemand'">Fired manually via annotation or API</template>
                 <template v-else-if="triggerType === 'Cron'">Fires on a cron schedule</template>
-                <template v-else>Fires on an incoming HTTP POST</template>
+                <template v-else-if="triggerType === 'Webhook'">Fires on an incoming HTTP POST</template>
+                <template v-else>Fires on messages consumed from a Kafka topic</template>
               </span>
             </div>
           </div>
@@ -392,6 +498,115 @@ loadChains()
                   placeholder="my-webhook-secret"
                 />
                 <span class="field-hint">Name of a Kubernetes Secret with a "token" key for bearer auth; leave blank for unauthenticated</span>
+              </div>
+            </div>
+          </template>
+
+          <!-- Kafka: connection + optional filters -->
+          <template v-if="triggerType === 'Kafka'">
+            <div class="form-row">
+              <label class="form-label">Brokers <span class="required">*</span></label>
+              <div class="field-wrap">
+                <input
+                  v-model="kafkaBrokers"
+                  class="fs-input fs-mono"
+                  :class="{ 'fs-input--error': kafkaBrokersError }"
+                  placeholder="broker1:9092,broker2:9092"
+                />
+                <span v-if="kafkaBrokersError" class="field-error">{{ kafkaBrokersError }}</span>
+                <span v-else class="field-hint">Comma-separated Kafka bootstrap broker addresses</span>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <label class="form-label">Topic <span class="required">*</span></label>
+              <div class="field-wrap">
+                <input
+                  v-model="kafkaTopic"
+                  class="fs-input fs-mono"
+                  :class="{ 'fs-input--error': kafkaTopicError }"
+                  placeholder="my-topic"
+                />
+                <span v-if="kafkaTopicError" class="field-error">{{ kafkaTopicError }}</span>
+                <span v-else class="field-hint">Kafka topic to consume from</span>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <label class="form-label">Consumer group <span class="required">*</span></label>
+              <div class="field-wrap">
+                <input
+                  v-model="kafkaConsumerGroup"
+                  class="fs-input fs-mono"
+                  :class="{ 'fs-input--error': kafkaConsumerGroupError }"
+                  placeholder="my-trigger-group"
+                />
+                <span v-if="kafkaConsumerGroupError" class="field-error">{{ kafkaConsumerGroupError }}</span>
+                <span v-else class="field-hint">Kafka consumer group ID</span>
+              </div>
+            </div>
+
+            <div class="section-title">Advanced (optional)</div>
+
+            <div class="form-row">
+              <label class="form-label">Secret ref</label>
+              <div class="field-wrap">
+                <input
+                  v-model="kafkaSecretRef"
+                  class="fs-input fs-mono"
+                  placeholder="my-kafka-sasl-secret"
+                />
+                <span class="field-hint">Name of a Kubernetes Secret with "username"/"password" (and optional "mechanism") keys for SASL auth; leave blank for no auth</span>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <label class="form-label">Event filter</label>
+              <div class="field-wrap">
+                <div class="kind-toggle">
+                  <button
+                    class="kind-btn"
+                    :class="{ 'kind-btn--active': kafkaEventFilter.has('put') }"
+                    @click="toggleKafkaEvent('put')"
+                  >put</button>
+                  <button
+                    class="kind-btn"
+                    :class="{ 'kind-btn--active': kafkaEventFilter.has('delete') }"
+                    @click="toggleKafkaEvent('delete')"
+                  >delete</button>
+                  <button
+                    class="kind-btn"
+                    :class="{ 'kind-btn--active': kafkaEventFilter.has('get') }"
+                    @click="toggleKafkaEvent('get')"
+                  >get</button>
+                </div>
+                <span class="field-hint">S3 event types that trigger a run; none selected = accept all events</span>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <label class="form-label">Bucket filter</label>
+              <div class="field-wrap">
+                <input
+                  v-model="kafkaBucketFilter"
+                  class="fs-input fs-mono"
+                  placeholder="bucket-one,bucket-two"
+                />
+                <span class="field-hint">Comma-separated S3 bucket names; leave blank to accept all buckets</span>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <label class="form-label">Max concurrent runs</label>
+              <div class="field-wrap">
+                <input
+                  v-model="kafkaMaxConcurrentRuns"
+                  class="fs-input fs-mono"
+                  :class="{ 'fs-input--error': kafkaMaxConcurrentRunsError }"
+                  placeholder="0"
+                />
+                <span v-if="kafkaMaxConcurrentRunsError" class="field-error">{{ kafkaMaxConcurrentRunsError }}</span>
+                <span v-else class="field-hint">Caps active WeaveRuns for this trigger; 0 or blank = unlimited</span>
               </div>
             </div>
           </template>
@@ -460,6 +675,11 @@ loadChains()
               <li><span class="sum-key">type</span>         <span class="sum-val fs-mono">{{ triggerType }}</span></li>
               <li v-if="triggerType === 'Cron'"><span class="sum-key">schedule</span> <span class="sum-val fs-mono">{{ schedule }}</span></li>
               <li v-if="triggerType === 'Webhook'"><span class="sum-key">path</span>  <span class="sum-val fs-mono">{{ webhookPath }}</span></li>
+              <template v-if="triggerType === 'Kafka'">
+                <li><span class="sum-key">brokers</span>        <span class="sum-val fs-mono">{{ kafkaBrokers }}</span></li>
+                <li><span class="sum-key">topic</span>          <span class="sum-val fs-mono">{{ kafkaTopic }}</span></li>
+                <li><span class="sum-key">consumer group</span> <span class="sum-val fs-mono">{{ kafkaConsumerGroup }}</span></li>
+              </template>
             </ul>
           </div>
 
