@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import CanvasPanel from '@/components/CanvasPanel.vue'
+import CronPicker from '@/components/CronPicker.vue'
 import { usePermission } from '@/composables/usePermission'
 import * as weaveApi from '@/api/weaveApi'
 
@@ -69,12 +70,35 @@ function goToStep2() {
 
 // ─── Step 2: trigger type + conditional fields ────────────────────────────────
 
-const triggerType  = ref<'OnDemand' | 'Cron' | 'Webhook' | 'Kafka'>('OnDemand')
+const triggerType  = ref<'OnDemand' | 'Cron' | 'Webhook' | 'BatchCron' | 'Kafka'>('OnDemand')
 const schedule     = ref('')
 const scheduleError = ref<string | null>(null)
 const webhookPath  = ref('/trigger/')
 const webhookPathError = ref<string | null>(null)
 const webhookSecret = ref('')
+
+// BatchCron fields
+const batchJobsYaml       = ref('')
+const batchJobsYamlError  = ref<string | null>(null)
+const batchValidating     = ref(false)
+const batchValidateResult = ref<weaveApi.WeaveBatchValidateResponse | null>(null)
+const batchJobCount = computed(() => (batchJobsYaml.value.match(/^\s*-\s*job\s*:/gm) ?? []).length)
+
+async function runBatchValidation(): Promise<boolean> {
+  batchValidating.value = true
+  try {
+    batchValidateResult.value = await weaveApi.validateBatchJobs(batchJobsYaml.value)
+    return batchValidateResult.value.valid
+  } catch (e) {
+    batchValidateResult.value = {
+      valid:  false,
+      errors: [{ line: 1, message: e instanceof Error ? e.message : 'Validation request failed' }],
+    }
+    return false
+  } finally {
+    batchValidating.value = false
+  }
+}
 
 // Kafka fields (comma-separated inputs for list values — broker/bucket names
 // may contain dots and colons, which TagChipInput's tag regex disallows)
@@ -107,6 +131,8 @@ watch(triggerType, () => {
   kafkaTopicError.value           = null
   kafkaConsumerGroupError.value   = null
   kafkaMaxConcurrentRunsError.value = null
+  batchJobsYamlError.value        = null
+  batchValidateResult.value       = null
 })
 
 function validateStep2(): boolean {
@@ -162,6 +188,14 @@ function validateStep2(): boolean {
       kafkaMaxConcurrentRunsError.value = null
     }
   }
+  if (triggerType.value === 'BatchCron') {
+    if (!batchJobsYaml.value.trim()) {
+      batchJobsYamlError.value = 'Jobs YAML is required'
+      ok = false
+    } else {
+      batchJobsYamlError.value = null
+    }
+  }
   return ok
 }
 
@@ -169,14 +203,20 @@ function parseCsv(raw: string): string[] {
   return raw.split(',').map(s => s.trim()).filter(Boolean)
 }
 
-function goToStep3() {
-  if (validateStep2()) step.value = 3
+async function goToStep3() {
+  if (!validateStep2()) return
+  if (triggerType.value === 'BatchCron') {
+    const ok = await runBatchValidation()
+    if (!ok) return
+  }
+  step.value = 3
 }
 
 // ─── Step 3: parameter overrides ─────────────────────────────────────────────
 
 interface EnvRow { key: string; value: string }
 const paramRows = ref<EnvRow[]>([{ key: '', value: '' }])
+const authSecretRefOverride = ref('')
 
 function addParamRow() {
   paramRows.value = [...paramRows.value, { key: '', value: '' }]
@@ -218,6 +258,10 @@ function buildSpec(): weaveApi.WeaveTriggerSpec {
     .map(r => ({ name: r.key.trim(), value: r.value }))
   if (overrides.length) spec.parameterOverrides = overrides
 
+  if (authSecretRefOverride.value.trim()) {
+    spec.authSecretRefOverride = { name: authSecretRefOverride.value.trim() }
+  }
+
   return spec
 }
 
@@ -245,6 +289,12 @@ async function submit() {
         name:     triggerName.value.trim(),
         chainRef: { name: selectedChain.value },
         kafka:    buildKafkaConfig(),
+      })
+    } else if (triggerType.value === 'BatchCron') {
+      createdTrigger.value = await weaveApi.createBatchTrigger({
+        name:     triggerName.value.trim(),
+        chainRef: { name: selectedChain.value },
+        jobs:     batchJobsYaml.value,
       })
     } else {
       createdTrigger.value = await weaveApi.createWeaveTrigger({
@@ -281,7 +331,11 @@ function createAnother() {
   kafkaBucketFilter.value         = ''
   kafkaMaxConcurrentRuns.value    = ''
   kafkaMaxConcurrentRunsError.value = null
+  batchJobsYaml.value        = ''
+  batchJobsYamlError.value   = null
+  batchValidateResult.value  = null
   paramRows.value        = [{ key: '', value: '' }]
+  authSecretRefOverride.value = ''
   submitError.value      = null
   createdTrigger.value   = null
   step.value             = 1
@@ -440,6 +494,15 @@ loadChains()
                   Webhook
                 </button>
                 <button
+                  v-if="can('weave:batchtriggers:write')"
+                  class="kind-btn"
+                  :class="{ 'kind-btn--active': triggerType === 'BatchCron' }"
+                  @click="triggerType = 'BatchCron'"
+                >
+                  <q-icon name="mdi-calendar-multiple" size="14px" />
+                  BatchCron
+                </button>
+                <button
                   v-if="can('weave:kafkatriggers:write')"
                   class="kind-btn"
                   :class="{ 'kind-btn--active': triggerType === 'Kafka' }"
@@ -453,23 +516,17 @@ loadChains()
                 <template v-if="triggerType === 'OnDemand'">Fired manually via annotation or API</template>
                 <template v-else-if="triggerType === 'Cron'">Fires on a cron schedule</template>
                 <template v-else-if="triggerType === 'Webhook'">Fires on an incoming HTTP POST</template>
+                <template v-else-if="triggerType === 'BatchCron'">Fires individual jobs from a YAML job list, each on its own cron schedule</template>
                 <template v-else>Fires on messages consumed from a Kafka topic</template>
               </span>
             </div>
           </div>
 
           <!-- Cron: schedule -->
-          <div v-if="triggerType === 'Cron'" class="form-row">
+          <div v-if="triggerType === 'Cron'" class="form-row form-row--top">
             <label class="form-label">Schedule <span class="required">*</span></label>
             <div class="field-wrap">
-              <input
-                v-model="schedule"
-                class="fs-input fs-mono"
-                :class="{ 'fs-input--error': scheduleError }"
-                placeholder="*/5 * * * *"
-              />
-              <span v-if="scheduleError" class="field-error">{{ scheduleError }}</span>
-              <span v-else class="field-hint">Standard cron expression (minute hour day month weekday)</span>
+              <CronPicker v-model="schedule" :error="scheduleError" />
             </div>
           </div>
 
@@ -498,6 +555,62 @@ loadChains()
                   placeholder="my-webhook-secret"
                 />
                 <span class="field-hint">Name of a Kubernetes Secret with a "token" key for bearer auth; leave blank for unauthenticated</span>
+              </div>
+            </div>
+          </template>
+
+          <!-- BatchCron: jobs YAML + validation -->
+          <template v-if="triggerType === 'BatchCron'">
+            <div class="form-row form-row--top">
+              <label class="form-label">Jobs YAML <span class="required">*</span></label>
+              <div class="field-wrap">
+                <textarea
+                  v-model="batchJobsYaml"
+                  class="fs-input fs-textarea fs-mono"
+                  :class="{ 'fs-input--error': batchJobsYamlError }"
+                  rows="10"
+                  placeholder="- job:
+    id: daily-report
+    name: Daily Report
+    schedule: &quot;0 9 * * *&quot;
+    topic: reports
+    maintainer: alice@example.com
+    startdate: &quot;2026-07-15&quot;
+    metadata:
+      region: eu-west"
+                ></textarea>
+                <span v-if="batchJobsYamlError" class="field-error">{{ batchJobsYamlError }}</span>
+                <span v-else class="field-hint">
+                  YAML list of job entries; each needs <code>id</code> and <code>schedule</code> (standard cron
+                  expression). Optional: <code>name</code>, <code>topic</code>, <code>maintainer</code>,
+                  <code>startdate</code> (YYYY-MM-DD), <code>starttime</code> (HH:MM), <code>metadata</code> —
+                  all injected as JOB_* env vars into the run
+                </span>
+                <button
+                  class="fs-btn fs-btn--ghost add-env-btn"
+                  type="button"
+                  :disabled="batchValidating || !batchJobsYaml.trim()"
+                  @click="runBatchValidation"
+                >
+                  <q-spinner v-if="batchValidating" size="13px" />
+                  <q-icon v-else name="mdi-check-decagram-outline" size="13px" />
+                  Validate
+                </button>
+                <div v-if="batchValidateResult?.valid" class="inline-msg inline-msg--ok">
+                  <q-icon name="mdi-check-circle-outline" size="13px" />
+                  {{ batchJobCount }} job entr{{ batchJobCount === 1 ? 'y' : 'ies' }} valid
+                </div>
+                <div v-else-if="batchValidateResult && !batchValidateResult.valid" class="batch-validate-error">
+                  <div class="batch-validate-error__title">
+                    <q-icon name="mdi-alert-circle-outline" size="13px" />
+                    Invalid jobs YAML:
+                  </div>
+                  <ul class="batch-error-list">
+                    <li v-for="(err, i) in batchValidateResult.errors ?? []" :key="i">
+                      line {{ err.line }}: {{ err.message }}
+                    </li>
+                  </ul>
+                </div>
               </div>
             </div>
           </template>
@@ -663,6 +776,17 @@ loadChains()
             </div>
           </div>
 
+          <div v-if="triggerType !== 'Kafka' && triggerType !== 'BatchCron'" class="form-row">
+            <label class="form-label">Auth secret override</label>
+            <div class="field-wrap">
+              <input v-model="authSecretRefOverride" class="fs-input fs-mono" placeholder="(chain default)" />
+              <span class="field-hint">
+                Overrides the chain's authSecretRef for every run created by this trigger; leave blank to
+                inherit the chain default
+              </span>
+            </div>
+          </div>
+
           <!-- Summary box -->
           <div class="summary-box">
             <div class="summary-box__title">
@@ -680,6 +804,12 @@ loadChains()
                 <li><span class="sum-key">topic</span>          <span class="sum-val fs-mono">{{ kafkaTopic }}</span></li>
                 <li><span class="sum-key">consumer group</span> <span class="sum-val fs-mono">{{ kafkaConsumerGroup }}</span></li>
               </template>
+              <li v-if="triggerType === 'BatchCron'">
+                <span class="sum-key">batch jobs</span> <span class="sum-val fs-mono">{{ batchJobCount }} entr{{ batchJobCount === 1 ? 'y' : 'ies' }}</span>
+              </li>
+              <li v-if="triggerType !== 'Kafka' && triggerType !== 'BatchCron' && authSecretRefOverride">
+                <span class="sum-key">auth secret</span> <span class="sum-val fs-mono">{{ authSecretRefOverride }}</span>
+              </li>
             </ul>
           </div>
 
@@ -788,6 +918,7 @@ loadChains()
 .fs-input:focus  { border-color: var(--fs-accent); }
 .fs-input--error { border-color: var(--fs-neg, #e57373); }
 .fs-mono { font-family: var(--fs-font-mono); }
+.fs-textarea { resize: vertical; min-height: 140px; }
 
 .kind-toggle { display: flex; gap: 6px; }
 .kind-btn {
@@ -854,6 +985,21 @@ loadChains()
   color: var(--fs-neg, #e57373);
   background: color-mix(in srgb, var(--fs-neg, #e57373) 10%, transparent);
 }
+.inline-msg--ok {
+  color: var(--fs-pos, #4caf50);
+  background: color-mix(in srgb, var(--fs-pos, #4caf50) 10%, transparent);
+}
+
+.batch-validate-error {
+  color: var(--fs-neg, #e57373);
+  background: color-mix(in srgb, var(--fs-neg, #e57373) 10%, transparent);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+.batch-validate-error__title { display: flex; align-items: center; gap: 6px; }
+.batch-error-list { margin: 4px 0 0; padding-left: 20px; font-family: var(--fs-font-mono); font-size: 11.5px; }
+.batch-error-list li { padding: 1px 0; }
 
 .form-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; }
 

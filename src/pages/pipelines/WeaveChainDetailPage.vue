@@ -99,6 +99,11 @@ function formatDate(iso: string | undefined): string {
           </span>
         </div>
 
+        <div v-if="chain.spec.authSecretRef" class="meta-row">
+          <span class="meta-label">Auth Secret</span>
+          <span class="meta-value fs-mono">{{ chain.spec.authSecretRef.name }}</span>
+        </div>
+
         <div class="meta-row">
           <span class="meta-label">Validation</span>
           <span v-if="chain.status?.valid === true" class="valid-badge valid-badge--ok">

@@ -217,6 +217,9 @@ export interface WeaveChainSpec {
   failurePolicy?:    'StopAll' | 'ContinueOthers' | 'RetryFailed'
   concurrencyPolicy?: 'Wait' | 'Forbid'
   sharedStorage?:    WeaveSharedStorageSpec
+  // Names a Secret injected via envFrom into every step pod of the chain
+  // (Job and Deploy kind alike); overridable per-trigger/per-run.
+  authSecretRef?:    { name: string }
 }
 
 export interface WeaveChainStatus {
@@ -361,13 +364,22 @@ export interface WeaveKafkaConfig {
   maxConcurrentRuns?: number
 }
 
+export interface WeaveBatchCronConfig {
+  jobsConfigMapRef: { name: string }
+}
+
 export interface WeaveTriggerSpec {
   chainRef:            { name: string }
-  type:                'OnDemand' | 'Cron' | 'Webhook' | 'Kafka'
+  type:                'OnDemand' | 'Cron' | 'Webhook' | 'BatchCron' | 'Kafka'
   schedule?:           string
   webhook?:            WeaveWebhookConfig
+  batchCron?:          WeaveBatchCronConfig
   kafka?:              WeaveKafkaConfig
+  paused?:             boolean
   parameterOverrides?: EnvVar[]
+  // Overrides WeaveChainSpec.authSecretRef for every run created by this
+  // trigger. Not settable via the Kafka/BatchCron dedicated endpoints.
+  authSecretRefOverride?: { name: string }
 }
 
 export interface WeaveTriggerStatus {
@@ -376,6 +388,9 @@ export interface WeaveTriggerStatus {
   lastRunName?:      string
   webhookURL?:       string
   pendingRuns?:      string[]
+  // BatchCron only
+  batchJobCount?:    number
+  batchJobErrors?:   number
 }
 
 export interface WeaveTrigger {
@@ -445,4 +460,48 @@ export function createKafkaTrigger(payload: CreateKafkaTriggerPayload): Promise<
 
 export function deleteKafkaTrigger(name: string): Promise<void> {
   return bffDelete(`${BASE}/kafkatriggers/${encodeURIComponent(name)}`)
+}
+
+// BatchCron triggers go through a dedicated endpoint (separate RBAC permission
+// from generic triggers) since creation also provisions the backing jobs
+// ConfigMap; request/response bodies are flat, not a full WeaveTrigger.
+export interface WeaveBatchValidationError {
+  line:    number
+  message: string
+}
+
+export interface WeaveBatchValidateResponse {
+  valid:   boolean
+  errors?: WeaveBatchValidationError[]
+}
+
+export interface CreateBatchTriggerPayload {
+  name:     string
+  chainRef: { name: string }
+  jobs:     string
+}
+
+export function validateBatchJobs(jobs: string): Promise<WeaveBatchValidateResponse> {
+  return bffPost<WeaveBatchValidateResponse>(`${BASE}/batchtriggers/validate`, { jobs })
+}
+
+export function createBatchTrigger(payload: CreateBatchTriggerPayload): Promise<WeaveTrigger> {
+  return bffPost<WeaveTrigger>(`${BASE}/batchtriggers`, payload)
+}
+
+export function deleteBatchTrigger(name: string): Promise<void> {
+  return bffDelete(`${BASE}/batchtriggers/${encodeURIComponent(name)}`)
+}
+
+export function pauseBatchTrigger(name: string): Promise<WeaveTrigger> {
+  return bffPost<WeaveTrigger>(`${BASE}/batchtriggers/${encodeURIComponent(name)}/stop`)
+}
+
+// Resuming via the generic PATCH endpoint (merge patch on spec.paused) rather
+// than the dedicated /resume action, which additionally requires re-uploading
+// the jobs YAML — spectra has no "fetch current jobs" endpoint to prefill that.
+export function unpauseBatchTrigger(name: string): Promise<WeaveTrigger> {
+  return bffPatch<WeaveTrigger>(`${BASE}/batchtriggers/${encodeURIComponent(name)}`, {
+    spec: { paused: false },
+  })
 }

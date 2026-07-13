@@ -7,6 +7,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+<!-- 2026-07-13 -->
+### Added
+- Advanced Chain Builder: "Auth secret" field (step 1) sets `WeaveChainSpec.authSecretRef` — names a Kubernetes Secret injected via `envFrom` into every step pod so runner-side helpers (e.g. the `fusion-runner` `KeycloakAuth` helper) can read credential keys as env vars; shown in the Review step and on the Chain detail page
+- Weave Trigger wizard: "Auth secret override" field (step 3, hidden for Kafka triggers) sets `WeaveTriggerSpec.authSecretRefOverride`, overriding the chain's `authSecretRef` for runs created by that trigger; hidden for Kafka because its dedicated `/kafkatriggers` endpoint doesn't accept the field yet
+- Weave Triggers list: key icon + tooltip on the trigger name when `authSecretRefOverride` is set
+- Weave trigger wizard: "BatchCron" activation type — schedules multiple independent jobs (each with its own cron schedule) from a single YAML job list, uploaded as a ConfigMap; "Validate" button checks the YAML against fusion-weave's `/batchtriggers/validate` endpoint and shows line-level errors before submit; "Auth secret override" hidden for BatchCron for the same reason as Kafka (dedicated `/batchtriggers` endpoint doesn't accept the field)
+- Weave Triggers list: BatchCron type badge, job count (+ invalid-entry warning icon) in the Schedule/Path column, a "Paused" badge, and a pause/resume action button (`weave:batchtriggers:write`); resume goes through the generic trigger PATCH endpoint (`spec.paused=false`) rather than the dedicated `/resume` action, since there's no endpoint to fetch the current jobs YAML to prefill a re-upload
+- `src/components/CronPicker.vue` — replaces the raw cron-expression text box on the Cron trigger step with a presets dropdown (every 5/15/30 minutes, hourly, daily, weekly, monthly, or custom) plus a live human-readable summary (e.g. "Every Monday at 09:00"); defaults to "Daily at 09:00" so the field is never blank; "Custom (advanced)" falls back to the original raw-expression input for anything the presets don't cover
+
 <!-- 2026-07-02 -->
 ### Added
 - Weave trigger wizard: "Kafka" activation type alongside OnDemand/Cron/Webhook — brokers, topic, consumer group (required) plus SASL secretRef, S3 event/bucket filters, and max concurrent runs (optional); Kafka triggers are created/deleted via fusion-weave's dedicated `/api/weave/api/v1/kafkatriggers` endpoint (`weave:kafkatriggers:write`/`:delete`), while list/get still use the generic triggers endpoint

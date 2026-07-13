@@ -21,6 +21,7 @@ const includeStorage    = ref(false)
 const storageSize       = ref('1Gi')
 const storageSizeError  = ref<string | null>(null)
 const storageClass      = ref('')
+const authSecretRef     = ref('')
 
 function validateStep1(): boolean {
   let ok = true
@@ -307,6 +308,7 @@ function buildSpec(): weaveApi.WeaveChainSpec {
     spec.sharedStorage = { size: storageSize.value.trim() }
     if (storageClass.value.trim()) spec.sharedStorage.storageClassName = storageClass.value.trim()
   }
+  if (authSecretRef.value.trim()) spec.authSecretRef = { name: authSecretRef.value.trim() }
   return spec
 }
 
@@ -334,6 +336,7 @@ function createAnother() {
   storageSize.value       = '1Gi'
   storageSizeError.value  = null
   storageClass.value      = ''
+  authSecretRef.value     = ''
   chainSteps.value        = []
   stepListError.value     = null
   submitError.value       = null
@@ -474,6 +477,18 @@ function createAnother() {
               </div>
             </div>
           </template>
+
+          <div class="form-row">
+            <label class="form-label">Auth secret</label>
+            <div class="field-wrap">
+              <input v-model="authSecretRef" class="fs-input fs-mono field-narrow" placeholder="(none)" />
+              <span class="field-hint">
+                Name of a Kubernetes Secret injected via envFrom into every step pod (Job and Deploy alike) —
+                lets runner-side helpers (e.g. the KeycloakAuth helper) read credential keys as env vars.
+                Overridable per-trigger and per-run.
+              </span>
+            </div>
+          </div>
 
           <div class="form-actions">
             <button class="fs-btn fs-btn--primary" @click="goToStep2">
@@ -767,6 +782,10 @@ function createAnother() {
                 <span class="review-val fs-mono">
                   {{ includeStorage ? storageSize + (storageClass ? ' · ' + storageClass : '') : 'none' }}
                 </span>
+              </div>
+              <div class="review-row">
+                <span class="review-key">authSecretRef</span>
+                <span class="review-val fs-mono">{{ authSecretRef || 'none' }}</span>
               </div>
             </div>
           </div>

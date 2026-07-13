@@ -63,11 +63,13 @@ No footer slot — add pagination below the table inside the default slot.
 - `src/api/bffClient.ts` — base fetch with `credentials:'include'`; 401 auto-redirects to BFF login
   - FormData detection: skips `Content-Type: application/json` when `body instanceof FormData` (multipart uploads)
   - `bffDelete` returns `Promise<void>` and discards the response body — for DELETE endpoints that return JSON (e.g. bulk-delete result), use `bffFetch(path, { method: 'DELETE' })` then `.json()` directly
+  - Non-2xx handling only reads a flat `body.error` string — a structured error body (e.g. `{valid, errors: [{line, message}]}`) collapses to `res.statusText`, losing detail. Endpoints needing field-level errors should return 200 with a `valid`-style flag to check directly (e.g. `/batchtriggers/validate`), not rely on catching a 4xx.
 
 ## Shared utilities & components
 - `src/utils/format.ts` — `formatSize(bytes)`: human-readable file size (B / KB / MB / GB)
 - `src/components/TagChipInput.vue` — v-model `string[]` chip input; Enter/comma adds, Backspace removes last, × removes specific; validation `/^[a-zA-Z0-9-]+$/` max 64 chars; trailing commas stripped
 - `src/components/JsonEditor.vue` — CodeMirror 6 JSON editor; emits `valid` (false on non-empty invalid JSON); `{ } Format` button pretty-prints; `defineExpose({ format })` for programmatic use; theme via `--fs-*` CSS vars
+- `src/components/CronPicker.vue` — v-model on a cron-expression string; presets dropdown (every 5/15/30 min, hourly, daily, weekly, monthly) + "Custom (advanced)" raw-expression fallback + live human-readable summary; defaults to daily 09:00 rather than a blank field
 
 ## Themes
 - `src/stores/theme.ts` — 5 themes: lumen (default), azure, carbon, matrix, synthwave; persisted to localStorage; `midnight`/`light` are gone — a `Set` guard coerces stale localStorage values to `lumen`
@@ -101,6 +103,7 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - `q-dialog` and `q-tooltip` render as portals outside component DOM — CSS overrides must be in an unscoped `<style>` block (not `<style scoped>`)
 - Dialog-scoped polling: use `watch(dialogOpenRef, open => { if (!open) stopPolling() })` to tie a timer's lifecycle to a `q-dialog`; cleaner than hooking every close path individually
 - `@codemirror/lint` is a separate npm package — install explicitly; `lintGutter` lives there, not in `@codemirror/language`
+- Scoped styles don't cross component boundaries: shared components (`TagChipInput.vue`, `JsonEditor.vue`, `CronPicker.vue`) must define their own scoped CSS classes using the global `--fs-*` vars — they can't reuse a parent page's `.fs-input`/`.fs-btn`-style classes, which are scoped to that page's own `<style>` block
 
 ## Screenshots
 `screenshots/` — UI screenshots named `YYYY-MM-DD_<description>.png`

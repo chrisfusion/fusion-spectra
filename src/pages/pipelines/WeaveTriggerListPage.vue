@@ -21,6 +21,7 @@ const currentPage = ref(1)
 
 const deletingNames = ref<Set<string>>(new Set())
 const firingNames   = ref<Set<string>>(new Set())
+const pausingNames  = ref<Set<string>>(new Set())
 
 async function loadTriggers() {
   loading.value = true
@@ -56,6 +57,17 @@ function triggerAge(t: weaveApi.WeaveTrigger): string {
   return new Date(ts).toLocaleString()
 }
 
+const TYPE_ICONS: Record<string, string> = {
+  Cron:      'mdi-clock-outline',
+  Webhook:   'mdi-webhook',
+  BatchCron: 'mdi-calendar-multiple',
+  Kafka:     'mdi-apache-kafka',
+  OnDemand:  'mdi-hand-back-right-outline',
+}
+function typeIcon(t: weaveApi.WeaveTrigger): string {
+  return TYPE_ICONS[t.spec.type] ?? TYPE_ICONS.OnDemand
+}
+
 function confirmFire(t: weaveApi.WeaveTrigger) {
   $q.dialog({
     title:   'Fire Trigger',
@@ -78,7 +90,9 @@ function confirmFire(t: weaveApi.WeaveTrigger) {
 }
 
 function canDelete(t: weaveApi.WeaveTrigger): boolean {
-  return t.spec.type === 'Kafka' ? can('weave:kafkatriggers:delete') : can('weave:triggers:delete')
+  if (t.spec.type === 'Kafka') return can('weave:kafkatriggers:delete')
+  if (t.spec.type === 'BatchCron') return can('weave:batchtriggers:delete')
+  return can('weave:triggers:delete')
 }
 
 function confirmDelete(t: weaveApi.WeaveTrigger) {
@@ -93,6 +107,8 @@ function confirmDelete(t: weaveApi.WeaveTrigger) {
     try {
       if (t.spec.type === 'Kafka') {
         await weaveApi.deleteKafkaTrigger(t.metadata.name)
+      } else if (t.spec.type === 'BatchCron') {
+        await weaveApi.deleteBatchTrigger(t.metadata.name)
       } else {
         await weaveApi.deleteWeaveTrigger(t.metadata.name)
       }
@@ -103,6 +119,24 @@ function confirmDelete(t: weaveApi.WeaveTrigger) {
       deletingNames.value = new Set([...deletingNames.value].filter(n => n !== t.metadata.name))
     }
   })
+}
+
+async function togglePause(t: weaveApi.WeaveTrigger) {
+  pausingNames.value = new Set([...pausingNames.value, t.metadata.name])
+  try {
+    if (t.spec.paused) {
+      await weaveApi.unpauseBatchTrigger(t.metadata.name)
+      $q.notify({ type: 'positive', message: `Trigger ${t.metadata.name} resumed.` })
+    } else {
+      await weaveApi.pauseBatchTrigger(t.metadata.name)
+      $q.notify({ type: 'positive', message: `Trigger ${t.metadata.name} paused.` })
+    }
+    await loadTriggers()
+  } catch (e) {
+    $q.notify({ type: 'negative', message: e instanceof Error ? e.message : 'Failed to update pause state' })
+  } finally {
+    pausingNames.value = new Set([...pausingNames.value].filter(n => n !== t.metadata.name))
+  }
 }
 
 onMounted(loadTriggers)
@@ -157,10 +191,22 @@ onMounted(loadTriggers)
           </thead>
           <tbody>
             <tr v-for="t in pagedItems" :key="t.metadata.name">
-              <td class="col-name fs-mono">{{ t.metadata.name }}</td>
+              <td class="col-name fs-mono">
+                {{ t.metadata.name }}
+                <q-icon
+                  v-if="t.spec.authSecretRefOverride"
+                  name="mdi-key-outline"
+                  size="12px"
+                  class="auth-secret-icon"
+                >
+                  <q-tooltip :delay="400" anchor="top middle">
+                    Auth secret override: {{ t.spec.authSecretRefOverride.name }}
+                  </q-tooltip>
+                </q-icon>
+              </td>
               <td>
                 <span class="type-badge" :class="`type-badge--${t.spec.type.toLowerCase()}`">
-                  <q-icon :name="t.spec.type === 'Cron' ? 'mdi-clock-outline' : t.spec.type === 'Webhook' ? 'mdi-webhook' : t.spec.type === 'Kafka' ? 'mdi-apache-kafka' : 'mdi-hand-back-right-outline'" size="11px" />
+                  <q-icon :name="typeIcon(t)" size="11px" />
                   {{ t.spec.type }}
                 </span>
               </td>
@@ -169,6 +215,19 @@ onMounted(loadTriggers)
                 <span v-if="t.spec.type === 'Cron'">{{ t.spec.schedule ?? '—' }}</span>
                 <span v-else-if="t.spec.type === 'Webhook'">{{ t.spec.webhook?.path ?? '—' }}</span>
                 <span v-else-if="t.spec.type === 'Kafka'">{{ t.spec.kafka?.topic ?? '—' }}</span>
+                <span v-else-if="t.spec.type === 'BatchCron'">
+                  {{ t.status?.batchJobCount ?? 0 }} job{{ t.status?.batchJobCount === 1 ? '' : 's' }}
+                  <q-icon
+                    v-if="t.status?.batchJobErrors"
+                    name="mdi-alert-outline"
+                    size="12px"
+                    class="batch-error-icon"
+                  >
+                    <q-tooltip :delay="400" anchor="top middle">
+                      {{ t.status.batchJobErrors }} invalid job entr{{ t.status.batchJobErrors === 1 ? 'y' : 'ies' }}
+                    </q-tooltip>
+                  </q-icon>
+                </span>
                 <span v-else>—</span>
               </td>
               <td>
@@ -178,10 +237,24 @@ onMounted(loadTriggers)
                 <span v-else class="active-badge active-badge--off">
                   <q-icon name="mdi-pause-circle-outline" size="12px" /> Inactive
                 </span>
+                <span v-if="t.spec.paused" class="active-badge active-badge--paused">
+                  <q-icon name="mdi-pause" size="12px" /> Paused
+                </span>
               </td>
               <td class="col-muted fs-mono">{{ t.status?.lastRunName ?? '—' }}</td>
               <td class="col-muted">{{ triggerAge(t) }}</td>
               <td class="col-actions">
+                <button
+                  v-if="t.spec.type === 'BatchCron' && can('weave:batchtriggers:write')"
+                  class="icon-btn"
+                  :class="t.spec.paused ? 'icon-btn--fire' : 'icon-btn--danger'"
+                  :disabled="pausingNames.has(t.metadata.name)"
+                  :title="t.spec.paused ? 'Resume trigger' : 'Pause trigger'"
+                  @click.stop="togglePause(t)"
+                >
+                  <q-spinner v-if="pausingNames.has(t.metadata.name)" size="13px" />
+                  <q-icon v-else :name="t.spec.paused ? 'mdi-play-circle-outline' : 'mdi-pause-circle-outline'" size="16px" />
+                </button>
                 <button
                   v-if="t.spec.type === 'OnDemand' && can('weave:triggers:write')"
                   class="icon-btn icon-btn--fire"
@@ -273,9 +346,10 @@ onMounted(loadTriggers)
 .tpl-table tbody tr:hover td { background: var(--fs-bg-hover); }
 
 .col-name    { font-weight: 500; color: var(--fs-accent); }
+.auth-secret-icon { color: var(--fs-text-muted); margin-left: 4px; vertical-align: middle; }
 .col-chain   { color: var(--fs-text-secondary, var(--fs-text-muted)); font-size: 12px; }
 .col-muted   { color: var(--fs-text-muted); font-size: 12px; }
-.col-actions { width: 72px; text-align: center; white-space: nowrap; }
+.col-actions { width: 96px; text-align: center; white-space: nowrap; }
 
 /* Type badge */
 .type-badge {
@@ -289,10 +363,13 @@ onMounted(loadTriggers)
   background: color-mix(in srgb, var(--fs-accent) 10%, transparent);
   color: var(--fs-accent);
 }
-.type-badge--ondemand { background: color-mix(in srgb, var(--fs-text-muted) 12%, transparent); color: var(--fs-text-muted); }
-.type-badge--cron     { background: color-mix(in srgb, var(--fs-accent) 12%, transparent);     color: var(--fs-accent); }
-.type-badge--webhook  { background: color-mix(in srgb, var(--fs-pos, #4caf50) 12%, transparent); color: var(--fs-pos, #4caf50); }
-.type-badge--kafka    { background: color-mix(in srgb, var(--fs-warn, #ffa726) 12%, transparent); color: var(--fs-warn, #ffa726); }
+.type-badge--ondemand  { background: color-mix(in srgb, var(--fs-text-muted) 12%, transparent); color: var(--fs-text-muted); }
+.type-badge--cron      { background: color-mix(in srgb, var(--fs-accent) 12%, transparent);     color: var(--fs-accent); }
+.type-badge--webhook   { background: color-mix(in srgb, var(--fs-pos, #4caf50) 12%, transparent); color: var(--fs-pos, #4caf50); }
+.type-badge--batchcron { background: color-mix(in srgb, #9575cd 12%, transparent); color: #9575cd; }
+.type-badge--kafka     { background: color-mix(in srgb, var(--fs-warn, #ffa726) 12%, transparent); color: var(--fs-warn, #ffa726); }
+
+.batch-error-icon { color: var(--fs-warn, #ffa726); margin-left: 3px; vertical-align: middle; }
 
 /* Active badge */
 .active-badge {
@@ -304,8 +381,10 @@ onMounted(loadTriggers)
   font-size: 11px;
   font-weight: 600;
 }
-.active-badge--on  { color: var(--fs-pos, #4caf50); background: color-mix(in srgb, var(--fs-pos, #4caf50) 10%, transparent); }
-.active-badge--off { color: var(--fs-text-muted);   background: color-mix(in srgb, var(--fs-text-muted)   10%, transparent); }
+.active-badge + .active-badge { margin-left: 4px; }
+.active-badge--on     { color: var(--fs-pos, #4caf50); background: color-mix(in srgb, var(--fs-pos, #4caf50) 10%, transparent); }
+.active-badge--off    { color: var(--fs-text-muted);   background: color-mix(in srgb, var(--fs-text-muted)   10%, transparent); }
+.active-badge--paused { color: var(--fs-warn, #ffa726); background: color-mix(in srgb, var(--fs-warn, #ffa726) 10%, transparent); }
 
 .empty-row { text-align: center; color: var(--fs-text-muted); padding: 32px 10px !important; }
 

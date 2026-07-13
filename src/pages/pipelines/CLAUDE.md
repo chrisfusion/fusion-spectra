@@ -44,6 +44,11 @@ Route: `/pipelines/weave/chains/advanced`. 3-step wizard: step 1 Identity (chain
 - `previewSteps` computed maps `StepRow[]` → `WeaveChainStep[]` for live DAG
 - Stable v-for keys via `uid` (`++_uid`); all array mutations use spread/filter — never `.push()`/`.splice()`
 
+## Weave Triggers — dedicated-endpoint types (Kafka, BatchCron)
+- Trigger types needing their own create/update shape (Kafka: `{name, chainRef, kafka}`; BatchCron: `{name, chainRef, jobs}`) get a dedicated BFF endpoint + RBAC permission pair (`weave:kafkatriggers:*`, `weave:batchtriggers:*`), separate from generic `weave:triggers:*` — follow this for any future type with its own request shape; GET/list still goes through the generic `/triggers` endpoint for all types
+- BatchCron's `status.active` stays `true` even when `spec.paused` (confirmed in `weavetrigger_controller.go`'s `syncBatchCronSource`) — Active/Inactive and Paused are independent, not mutually exclusive, badges
+- No endpoint returns a BatchCron trigger's *current* jobs YAML (`GET` doesn't inline it) — resuming without new content must go through the generic `PATCH .../batchtriggers/{name}` with `{"spec":{"paused":false}}`, not the dedicated `/resume` action, which requires re-uploading the full YAML
+
 ## fusion-weave deployment (minikube)
 - Both `fusion-weave-operator` (container: `manager`) and `fusion-weave-api` (container: `api-server`) share one image — build once, update both
 - Build: `eval $(minikube docker-env) && docker build -t fusion-weave-operator:X.Y.Z /path/to/fusion-flux/`
