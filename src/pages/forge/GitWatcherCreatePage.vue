@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import CanvasPanel from '@/components/CanvasPanel.vue'
+import SecretNamePicker from '@/components/SecretNamePicker.vue'
 import * as forgeApi from '@/api/forgeApi'
 
 const router = useRouter()
@@ -470,30 +471,18 @@ const META_LABEL: Record<MetadataSource, string> = {
 
           <template v-if="useTokenSecret">
             <div class="form-row">
-              <label class="form-label">Secret Name <span class="required">*</span></label>
+              <label class="form-label">Secret <span class="required">*</span></label>
               <div class="field-wrap">
-                <input
-                  v-model="tokenSecretName"
-                  class="fs-input fs-mono"
-                  :class="{ 'fs-input--error': tokenSecretNameErr }"
-                  placeholder="my-repo-token"
+                <SecretNamePicker
+                  v-model:secret-name="tokenSecretName"
+                  v-model:secret-key="tokenSecretKey"
+                  show-key
+                  name-placeholder="my-repo-token"
+                  key-placeholder="token"
                 />
                 <span v-if="tokenSecretNameErr" class="field-error">{{ tokenSecretNameErr }}</span>
-                <span v-else class="field-hint">Name of an existing K8s Secret in the fusion namespace</span>
-              </div>
-            </div>
-
-            <div class="form-row">
-              <label class="form-label">Secret Key <span class="required">*</span></label>
-              <div class="field-wrap">
-                <input
-                  v-model="tokenSecretKey"
-                  class="fs-input fs-mono"
-                  :class="{ 'fs-input--error': tokenSecretKeyErr }"
-                  placeholder="token"
-                />
-                <span v-if="tokenSecretKeyErr" class="field-error">{{ tokenSecretKeyErr }}</span>
-                <span v-else class="field-hint">Key within the secret that holds the git token</span>
+                <span v-else-if="tokenSecretKeyErr" class="field-error">{{ tokenSecretKeyErr }}</span>
+                <span v-else class="field-hint">Name of an existing K8s Secret in the fusion namespace, and the key within it that holds the git token</span>
               </div>
             </div>
           </template>

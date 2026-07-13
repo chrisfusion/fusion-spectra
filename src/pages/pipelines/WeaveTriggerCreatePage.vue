@@ -3,6 +3,8 @@ import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import CronPicker from '@/components/CronPicker.vue'
+import SecretNamePicker from '@/components/SecretNamePicker.vue'
+import KafkaClusterFields from '@/components/KafkaClusterFields.vue'
 import { usePermission } from '@/composables/usePermission'
 import * as weaveApi from '@/api/weaveApi'
 
@@ -549,10 +551,9 @@ loadChains()
             <div class="form-row">
               <label class="form-label">Secret ref</label>
               <div class="field-wrap">
-                <input
-                  v-model="webhookSecret"
-                  class="fs-input fs-mono"
-                  placeholder="my-webhook-secret"
+                <SecretNamePicker
+                  v-model:secret-name="webhookSecret"
+                  name-placeholder="my-webhook-secret"
                 />
                 <span class="field-hint">Name of a Kubernetes Secret with a "token" key for bearer auth; leave blank for unauthenticated</span>
               </div>
@@ -617,17 +618,15 @@ loadChains()
 
           <!-- Kafka: connection + optional filters -->
           <template v-if="triggerType === 'Kafka'">
-            <div class="form-row">
+            <div class="form-row form-row--top">
               <label class="form-label">Brokers <span class="required">*</span></label>
               <div class="field-wrap">
-                <input
-                  v-model="kafkaBrokers"
-                  class="fs-input fs-mono"
-                  :class="{ 'fs-input--error': kafkaBrokersError }"
-                  placeholder="broker1:9092,broker2:9092"
+                <KafkaClusterFields
+                  v-model:brokers="kafkaBrokers"
+                  v-model:secret-ref="kafkaSecretRef"
+                  :error="kafkaBrokersError"
                 />
-                <span v-if="kafkaBrokersError" class="field-error">{{ kafkaBrokersError }}</span>
-                <span v-else class="field-hint">Comma-separated Kafka bootstrap broker addresses</span>
+                <span class="field-hint">Comma-separated broker addresses; optional SASL auth secret</span>
               </div>
             </div>
 
@@ -660,18 +659,6 @@ loadChains()
             </div>
 
             <div class="section-title">Advanced (optional)</div>
-
-            <div class="form-row">
-              <label class="form-label">Secret ref</label>
-              <div class="field-wrap">
-                <input
-                  v-model="kafkaSecretRef"
-                  class="fs-input fs-mono"
-                  placeholder="my-kafka-sasl-secret"
-                />
-                <span class="field-hint">Name of a Kubernetes Secret with "username"/"password" (and optional "mechanism") keys for SASL auth; leave blank for no auth</span>
-              </div>
-            </div>
 
             <div class="form-row">
               <label class="form-label">Event filter</label>
@@ -779,7 +766,7 @@ loadChains()
           <div v-if="triggerType !== 'Kafka' && triggerType !== 'BatchCron'" class="form-row">
             <label class="form-label">Auth secret override</label>
             <div class="field-wrap">
-              <input v-model="authSecretRefOverride" class="fs-input fs-mono" placeholder="(chain default)" />
+              <SecretNamePicker v-model:secret-name="authSecretRefOverride" name-placeholder="(chain default)" />
               <span class="field-hint">
                 Overrides the chain's authSecretRef for every run created by this trigger; leave blank to
                 inherit the chain default

@@ -7,8 +7,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-<!-- 2026-07-13 -->
+## [0.10.30] — 2026-07-13
 ### Added
+- Infrastructure presets: `src/components/SecretNamePicker.vue` and `src/components/KafkaClusterFields.vue` add a Manual/Preset toggle to every raw Kubernetes-Secret-name (and Kafka broker) field in the app — Weave Kafka trigger brokers+secretRef, webhook secret, chain/trigger `authSecretRef`(Override), Job/Service Template expert-page volume `sourceName` (secret type), and the 3 forge git-token-secret fields (GitOps Builder, GitOpsPoller create/edit) — filling the field from a per-unit preset dropdown instead of requiring the exact resource name to be typed. Presets are fetched once per session via the new `src/stores/presets.ts` Pinia store from `GET /bff/presets` (`src/api/presetsApi.ts`); the toggle only appears when the unit has presets configured, so units without any behave exactly as before. Also pays down the 3x-copy-pasted secret-name+key toggle block across the forge pages by extracting it into `SecretNamePicker`.
+- Job Template wizard (step 4) and Job/Service Template expert pages: "Code Source" section sets `spec.codeSource` (`WeaveCodeSourceSpec` — artifactName + tag required; mountPath/indexURL/loaderImage/loaderImagePullPolicy exposed on the expert pages only), matching the `codeSource` field fusion-flux already supports on `WeaveJobTemplateSpec`/`WeaveServiceTemplateSpec`; artifact name and tag are filled via a new `ArtifactTagPicker` component with debounced fusion-index live search
+- `src/components/ArtifactTagPicker.vue` and `src/components/CodeSourceFields.vue` — reusable code-source picker/toggle shared across all four Job/Service Template create/expert pages; validation and spec-building logic live in `src/utils/codeSource.ts`
 - Advanced Chain Builder: "Auth secret" field (step 1) sets `WeaveChainSpec.authSecretRef` — names a Kubernetes Secret injected via `envFrom` into every step pod so runner-side helpers (e.g. the `fusion-runner` `KeycloakAuth` helper) can read credential keys as env vars; shown in the Review step and on the Chain detail page
 - Weave Trigger wizard: "Auth secret override" field (step 3, hidden for Kafka triggers) sets `WeaveTriggerSpec.authSecretRefOverride`, overriding the chain's `authSecretRef` for runs created by that trigger; hidden for Kafka because its dedicated `/kafkatriggers` endpoint doesn't accept the field yet
 - Weave Triggers list: key icon + tooltip on the trigger name when `authSecretRefOverride` is set

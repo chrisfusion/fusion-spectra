@@ -2,6 +2,9 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import CanvasPanel from '@/components/CanvasPanel.vue'
+import CodeSourceFields from '@/components/CodeSourceFields.vue'
+import SecretNamePicker from '@/components/SecretNamePicker.vue'
+import { defaultCodeSourceModel, validateCodeSource, buildCodeSourceSpec, type CodeSourceModel } from '@/utils/codeSource'
 import * as weaveApi from '@/api/weaveApi'
 
 const router = useRouter()
@@ -56,19 +59,26 @@ const backoffSeconds  = ref(10)
 // ─── Volumes ──────────────────────────────────────────────────────────────────
 
 interface VolumeRow {
+  uid:        number
   name:       string
   mountPath:  string
   type:       'secret' | 'configmap'
   sourceName: string
 }
+let _volUid = 0
 const volumes = ref<VolumeRow[]>([])
 
 function addVolume() {
-  volumes.value = [...volumes.value, { name: '', mountPath: '', type: 'secret', sourceName: '' }]
+  volumes.value = [...volumes.value, { uid: ++_volUid, name: '', mountPath: '', type: 'secret', sourceName: '' }]
 }
 function removeVolume(i: number) {
   volumes.value = volumes.value.filter((_, idx) => idx !== i)
 }
+
+// ─── Code source ──────────────────────────────────────────────────────────────
+
+const codeSource      = ref<CodeSourceModel>(defaultCodeSourceModel())
+const codeSourceError = ref<string | null>(null)
 
 // ─── Validation ───────────────────────────────────────────────────────────────
 
@@ -93,6 +103,8 @@ function validate(): boolean {
   } else {
     imageError.value = null
   }
+  codeSourceError.value = validateCodeSource(codeSource.value)
+  if (codeSourceError.value) ok = false
   return ok
 }
 
@@ -150,6 +162,9 @@ function buildSpec(): weaveApi.WeaveJobTemplateSpec {
     }))
   if (vols.length) spec.volumes = vols
 
+  const cs = buildCodeSourceSpec(codeSource.value)
+  if (cs) spec.codeSource = cs
+
   return spec
 }
 
@@ -195,6 +210,8 @@ function createAnother() {
   maxRetries.value     = 3
   backoffSeconds.value = 10
   volumes.value        = []
+  codeSource.value      = defaultCodeSourceModel()
+  codeSourceError.value = null
   submitError.value    = null
   createdTemplate.value = null
 }
@@ -441,14 +458,20 @@ function createAnother() {
                 <span>Source Name</span>
                 <span></span>
               </div>
-              <div v-for="(vol, i) in volumes" :key="i" class="vol-row">
+              <div v-for="(vol, i) in volumes" :key="vol.uid" class="vol-row">
                 <input v-model="vol.name"       class="fs-input fs-mono vol-input" placeholder="creds" />
                 <input v-model="vol.mountPath"  class="fs-input fs-mono vol-input" placeholder="/etc/creds" />
                 <select v-model="vol.type" class="fs-input vol-select">
                   <option value="secret">Secret</option>
                   <option value="configmap">ConfigMap</option>
                 </select>
-                <input v-model="vol.sourceName" class="fs-input fs-mono vol-input" placeholder="my-secret" />
+                <SecretNamePicker
+                  v-if="vol.type === 'secret'"
+                  v-model:secret-name="vol.sourceName"
+                  name-placeholder="my-secret"
+                  class="vol-input"
+                />
+                <input v-else v-model="vol.sourceName" class="fs-input fs-mono vol-input" placeholder="my-configmap" />
                 <button type="button" class="icon-btn icon-btn--danger" title="Remove" @click="removeVolume(i)">
                   <q-icon name="mdi-close" size="13px" />
                 </button>
@@ -458,6 +481,17 @@ function createAnother() {
               <q-icon name="mdi-plus" size="13px" /> Add volume
             </button>
           </div>
+        </div>
+
+        <!-- ── Code Source ── -->
+        <div class="section-header">
+          <q-icon name="mdi-package-variant-closed" size="15px" class="section-icon" />
+          Code Source
+        </div>
+
+        <div class="form-row form-row--top">
+          <label class="form-label">Enable code source</label>
+          <CodeSourceFields v-model="codeSource" show-advanced :error="codeSourceError" />
         </div>
 
         <!-- ── Submit ── -->

@@ -31,6 +31,15 @@ export interface WeaveRetryPolicy {
   backoffSeconds: number
 }
 
+export interface WeaveCodeSourceSpec {
+  artifactName:            string
+  tag:                     string
+  indexURL?:               string
+  mountPath?:              string
+  loaderImage?:            string
+  loaderImagePullPolicy?:  'Always' | 'Never' | 'IfNotPresent'
+}
+
 export interface PodSecurityContext {
   runAsUser?:  number
   runAsGroup?: number
@@ -56,6 +65,7 @@ export interface WeaveJobTemplateSpec {
   serviceAccountName?:      string
   podSecurityContext?:      PodSecurityContext
   containerSecurityContext?: ContainerSecurityContext
+  codeSource?:              WeaveCodeSourceSpec
 }
 
 // ─── Service Template types ───────────────────────────────────────────────────
@@ -124,6 +134,7 @@ export interface WeaveServiceTemplateSpec {
   revisionHistoryLimit?:    number
   podSecurityContext?:      PodSecurityContext
   containerSecurityContext?: ContainerSecurityContext
+  codeSource?:              WeaveCodeSourceSpec
 }
 
 export interface WeaveServiceTemplateStatus {

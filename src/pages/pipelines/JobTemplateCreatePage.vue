@@ -2,15 +2,17 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import CanvasPanel from '@/components/CanvasPanel.vue'
+import CodeSourceFields from '@/components/CodeSourceFields.vue'
+import { defaultCodeSourceModel, validateCodeSource, buildCodeSourceSpec, type CodeSourceModel } from '@/utils/codeSource'
 import * as weaveApi from '@/api/weaveApi'
 
 const router = useRouter()
 
 // ─── Wizard state ─────────────────────────────────────────────────────────────
 
-const step = ref<1 | 2 | 3>(1)
+const step = ref<1 | 2 | 3 | 4>(1)
 
-const stepLabels = ['Basic', 'Command & Env', 'Resources'] as const
+const stepLabels = ['Basic', 'Command & Env', 'Resources', 'Code Source'] as const
 
 // ─── Step 1: name + image ─────────────────────────────────────────────────────
 
@@ -73,6 +75,11 @@ const cpuLimit      = ref('')
 const memoryRequest = ref('')
 const memoryLimit   = ref('')
 
+// ─── Step 4: code source ──────────────────────────────────────────────────────
+
+const codeSource      = ref<CodeSourceModel>(defaultCodeSourceModel())
+const codeSourceError = ref<string | null>(null)
+
 // ─── Submit ───────────────────────────────────────────────────────────────────
 
 const submitting      = ref(false)
@@ -106,10 +113,15 @@ function buildSpec(): weaveApi.WeaveJobTemplateSpec {
   }
   if (resources.requests || resources.limits) spec.resources = resources
 
+  const cs = buildCodeSourceSpec(codeSource.value)
+  if (cs) spec.codeSource = cs
+
   return spec
 }
 
 async function submit() {
+  codeSourceError.value = validateCodeSource(codeSource.value)
+  if (codeSourceError.value) return
   submitting.value  = true
   submitError.value = null
   try {
@@ -134,6 +146,8 @@ function createAnother() {
   cpuLimit.value      = ''
   memoryRequest.value = ''
   memoryLimit.value   = ''
+  codeSource.value      = defaultCodeSourceModel()
+  codeSourceError.value = null
   submitError.value   = null
   createdTemplate.value = null
   step.value          = 1
@@ -315,7 +329,7 @@ function createAnother() {
         </div>
 
         <!-- ── Step 3: Resources ── -->
-        <div v-else class="form-body">
+        <div v-else-if="step === 3" class="form-body">
 
           <div class="section-title">Resource requests &amp; limits</div>
 
@@ -360,6 +374,24 @@ function createAnother() {
             </ul>
           </div>
 
+          <div class="form-actions">
+            <button class="fs-btn fs-btn--ghost" @click="step = 2">
+              <q-icon name="mdi-arrow-left" size="14px" /> Back
+            </button>
+            <button class="fs-btn fs-btn--primary" @click="step = 4">
+              Next <q-icon name="mdi-arrow-right" size="14px" />
+            </button>
+          </div>
+
+        </div>
+
+        <!-- ── Step 4: Code Source ── -->
+        <div v-else class="form-body">
+
+          <div class="section-title">Code source (optional)</div>
+
+          <CodeSourceFields v-model="codeSource" :error="codeSourceError" />
+
           <!-- Submit error -->
           <div v-if="submitError" class="inline-msg inline-msg--error">
             <q-icon name="mdi-alert-circle-outline" size="13px" />
@@ -367,7 +399,7 @@ function createAnother() {
           </div>
 
           <div class="form-actions">
-            <button class="fs-btn fs-btn--ghost" :disabled="submitting" @click="step = 2">
+            <button class="fs-btn fs-btn--ghost" :disabled="submitting" @click="step = 3">
               <q-icon name="mdi-arrow-left" size="14px" /> Back
             </button>
             <button class="fs-btn fs-btn--primary" :disabled="submitting" @click="submit">

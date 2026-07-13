@@ -2,14 +2,16 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import CanvasPanel from '@/components/CanvasPanel.vue'
+import CodeSourceFields from '@/components/CodeSourceFields.vue'
+import { defaultCodeSourceModel, validateCodeSource, buildCodeSourceSpec, type CodeSourceModel } from '@/utils/codeSource'
 import * as weaveApi from '@/api/weaveApi'
 
 const router = useRouter()
 
 // ─── Wizard state ─────────────────────────────────────────────────────────────
 
-const step = ref<1 | 2 | 3>(1)
-const stepLabels = ['Identity & Ports', 'Command & Env', 'Service Config'] as const
+const step = ref<1 | 2 | 3 | 4>(1)
+const stepLabels = ['Identity & Ports', 'Command & Env', 'Service Config', 'Code Source'] as const
 
 // ─── Step 1: name + image + ports ─────────────────────────────────────────────
 
@@ -94,6 +96,11 @@ const cpuLimit      = ref('')
 const memoryRequest = ref('')
 const memoryLimit   = ref('')
 
+// ─── Step 4: code source ──────────────────────────────────────────────────────
+
+const codeSource      = ref<CodeSourceModel>(defaultCodeSourceModel())
+const codeSourceError = ref<string | null>(null)
+
 // ─── Submit ───────────────────────────────────────────────────────────────────
 
 const submitting      = ref(false)
@@ -146,10 +153,15 @@ function buildSpec(): weaveApi.WeaveServiceTemplateSpec {
   }
   if (resources.requests || resources.limits) spec.resources = resources
 
+  const cs = buildCodeSourceSpec(codeSource.value)
+  if (cs) spec.codeSource = cs
+
   return spec
 }
 
 async function submit() {
+  codeSourceError.value = validateCodeSource(codeSource.value)
+  if (codeSourceError.value) return
   submitting.value  = true
   submitError.value = null
   try {
@@ -174,6 +186,8 @@ function createAnother() {
   replicas.value    = ''
   serviceType.value = 'ClusterIP'
   cpuRequest.value = cpuLimit.value = memoryRequest.value = memoryLimit.value = ''
+  codeSource.value      = defaultCodeSourceModel()
+  codeSourceError.value = null
   submitError.value    = null
   createdTemplate.value = null
   step.value           = 1
@@ -352,7 +366,7 @@ function createAnother() {
         </div>
 
         <!-- ── Step 3: Service Config ── -->
-        <div v-else class="form-body">
+        <div v-else-if="step === 3" class="form-body">
 
           <div class="form-row">
             <label class="form-label">Replicas</label>
@@ -414,6 +428,23 @@ function createAnother() {
             </ul>
           </div>
 
+          <div class="form-actions">
+            <button class="fs-btn fs-btn--ghost" @click="step = 2">
+              <q-icon name="mdi-arrow-left" size="14px" /> Back
+            </button>
+            <button class="fs-btn fs-btn--primary" @click="step = 4">
+              Next <q-icon name="mdi-arrow-right" size="14px" />
+            </button>
+          </div>
+        </div>
+
+        <!-- ── Step 4: Code Source ── -->
+        <div v-else class="form-body">
+
+          <div class="section-title">Code source (optional)</div>
+
+          <CodeSourceFields v-model="codeSource" :error="codeSourceError" />
+
           <!-- Submit error -->
           <div v-if="submitError" class="inline-msg inline-msg--error">
             <q-icon name="mdi-alert-circle-outline" size="13px" />
@@ -421,7 +452,7 @@ function createAnother() {
           </div>
 
           <div class="form-actions">
-            <button class="fs-btn fs-btn--ghost" :disabled="submitting" @click="step = 2">
+            <button class="fs-btn fs-btn--ghost" :disabled="submitting" @click="step = 3">
               <q-icon name="mdi-arrow-left" size="14px" /> Back
             </button>
             <button class="fs-btn fs-btn--primary" :disabled="submitting" @click="submit">
@@ -430,6 +461,7 @@ function createAnother() {
               {{ submitting ? 'Creating…' : 'Create Template' }}
             </button>
           </div>
+
         </div>
 
       </template>
@@ -490,6 +522,7 @@ function createAnother() {
 .icon-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 .icon-btn--danger:hover:not(:disabled) { color: var(--fs-neg, #e57373); background: color-mix(in srgb, var(--fs-neg, #e57373) 10%, transparent); }
 
+.section-title { font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fs-text-muted); padding: 0 2px 4px; border-bottom: 1px solid var(--fs-border); }
 .resources-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .res-group { display: flex; flex-direction: column; gap: 8px; }
 .res-group__label { font-size: 11px; font-weight: 600; color: var(--fs-text-primary); text-transform: uppercase; letter-spacing: 0.05em; }

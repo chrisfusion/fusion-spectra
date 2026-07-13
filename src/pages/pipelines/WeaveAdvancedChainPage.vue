@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import ChainDagView from '@/components/ChainDagView.vue'
+import SecretNamePicker from '@/components/SecretNamePicker.vue'
 import * as weaveApi from '@/api/weaveApi'
 
 const router = useRouter()
@@ -481,7 +482,7 @@ function createAnother() {
           <div class="form-row">
             <label class="form-label">Auth secret</label>
             <div class="field-wrap">
-              <input v-model="authSecretRef" class="fs-input fs-mono field-narrow" placeholder="(none)" />
+              <SecretNamePicker v-model:secret-name="authSecretRef" name-placeholder="(none)" class="field-narrow" />
               <span class="field-hint">
                 Name of a Kubernetes Secret injected via envFrom into every step pod (Job and Deploy alike) —
                 lets runner-side helpers (e.g. the KeycloakAuth helper) read credential keys as env vars.

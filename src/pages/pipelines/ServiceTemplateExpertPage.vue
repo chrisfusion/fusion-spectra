@@ -2,6 +2,9 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import CanvasPanel from '@/components/CanvasPanel.vue'
+import CodeSourceFields from '@/components/CodeSourceFields.vue'
+import SecretNamePicker from '@/components/SecretNamePicker.vue'
+import { defaultCodeSourceModel, validateCodeSource, buildCodeSourceSpec, type CodeSourceModel } from '@/utils/codeSource'
 import * as weaveApi from '@/api/weaveApi'
 
 const router = useRouter()
@@ -54,9 +57,10 @@ const revisionHistoryLimit = ref('')
 
 // ─── Volumes ──────────────────────────────────────────────────────────────────
 
-interface VolumeRow { name: string; mountPath: string; type: 'secret' | 'configmap'; sourceName: string }
+interface VolumeRow { uid: number; name: string; mountPath: string; type: 'secret' | 'configmap'; sourceName: string }
+let _volUid = 0
 const volumes = ref<VolumeRow[]>([])
-function addVolume() { volumes.value = [...volumes.value, { name: '', mountPath: '', type: 'secret', sourceName: '' }] }
+function addVolume() { volumes.value = [...volumes.value, { uid: ++_volUid, name: '', mountPath: '', type: 'secret', sourceName: '' }] }
 function removeVolume(i: number) { volumes.value = volumes.value.filter((_, idx) => idx !== i) }
 
 // ─── Probes ───────────────────────────────────────────────────────────────────
@@ -112,6 +116,11 @@ const ingressRules = ref<IngressRuleRow[]>([{ host: '', path: '/', pathType: 'Pr
 function addIngressRule() { ingressRules.value = [...ingressRules.value, { host: '', path: '/', pathType: 'Prefix', servicePort: '' }] }
 function removeIngressRule(i: number) { if (ingressRules.value.length > 1) ingressRules.value = ingressRules.value.filter((_, idx) => idx !== i) }
 
+// ─── Code source ──────────────────────────────────────────────────────────────
+
+const codeSource      = ref<CodeSourceModel>(defaultCodeSourceModel())
+const codeSourceError = ref<string | null>(null)
+
 // ─── Validation ───────────────────────────────────────────────────────────────
 
 function validate(): boolean {
@@ -128,6 +137,9 @@ function validate(): boolean {
   const validPorts = ports.value.filter(p => p.name.trim() && String(p.port ?? '').trim() !== '')
   if (validPorts.length === 0) { portsError.value = 'At least one port with name and port number is required'; ok = false }
   else portsError.value = null
+
+  codeSourceError.value = validateCodeSource(codeSource.value)
+  if (codeSourceError.value) ok = false
 
   return ok
 }
@@ -199,6 +211,9 @@ function buildSpec(): weaveApi.WeaveServiceTemplateSpec {
     }
   }
 
+  const cs = buildCodeSourceSpec(codeSource.value)
+  if (cs) spec.codeSource = cs
+
   return spec
 }
 
@@ -238,6 +253,8 @@ function createAnother() {
   startupProbe.value   = defaultProbe()
   ingressEnabled.value = false; ingressClassName.value = ''; ingressTLSSecret.value = ''
   ingressRules.value   = [{ host: '', path: '/', pathType: 'Prefix', servicePort: '' }]
+  codeSource.value      = defaultCodeSourceModel()
+  codeSourceError.value = null
   submitError.value    = null; createdTemplate.value = null
 }
 </script>
@@ -414,11 +431,17 @@ function createAnother() {
               <div class="vol-header">
                 <span>Name</span><span>Mount Path</span><span>Type</span><span>Source Name</span><span></span>
               </div>
-              <div v-for="(vol, i) in volumes" :key="i" class="vol-row">
+              <div v-for="(vol, i) in volumes" :key="vol.uid" class="vol-row">
                 <input v-model="vol.name"       class="fs-input fs-mono vol-input" placeholder="creds" />
                 <input v-model="vol.mountPath"  class="fs-input fs-mono vol-input" placeholder="/etc/creds" />
                 <select v-model="vol.type" class="fs-input vol-select"><option value="secret">Secret</option><option value="configmap">ConfigMap</option></select>
-                <input v-model="vol.sourceName" class="fs-input fs-mono vol-input" placeholder="my-secret" />
+                <SecretNamePicker
+                  v-if="vol.type === 'secret'"
+                  v-model:secret-name="vol.sourceName"
+                  name-placeholder="my-secret"
+                  class="vol-input"
+                />
+                <input v-else v-model="vol.sourceName" class="fs-input fs-mono vol-input" placeholder="my-configmap" />
                 <button type="button" class="icon-btn icon-btn--danger" title="Remove" @click="removeVolume(i)">
                   <q-icon name="mdi-close" size="13px" />
                 </button>
@@ -553,6 +576,13 @@ function createAnother() {
             </div>
           </div>
         </template>
+
+        <!-- ── Code Source ── -->
+        <div class="section-header"><q-icon name="mdi-package-variant-closed" size="15px" class="section-icon" /> Code Source</div>
+        <div class="form-row form-row--top">
+          <label class="form-label">Enable code source</label>
+          <CodeSourceFields v-model="codeSource" show-advanced :error="codeSourceError" />
+        </div>
 
         <!-- ── Submit ── -->
         <div v-if="submitError" class="inline-msg inline-msg--error">
