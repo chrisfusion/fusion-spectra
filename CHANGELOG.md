@@ -7,6 +7,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+<!-- 2026-07-21 -->
+### Changed
+- **Breaking:** Service Template / Service Instance ingress fields now collect a DNS label (`name`) instead of a free-text hostname, matching fusion-flux's ingress hostname rework (`WeaveIngressRule.host`→`.name`, `StepOverride.ingressHost`→`.ingressName`) — the operator appends its cluster-wide ingress suffix to build the real host, so the UI can no longer be used to point an Ingress at an arbitrary external domain. Client-side validation (lowercase letters/digits/hyphens, max 63 chars) added on `ServiceTemplateExpertPage`'s ingress rules and `ServiceInstanceCreatePage`'s optional ingress field; `ServiceInstanceDetailPage` display relabeled to match.
+
 ## [0.10.30] — 2026-07-13
 ### Added
 - Infrastructure presets: `src/components/SecretNamePicker.vue` and `src/components/KafkaClusterFields.vue` add a Manual/Preset toggle to every raw Kubernetes-Secret-name (and Kafka broker) field in the app — Weave Kafka trigger brokers+secretRef, webhook secret, chain/trigger `authSecretRef`(Override), Job/Service Template expert-page volume `sourceName` (secret type), and the 3 forge git-token-secret fields (GitOps Builder, GitOpsPoller create/edit) — filling the field from a per-unit preset dropdown instead of requiring the exact resource name to be typed. Presets are fetched once per session via the new `src/stores/presets.ts` Pinia store from `GET /bff/presets` (`src/api/presetsApi.ts`); the toggle only appears when the unit has presets configured, so units without any behave exactly as before. Also pays down the 3x-copy-pasted secret-name+key toggle block across the forge pages by extracting it into `SecretNamePicker`.

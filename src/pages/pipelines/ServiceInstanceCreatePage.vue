@@ -10,6 +10,8 @@ import type { WeaveChain } from '@/api/weaveApi'
 const router = useRouter()
 const $q     = useQuasar()
 
+const DNS_LABEL_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/
+
 // ─── State ─────────────────────────────────────────────────────────────────────
 
 const step         = ref(1)
@@ -23,11 +25,12 @@ const selectedChain  = ref<WeaveChain | null>(null)
 const selectedStep   = ref('')
 const artifactName   = ref('')
 const tag            = ref('stable')
-const ingressHost    = ref('')
+const ingressName    = ref('')
 
 // validation
 const artifactError = ref<string | null>(null)
 const stepError     = ref<string | null>(null)
+const ingressNameError = ref<string | null>(null)
 
 // ─── Derived ───────────────────────────────────────────────────────────────────
 
@@ -79,6 +82,7 @@ function validateStep1(): boolean {
   let ok = true
   stepError.value    = null
   artifactError.value = null
+  ingressNameError.value = null
 
   if (!selectedChain.value) { ok = false }
   if (!selectedStep.value) { stepError.value = 'Select a deploy step'; ok = false }
@@ -88,6 +92,11 @@ function validateStep1(): boolean {
     ok = false
   }
   if (!tag.value.trim()) { ok = false }
+  const trimmedIngressName = ingressName.value.trim()
+  if (trimmedIngressName && (!DNS_LABEL_RE.test(trimmedIngressName) || trimmedIngressName.length > 63)) {
+    ingressNameError.value = 'Lowercase letters, digits and hyphens only, max 63 chars'
+    ok = false
+  }
   return ok
 }
 
@@ -118,7 +127,7 @@ async function submit() {
           stepName:     selectedStep.value,
           artifactName: artifactName.value.trim(),
           tag:          tag.value.trim(),
-          ...(ingressHost.value.trim() ? { ingressHost: ingressHost.value.trim() } : {}),
+          ...(ingressName.value.trim() ? { ingressName: ingressName.value.trim() } : {}),
         }],
       },
     })
@@ -211,13 +220,15 @@ async function submit() {
         </div>
 
         <div class="form-section">
-          <label class="form-label">Ingress Host <span class="opt">(optional)</span></label>
+          <label class="form-label">Ingress Name <span class="opt">(optional)</span></label>
           <input
-            v-model="ingressHost"
+            v-model="ingressName"
             class="fs-input"
-            placeholder="e.g. my-service.example.com"
+            placeholder="e.g. my-service"
+            @input="ingressNameError = null"
           />
-          <p class="form-hint">FQDN for the Ingress rule. Leave blank to skip Ingress creation.</p>
+          <p v-if="ingressNameError" class="form-error">{{ ingressNameError }}</p>
+          <p v-else class="form-hint">DNS label for the Ingress rule — the cluster appends its ingress suffix automatically. Leave blank to skip Ingress creation.</p>
         </div>
 
         <div class="form-actions">
@@ -248,9 +259,9 @@ async function submit() {
               <td class="review-label">Tag</td>
               <td class="review-value fs-mono">{{ tag }}</td>
             </tr>
-            <tr v-if="ingressHost">
-              <td class="review-label">Ingress Host</td>
-              <td class="review-value fs-mono">{{ ingressHost }}</td>
+            <tr v-if="ingressName">
+              <td class="review-label">Ingress Name</td>
+              <td class="review-value fs-mono">{{ ingressName }}</td>
             </tr>
             <tr>
               <td class="review-label">Run Name</td>

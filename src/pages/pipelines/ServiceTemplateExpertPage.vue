@@ -111,9 +111,10 @@ const ingressEnabled   = ref(false)
 const ingressClassName = ref('')
 const ingressTLSSecret = ref('')
 
-interface IngressRuleRow { host: string; path: string; pathType: 'Exact' | 'Prefix' | 'ImplementationSpecific'; servicePort: string }
-const ingressRules = ref<IngressRuleRow[]>([{ host: '', path: '/', pathType: 'Prefix', servicePort: '' }])
-function addIngressRule() { ingressRules.value = [...ingressRules.value, { host: '', path: '/', pathType: 'Prefix', servicePort: '' }] }
+interface IngressRuleRow { name: string; path: string; pathType: 'Exact' | 'Prefix' | 'ImplementationSpecific'; servicePort: string }
+const ingressRules = ref<IngressRuleRow[]>([{ name: '', path: '/', pathType: 'Prefix', servicePort: '' }])
+const ingressRulesError = ref<string | null>(null)
+function addIngressRule() { ingressRules.value = [...ingressRules.value, { name: '', path: '/', pathType: 'Prefix', servicePort: '' }] }
 function removeIngressRule(i: number) { if (ingressRules.value.length > 1) ingressRules.value = ingressRules.value.filter((_, idx) => idx !== i) }
 
 // ─── Code source ──────────────────────────────────────────────────────────────
@@ -140,6 +141,16 @@ function validate(): boolean {
 
   codeSourceError.value = validateCodeSource(codeSource.value)
   if (codeSourceError.value) ok = false
+
+  if (ingressEnabled.value) {
+    const activeRules = ingressRules.value.filter(r => r.name.trim() && r.servicePort.trim())
+    const badRule = activeRules.find(r => !K8S_NAME_RE.test(r.name.trim()) || r.name.trim().length > 63)
+    if (activeRules.length === 0) { ingressRulesError.value = 'At least one rule with name and service port is required'; ok = false }
+    else if (badRule) { ingressRulesError.value = `Invalid rule name "${badRule.name}" — lowercase letters, digits and hyphens only, max 63 chars`; ok = false }
+    else ingressRulesError.value = null
+  } else {
+    ingressRulesError.value = null
+  }
 
   return ok
 }
@@ -202,8 +213,8 @@ function buildSpec(): weaveApi.WeaveServiceTemplateSpec {
 
   if (ingressEnabled.value) {
     const rules: weaveApi.WeaveIngressRule[] = ingressRules.value
-      .filter(r => r.host.trim() && r.servicePort.trim())
-      .map(r => ({ host: r.host.trim(), path: r.path || '/', pathType: r.pathType, servicePort: r.servicePort.trim() }))
+      .filter(r => r.name.trim() && r.servicePort.trim())
+      .map(r => ({ name: r.name.trim(), path: r.path || '/', pathType: r.pathType, servicePort: r.servicePort.trim() }))
     if (rules.length) {
       spec.ingress = { rules }
       if (ingressClassName.value.trim()) spec.ingress.ingressClassName = ingressClassName.value.trim()
@@ -252,7 +263,8 @@ function createAnother() {
   readinessProbe.value = defaultProbe()
   startupProbe.value   = defaultProbe()
   ingressEnabled.value = false; ingressClassName.value = ''; ingressTLSSecret.value = ''
-  ingressRules.value   = [{ host: '', path: '/', pathType: 'Prefix', servicePort: '' }]
+  ingressRules.value      = [{ name: '', path: '/', pathType: 'Prefix', servicePort: '' }]
+  ingressRulesError.value = null
   codeSource.value      = defaultCodeSourceModel()
   codeSourceError.value = null
   submitError.value    = null; createdTemplate.value = null
@@ -555,10 +567,10 @@ function createAnother() {
             <div class="field-wrap">
               <div class="ingress-table">
                 <div class="ingress-header">
-                  <span>Host</span><span>Path</span><span>Path Type</span><span>Service Port</span><span></span>
+                  <span>Name</span><span>Path</span><span>Path Type</span><span>Service Port</span><span></span>
                 </div>
                 <div v-for="(rule, i) in ingressRules" :key="i" class="ingress-row">
-                  <input v-model="rule.host"        class="fs-input fs-mono ingress-input" placeholder="app.example.com" />
+                  <input v-model="rule.name"        class="fs-input fs-mono ingress-input" placeholder="my-api" />
                   <input v-model="rule.path"        class="fs-input fs-mono ingress-input" placeholder="/" />
                   <select v-model="rule.pathType" class="fs-input ingress-select">
                     <option>Prefix</option><option>Exact</option><option>ImplementationSpecific</option>
@@ -570,6 +582,10 @@ function createAnother() {
                   </button>
                 </div>
               </div>
+              <span v-if="ingressRulesError" class="field-error">{{ ingressRulesError }}</span>
+              <span v-else class="field-hint">
+                Name is a DNS label only, not a full hostname — the cluster appends its ingress suffix automatically (e.g. <span class="fs-mono">my-api.svc.instance-a.fusion.company.com</span>)
+              </span>
               <button type="button" class="fs-btn fs-btn--ghost add-btn" @click="addIngressRule">
                 <q-icon name="mdi-plus" size="13px" /> Add rule
               </button>

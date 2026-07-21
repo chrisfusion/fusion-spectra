@@ -53,7 +53,7 @@ export interface StepOverride {
   stepName:     string
   artifactName: string
   tag:          string
-  ingressHost?: string
+  ingressName?: string
   indexURL?:    string
 }
 

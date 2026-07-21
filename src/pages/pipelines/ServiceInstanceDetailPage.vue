@@ -204,9 +204,9 @@ function restartStep(d: monitorApi.ActiveDeploymentStatus) {
           <dt>Tag</dt>
           <dd class="fs-mono">{{ stepOverride()?.tag ?? '—' }}</dd>
 
-          <template v-if="stepOverride()?.ingressHost">
-            <dt>Ingress Host</dt>
-            <dd class="fs-mono">{{ stepOverride()?.ingressHost }}</dd>
+          <template v-if="stepOverride()?.ingressName">
+            <dt>Ingress Name</dt>
+            <dd class="fs-mono">{{ stepOverride()?.ingressName }}</dd>
           </template>
 
           <dt>Deploy Step</dt>

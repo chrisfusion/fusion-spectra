@@ -20,7 +20,8 @@
 
 ## Service Instances (WeaveRun with stepOverrides)
 - Pages: `ServiceInstanceListPage` (`/pipelines/services`), `ServiceInstanceCreatePage` (`/pipelines/services/create`), `ServiceInstanceDetailPage` (`/pipelines/services/:name`)
-- `spec.stepOverrides[]` fields: `stepName`, `artifactName`, `tag`, `ingressHost?` — operator creates run-owned Deployment `<runName>-<stepName>`; always create with `POST` (not PATCH/PUT — server-side apply silently drops stepOverrides on first reconcile)
+- `spec.stepOverrides[]` fields: `stepName`, `artifactName`, `tag`, `ingressName?` — operator creates run-owned Deployment `<runName>-<stepName>`; always create with `POST` (not PATCH/PUT — server-side apply silently drops stepOverrides on first reconcile)
+- `ingressName` (and `WeaveIngressRule.name` on service templates) is a DNS label only, never a full hostname — the operator appends its cluster-wide `ingress.hostSuffix` to build the real Ingress host, so the UI can't be used to point at an arbitrary external domain (breaking change from fusion-flux; `ingressHost`/`WeaveIngressRule.host` no longer exist). A template/run with an ingress set is rejected (`status.valid=false` / step failure) until the operator has `ingress.hostSuffix` configured.
 - `status.activeDeployments` — map keyed by `<runName>-<stepName>`; fields: `health`, `codeSourceDeployedVersion`, `codeSourceTag`, `codeSourceArtifact`, `unhealthyDurationSeconds?`; `health` values: `Healthy | Unhealthy | RollingBack | RolledBack | Unknown`
 - Run with active deploy step stays `Running` forever until stopped — `isTerminal` must exclude `Deployed`; poll until `status.steps[serve].phase === 'Deployed'` to confirm service is live
 - Run name for service instances: derive from artifact name (lowercase, replace non-DNS chars with `-`, strip leading/trailing `-`) + 4-char random suffix

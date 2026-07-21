@@ -78,7 +78,7 @@ export interface WeaveServicePort {
 }
 
 export interface WeaveIngressRule {
-  host:        string
+  name:        string
   path?:       string
   pathType?:   'Exact' | 'Prefix' | 'ImplementationSpecific'
   servicePort: string
