@@ -5,9 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [Unreleased]
+## [0.10.31] — 2026-07-21
 
-<!-- 2026-07-21 -->
 ### Changed
 - **Breaking:** Service Template / Service Instance ingress fields now collect a DNS label (`name`) instead of a free-text hostname, matching fusion-flux's ingress hostname rework (`WeaveIngressRule.host`→`.name`, `StepOverride.ingressHost`→`.ingressName`) — the operator appends its cluster-wide ingress suffix to build the real host, so the UI can no longer be used to point an Ingress at an arbitrary external domain. Client-side validation (lowercase letters/digits/hyphens, max 63 chars) added on `ServiceTemplateExpertPage`'s ingress rules and `ServiceInstanceCreatePage`'s optional ingress field; `ServiceInstanceDetailPage` display relabeled to match.
 
