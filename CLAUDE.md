@@ -12,6 +12,10 @@ Type check: `npm run typecheck`
 - When a deployment bumps the image tag (values-dev.yaml), also promote `[Unreleased]` to a versioned section (e.g. `## [0.9.1] — YYYY-MM-DD`) matching the new tag
 - Use `date +%Y-%m-%d` in Bash to get today's date when writing changelog entries
 
+## README maintenance
+- `README.md` feature-status claims (Live/Placeholder) drift from reality easily — verify against `src/pages/<context>/` file listing and `src/data/navigation.ts` before trusting or updating them
+- `INSTALL.md` does not exist (never committed, despite historical references) — don't link to it; point setup/deployment docs at `CLAUDE.md` and `ARCHITECTURE.md` instead
+
 ## Stack
 - Vue 3, Quasar 2, Pinia, Vue Router 4, Vite 5
 - Icons: `@quasar/extras` mdi-v7 (use `mdi-*` names)
