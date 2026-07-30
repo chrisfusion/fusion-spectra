@@ -7,7 +7,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-<!-- 2026-07-31 -->
+## [0.10.32] — 2026-07-31
+
 ### Added
 - App build detail page (`AppBuildDetailPage.vue`) surfaces `fileUploadMode` (`auto`/`list`, hidden for the default `legacy` mode) and the resolved `files` list, mirroring fusion-forge's new multi-entrypoint `metadata.yaml` `files` key. `AppBuild` interface (`forgeApi.ts`) gained the two fields. Create-form notes (`AppBuildCreatePage.vue`, `GitOpsBuilderPage.vue`) updated to mention `files` alongside the other metadata.yaml-resolved fields — no new input needed, since `files` is repo-controlled, not caller-supplied.
 
