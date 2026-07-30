@@ -195,6 +195,8 @@ export interface AppBuild extends VenvBuild {
   projectDir:          string | null
   runner:              string | null
   baseDependenciesUrl: string | null
+  fileUploadMode:      'legacy' | 'auto' | 'list' | null
+  files:               string[] | null
 }
 
 export interface AppBuildPage {

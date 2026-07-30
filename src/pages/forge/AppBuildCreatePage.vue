@@ -209,7 +209,7 @@ function createAnother() {
 
           <div class="form-note">
             <q-icon name="mdi-information-outline" size="13px" />
-            Name, version, runner, and builder image are resolved from <span class="fs-mono">metadata.yaml</span> in the repository.
+            Name, version, runner, builder image, and which loose Python files get uploaded (via <span class="fs-mono">files</span>) are all resolved from <span class="fs-mono">metadata.yaml</span> in the repository.
           </div>
 
           <div class="form-actions">

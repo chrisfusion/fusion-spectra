@@ -188,6 +188,16 @@ const STATUS_ICON: Record<forgeApi.VenvBuild['status'], string> = {
           <span class="meta-value fs-mono meta-value--wrap">{{ build.baseDependenciesUrl }}</span>
         </div>
 
+        <div v-if="build.fileUploadMode && build.fileUploadMode !== 'legacy'" class="meta-row">
+          <span class="meta-label">File Mode</span>
+          <span class="meta-value">{{ build.fileUploadMode }}</span>
+        </div>
+
+        <div v-if="build.files && build.files.length" class="meta-row meta-row--top">
+          <span class="meta-label">Files</span>
+          <span class="meta-value meta-value--wrap fs-mono">{{ build.files.join(', ') }}</span>
+        </div>
+
         <div class="meta-row">
           <span class="meta-label">Creator</span>
           <span class="meta-value">{{ build.creatorEmail ?? '—' }}</span>
