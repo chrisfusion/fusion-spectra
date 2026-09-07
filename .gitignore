@@ -75,3 +75,7 @@ screenshots/test_*
 # Logs
 *.log
 logs/
+
+# Claude Code (local)
+.claude/
+.claude.local.md
