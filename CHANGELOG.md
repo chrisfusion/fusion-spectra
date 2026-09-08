@@ -7,6 +7,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.33] — 2026-09-09
+
+<!-- 2026-09-09 -->
+### Added
+- **Wizards**: new activity-rail context (`src/data/navigation.ts`, `/wizards`) as the home for shortcut wizards that compose several Forge/Weave primitives into a ready-to-use setup. First wizard: **Git → Python Job** (`GitPythonJobWizardPage.vue`, `/wizards/git-python-job/create`) — point at a public git repo/subfolder with a `metadata.yaml` (no `ENTRYPOINT` key) and a list of Python entrypoint files; the wizard creates (or reuses, keyed by job name) a Forge App-Build `GitWatcher`, waits for the first build, assigns it the `"stable"` fusion-index tag, and provisions a shared `WeaveJobTemplate`/`WeaveChain` plus one `WeaveTrigger` per entrypoint (Cron or Manual), each carrying its own `ENTRYPOINT` env override via `parameterOverrides` — no backend/CRD changes required.
+
 ## [0.10.32] — 2026-07-31
 
 ### Added

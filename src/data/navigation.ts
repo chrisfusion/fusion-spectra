@@ -1,4 +1,4 @@
-export type ContextId = 'home' | 'data' | 'pipelines' | 'monitoring' | 'forge' | 'fusion-index' | 'changelog' | 'help' | 'admin'
+export type ContextId = 'home' | 'wizards' | 'data' | 'pipelines' | 'monitoring' | 'forge' | 'fusion-index' | 'changelog' | 'help' | 'admin'
 
 export interface NavLeaf {
   id: string
@@ -35,6 +35,23 @@ export const contexts: Context[] = [
     icon: 'mdi-home-outline',
     rootPath: '/dashboard',
     groups: []
+  },
+
+  {
+    id: 'wizards',
+    label: 'Wizards',
+    icon: 'mdi-creation',
+    rootPath: '/wizards',
+    groups: [
+      {
+        id: 'wizards-available',
+        label: 'Available',
+        icon: 'mdi-view-grid-outline',
+        children: [
+          { id: 'wizard-git-python-job', label: 'Git → Python Job', icon: 'mdi-language-python', route: '/wizards/git-python-job/create', tooltip: 'Build a job from a git repo with multiple entrypoint scripts' },
+        ]
+      }
+    ]
   },
 
   {
