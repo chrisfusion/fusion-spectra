@@ -54,4 +54,5 @@ Route: `/pipelines/weave/chains/advanced`. 3-step wizard: step 1 Identity (chain
 - Both `fusion-weave-operator` (container: `manager`) and `fusion-weave-api` (container: `api-server`) share one image — build once, update both
 - Build: `eval $(minikube docker-env) && docker build -t fusion-weave-operator:X.Y.Z /path/to/fusion-flux/`
 - Deploy: `kubectl set image deployment/fusion-weave-operator manager=fusion-weave-operator:X.Y.Z -n fusion && kubectl set image deployment/fusion-weave-api api-server=fusion-weave-operator:X.Y.Z -n fusion`
-- Current semver: `0.2.0` (was `latest` — do not revert to `latest`)
+- Current semver: `0.4.1` (was `latest` — do not revert to `latest`)
+- **Symptom of a stale/`:latest` binary**: a spec field a Go type clearly declares (e.g. `WeaveJobTemplateSpec.CodeSource`) silently vanishes after POST/PUT — no error anywhere, the object just gets created without it (the old binary's compiled struct predates the field, so `encoding/json` drops the unknown key on decode). Before suspecting CRD-schema pruning or handler logic, check `kubectl get deployment fusion-weave-operator -n fusion -o jsonpath='{.spec.template.spec.containers[0].image}'` against current source.

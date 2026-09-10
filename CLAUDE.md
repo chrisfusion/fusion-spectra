@@ -68,12 +68,14 @@ No footer slot — add pagination below the table inside the default slot.
   - FormData detection: skips `Content-Type: application/json` when `body instanceof FormData` (multipart uploads)
   - `bffDelete` returns `Promise<void>` and discards the response body — for DELETE endpoints that return JSON (e.g. bulk-delete result), use `bffFetch(path, { method: 'DELETE' })` then `.json()` directly
   - Non-2xx handling only reads a flat `body.error` string — a structured error body (e.g. `{valid, errors: [{line, message}]}`) collapses to `res.statusText`, losing detail. Endpoints needing field-level errors should return 200 with a `valid`-style flag to check directly (e.g. `/batchtriggers/validate`), not rely on catching a 4xx.
+  - `forgeApi.AppBuild`/`VenvBuild.name` is fusion-forge's own build name, NOT the fusion-index artifact name — fusion-index stores app-builds as `app.<name>` and venv-builds as `venv.<name>` (see `fusion-forge/CLAUDE.md`). Anywhere you build a `codeSource.artifactName` from a build object, apply that prefix.
 
 ## Shared utilities & components
 - `src/utils/format.ts` — `formatSize(bytes)`: human-readable file size (B / KB / MB / GB)
 - `src/components/TagChipInput.vue` — v-model `string[]` chip input; Enter/comma adds, Backspace removes last, × removes specific; validation `/^[a-zA-Z0-9-]+$/` max 64 chars; trailing commas stripped
 - `src/components/JsonEditor.vue` — CodeMirror 6 JSON editor; emits `valid` (false on non-empty invalid JSON); `{ } Format` button pretty-prints; `defineExpose({ format })` for programmatic use; theme via `--fs-*` CSS vars
 - `src/components/CronPicker.vue` — v-model on a cron-expression string; presets dropdown (every 5/15/30 min, hourly, daily, weekly, monthly) + "Custom (advanced)" raw-expression fallback + live human-readable summary; defaults to daily 09:00 rather than a blank field
+- `src/composables/useGitAppProvisioning.ts` — shared by every "Git → X" shortcut wizard: `ensureGitWatcher`/`waitForBuild`/`ensureJobTemplate`/`ensureChain`/`toK8sName` + progress state. Reuse this for any new wizard rather than re-implementing provisioning.
 
 ## Themes
 - `src/stores/theme.ts` — 5 themes: lumen (default), azure, carbon, matrix, synthwave; persisted to localStorage; `midnight`/`light` are gone — a `Set` guard coerces stale localStorage values to `lumen`
