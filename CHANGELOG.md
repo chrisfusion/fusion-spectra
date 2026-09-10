@@ -7,6 +7,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.35] — 2026-09-10
+
+<!-- 2026-09-10 -->
+### Added
+- **Wizards**: second shortcut wizard, **Git → Batch Job** (`GitBatchJobWizardPage.vue`, `/wizards/git-batch-job/create`) — point at a git repo, branch/tag, and optional subfolder containing a single fixed-entrypoint batch job (`ENTRYPOINT` set in the target's own `metadata.yaml`, no per-file picker); the wizard provisions the same `GitWatcher`/build/`"stable"` tag/`WeaveJobTemplate`/`WeaveChain` as the Python wizard, plus one `WeaveTrigger` (Manual or also-on-a-schedule), and fires it immediately to start the first batch run.
+### Changed
+- Extracted the watcher/build/tag/job-template/chain provisioning logic shared by both Git wizards into `src/composables/useGitAppProvisioning.ts`; `GitPythonJobWizardPage.vue` refactored to use it (behavior unchanged).
+### Fixed
+- **Wizards** (`useGitAppProvisioning.ts`, affects both Git wizards): `ensureJobTemplate` was setting `codeSource.artifactName` to the raw forge build name instead of fusion-index's actual `app.`-prefixed artifact name, so provisioned job templates never had a working code source. First caught end-to-end testing the new Batch wizard against a live build.
+- **Wizards**: `waitForBuild` polled the GitWatcher CR's transient `status.lastBuildName` field, which can already be cleared (replaced by `status.lastBuiltVersion`) before the wizard's first poll lands on a fast build — an intermittent false-timeout. Now queries `listAppBuilds({name})` directly instead.
+
 ## [0.10.34] — 2026-09-10
 
 <!-- 2026-09-10 -->

@@ -26,6 +26,14 @@ export interface ProgressItem {
   detail?: string
 }
 
+// fusion-forge always publishes app-builds to fusion-index under "app.<build.name>"
+// (confirmed against a live artifact: build.name "wizard-batch-test-job" published
+// as fullName "app.wizard-batch-test-job") — build.name itself is NOT the artifact
+// name codeSource needs to resolve.
+function appBuildArtifactName(build: forgeApi.AppBuild): string {
+  return `app.${build.name}`
+}
+
 export function toK8sName(s: string, max = 63): string {
   let out = s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
   if (!out) out = 'x'
@@ -60,11 +68,6 @@ export function useGitAppProvisioning() {
     if (item) { item.status = status; item.detail = detail }
   }
 
-  function extractAppBuildId(lastBuildName: string): number | null {
-    const m = lastBuildName.match(/^forge-app-(\d+)$/)
-    return m ? Number(m[1]) : null
-  }
-
   async function ensureGitWatcher(params: GitAppRepoParams): Promise<void> {
     const { name, repoUrl, repoRef, projectDir } = params
     try {
@@ -91,36 +94,28 @@ export function useGitAppProvisioning() {
     }
   }
 
+  // Polls fusion-forge's own appbuilds list (filtered by name) rather than the
+  // GitWatcher CR's status.lastBuildName — that field is transient (cleared once
+  // status.lastBuiltVersion is set) and a fast build can finish between the
+  // initial delay and the first poll, so a build can complete without this
+  // wizard ever observing lastBuildName set at all.
   async function waitForBuild(name: string): Promise<forgeApi.AppBuild> {
     await sleep(2_000)
 
-    let lastBuildName: string | null = null
-    for (let i = 0; i < 60 && !cancelled; i++) {
-      const w = await forgeApi.getGitWatcher(name)
-      if (w.status.lastBuildName) { lastBuildName = w.status.lastBuildName; break }
-      await sleep(5_000)
-    }
-    if (!lastBuildName) {
-      throw new Error('Timed out waiting for the first build to start — the watcher may still be polling. Check its detail page.')
-    }
-
-    const id = extractAppBuildId(lastBuildName)
-    if (id === null) {
-      throw new Error(`Unrecognized build name "${lastBuildName}".`)
-    }
-
     for (let i = 0; i < 120 && !cancelled; i++) {
-      const b = await forgeApi.getAppBuild(id)
-      if (b.status === 'SUCCEEDED' || b.status === 'FAILED') return b
+      const page = await forgeApi.listAppBuilds({ name, pageSize: 5 })
+      const latest = page.items.reduce<forgeApi.AppBuild | null>(
+        (best, b) => (!best || b.id > best.id) ? b : best, null)
+      if (latest && (latest.status === 'SUCCEEDED' || latest.status === 'FAILED')) return latest
       await sleep(5_000)
     }
-    throw new Error('Timed out waiting for the build to finish.')
+    throw new Error('Timed out waiting for the build to start/finish — the watcher may still be polling. Check its detail page.')
   }
 
   async function ensureJobTemplate(name: string, build: forgeApi.AppBuild): Promise<void> {
     try {
       const existing = await weaveApi.getJobTemplate(name)
-      if (existing.spec.codeSource?.artifactName !== build.name) {
+      if (existing.spec.codeSource?.artifactName !== appBuildArtifactName(build)) {
         throw new Error(`A job blueprint named "${name}" already exists but points at a different artifact — choose a different job name.`)
       }
     } catch (e) {
@@ -130,7 +125,7 @@ export function useGitAppProvisioning() {
           spec: {
             image:     DEFAULT_RUNNER_IMAGE,
             resources: DEFAULT_RESOURCES,
-            codeSource: { artifactName: build.name, tag: 'stable' },
+            codeSource: { artifactName: appBuildArtifactName(build), tag: 'stable' },
           },
         })
         return
