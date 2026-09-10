@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onUnmounted } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import CronPicker from '@/components/CronPicker.vue'
@@ -125,6 +125,11 @@ function validateStep1(): boolean {
 
   return ok
 }
+
+watch(jobName, () => { jobNameErr.value = null })
+watch(repoUrl, () => { repoUrlErr.value = null })
+watch(projectDir, () => { projectDirErr.value = null })
+watch(entrypointConfigs, list => { if (list.length > 0) entrypointsErr.value = null }, { deep: true })
 
 // ─── Provisioning ───────────────────────────────────────────────────────────────
 

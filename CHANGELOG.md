@@ -7,6 +7,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.34] — 2026-09-10
+
+<!-- 2026-09-10 -->
+### Fixed
+- **Wizards**: Git → Python Job wizard (`GitPythonJobWizardPage.vue`) no longer leaves stale field-level validation errors (`Name is required`, `Repository URL is required`, etc.) displayed after the user corrects the field — errors now clear reactively as `jobName`/`repoUrl`/`projectDir`/entrypoints change, instead of only on the next submit.
+
 ## [0.10.33] — 2026-09-09
 
 <!-- 2026-09-09 -->

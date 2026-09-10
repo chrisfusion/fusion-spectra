@@ -90,6 +90,7 @@ Both navigation.ts and router must be updated together — neither works without
 Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards:
 - `step` ref (number), `v-if="step === N"` per section inside one CanvasPanel
 - Validate on Next click; only advance if valid
+- Field-level error refs set only inside the submit-time `validate()` function need an explicit `watch()` on their source field to clear them — otherwise a stale error stays displayed next to an already-corrected value until the next submit (bug found in `GitPythonJobWizardPage.vue`)
 - Track partially-created resources in a ref (e.g. `createdId`) — prevents duplicate creation on retry and enables orphan recovery UI
 - For split-panel step 2 (builder + live preview): use CSS grid `1fr NNNpx`; preview col `position:sticky;top:16px`
 - Stable v-for keys: add a `uid: number` field to row interfaces; use `++_uid` counter; never use array index as key on deletable lists
@@ -114,7 +115,7 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - Test/debug screenshots **must** use the prefix `test_` (e.g. `test_2026-05-11_wizard-step2.png`) — these are git-ignored
 
 ## UI testing (Playwright)
-- Test against minikube at `http://spectra.fusion.local`, not the dev server
+- Test against minikube at `http://spectra.fusion.local`, not the dev server — the dev server's mock-OIDC login redirects back to `spectra.fusion.local`, and the BFF session doesn't carry back to `dev.fusion.local:5174` (confirmed 2026-09-10: navigating there afterward still 401-redirects to login, even though the `.fusion.local`-scoped cookie exists)
 - Use `browser_snapshot` (not screenshot) to get element `ref` values for clicks/fills
 - Use `browser_take_screenshot` with `fullPage: true` to save to `screenshots/`
 - After pod restart, browser may serve cached JS — navigate to `/#/` first; if the canvas is completely blank (`<!---->`) across all routes, the Playwright browser has stale JS and needs `location.reload(true)` — navigating to `/#/` alone is not sufficient in that case
@@ -135,7 +136,7 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - nginx runs as non-root (`USER nginx`, uid 101) on **port 8080**; `fsGroup: 101` makes emptyDir mounts writable without an initContainer
 - Always use semver image tags (never `latest`/`local`): `eval $(minikube docker-env) && docker build -t fusion-spectra:X.Y.Z .`
 - Docker build MUST run inside minikube's daemon (`eval $(minikube docker-env)` first) — otherwise pod gets `ErrImageNeverPull`
-- After building, update `image.tag` in `values-dev.yaml` and run `helm upgrade`; tag change triggers pod replacement automatically
+- After building, bump `package.json` `version`, `deployment/Chart.yaml` `version`/`appVersion`, and `image.tag` in `values-dev.yaml` together to the same semver, then run `helm upgrade`; tag change triggers pod replacement automatically
 - Helm field manager conflict: if `kubectl set image` was used, bypass with `kubectl set image deployment/fusion-spectra frontend=fusion-spectra:X.Y.Z -n fusion`
 - Stale probe ports: if nginx moved to 8080 but probes still hit 80, pods crash-loop — patch: `kubectl patch deployment fusion-spectra -n fusion --type=json -p='[{"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/httpGet/port","value":8080},...]'`
 - Stale JS chunks after redeploy: `router.onError` + `unhandledrejection` + `vite:preloadError` in `src/router/index.ts` auto-reload on chunk-not-found; guard is **timestamp-based** (8s cooldown in `__chunk_reload_ts__`) — do NOT use a boolean flag, Ctrl+Shift+R does not clear `sessionStorage` so a boolean guard permanently blocks recovery
