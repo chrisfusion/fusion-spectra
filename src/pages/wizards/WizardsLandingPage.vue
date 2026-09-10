@@ -20,6 +20,13 @@ const wizards: WizardCard[] = [
     desc:  'Point at a git repo with several Python scripts — get a GitOps-built artifact, a run blueprint, and one trigger per entrypoint, wired up automatically.',
     route: '/wizards/git-python-job/create',
   },
+  {
+    id:    'git-batch-job',
+    title: 'Git → Batch Job',
+    icon:  'mdi-tray-full',
+    desc:  'Point at a git repo/branch/subfolder containing a single batch job — get a GitOps-built artifact, a run blueprint and trigger, and the first run fired immediately.',
+    route: '/wizards/git-batch-job/create',
+  },
 ]
 </script>
 

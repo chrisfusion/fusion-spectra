@@ -3,11 +3,10 @@ import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import CronPicker from '@/components/CronPicker.vue'
-import * as forgeApi from '@/api/forgeApi'
 import * as weaveApi from '@/api/weaveApi'
 import * as indexApi from '@/api/indexApi'
 import { ApiError } from '@/api/bffClient'
-import { useGitAppProvisioning, toK8sName, type ProgressStatus } from '@/composables/useGitAppProvisioning'
+import { useGitAppProvisioning, type ProgressStatus } from '@/composables/useGitAppProvisioning'
 
 const router = useRouter()
 
@@ -28,48 +27,18 @@ const repoUrl    = ref('')
 const repoRef    = ref('')
 const projectDir = ref('')
 
-interface EntrypointConfig {
-  file:        string
-  triggerType: 'OnDemand' | 'Cron'
-  schedule:    string
-}
-const entrypointConfigs = ref<EntrypointConfig[]>([])
-const newEntrypoint     = ref('')
-const newEntrypointErr  = ref<string | null>(null)
-
-const ENTRYPOINT_RE = /^[A-Za-z0-9_.-]+\.py$/
-
-function addEntrypoint() {
-  const val = newEntrypoint.value.trim()
-  if (!val) return
-  if (!ENTRYPOINT_RE.test(val)) {
-    newEntrypointErr.value = 'Must be a .py filename (letters, digits, _ . - only)'
-    return
-  }
-  if (entrypointConfigs.value.some(c => c.file === val)) {
-    newEntrypointErr.value = 'Already added'
-    return
-  }
-  entrypointConfigs.value.push({ file: val, triggerType: 'OnDemand', schedule: '0 9 * * *' })
-  newEntrypoint.value    = ''
-  newEntrypointErr.value = null
-}
-function removeEntrypoint(file: string) {
-  entrypointConfigs.value = entrypointConfigs.value.filter(c => c.file !== file)
-}
-function onEntrypointKeydown(e: KeyboardEvent) {
-  if (e.key === 'Enter' || e.key === ',') {
-    e.preventDefault()
-    addEntrypoint()
-  }
-}
+// Single job per repo/branch/subfolder — ENTRYPOINT is fixed in the target's
+// own metadata.yaml, so (unlike the Python wizard) there's no file list here,
+// just one schedule for the one trigger this wizard creates.
+const triggerType = ref<'OnDemand' | 'Cron'>('OnDemand')
+const schedule    = ref('0 9 * * *')
 
 // ─── Validation ─────────────────────────────────────────────────────────────────
 
 const jobNameErr    = ref<string | null>(null)
 const repoUrlErr    = ref<string | null>(null)
+const repoRefErr    = ref<string | null>(null)
 const projectDirErr = ref<string | null>(null)
-const entrypointsErr = ref<string | null>(null)
 
 const K8S_NAME_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$|^[a-z0-9]$/
 const URL_RE       = /^https?:\/\/.+/
@@ -101,6 +70,13 @@ function validateStep1(): boolean {
     repoUrlErr.value = null
   }
 
+  if (!repoRef.value.trim()) {
+    repoRefErr.value = 'Branch (or tag) is required — a batch job is pinned to one ref'
+    ok = false
+  } else {
+    repoRefErr.value = null
+  }
+
   if (projectDir.value.trim()) {
     if (projectDir.value.trim().startsWith('/') || projectDir.value.includes('..')) {
       projectDirErr.value = 'Must be a relative path without ..'
@@ -112,24 +88,17 @@ function validateStep1(): boolean {
     projectDirErr.value = null
   }
 
-  if (entrypointConfigs.value.length === 0) {
-    entrypointsErr.value = 'Add at least one entrypoint file'
-    ok = false
-  } else {
-    entrypointsErr.value = null
-  }
-
   return ok
 }
 
 watch(jobName, () => { jobNameErr.value = null })
 watch(repoUrl, () => { repoUrlErr.value = null })
+watch(repoRef, () => { repoRefErr.value = null })
 watch(projectDir, () => { projectDirErr.value = null })
-watch(entrypointConfigs, list => { if (list.length > 0) entrypointsErr.value = null }, { deep: true })
 
 // ─── Provisioning ───────────────────────────────────────────────────────────────
 // Shared watcher/build/tag/template/chain logic lives in useGitAppProvisioning();
-// only the per-entrypoint trigger fan-out below is specific to this wizard.
+// this wizard only adds a single trigger, then fires it to actually start the batch.
 
 function initProgress() {
   progress.value = [
@@ -138,33 +107,24 @@ function initProgress() {
     { key: 'tag',      label: 'Assigning "stable" tag',  status: 'pending' },
     { key: 'template', label: 'Job blueprint',           status: 'pending' },
     { key: 'chain',    label: 'Run blueprint (chain)',   status: 'pending' },
-    ...entrypointConfigs.value.map(c => ({
-      key: `trigger:${c.file}`, label: `Trigger — ${c.file}`, status: 'pending' as ProgressStatus,
-    })),
+    { key: 'trigger',  label: 'Trigger',                 status: 'pending' },
+    { key: 'run',      label: 'Starting batch run',      status: 'pending' },
   ]
 }
 
-function triggerNameFor(build: forgeApi.AppBuild, file: string): string {
-  const base = file.replace(/\.py$/i, '')
-  return toK8sName(`${build.name}-${base}`)
-}
-
-async function ensureTrigger(cfg: EntrypointConfig, build: forgeApi.AppBuild): Promise<void> {
-  const chainName    = jobName.value.trim()
-  const triggerName  = triggerNameFor(build, cfg.file)
+async function ensureTrigger(name: string): Promise<void> {
   try {
-    await weaveApi.getWeaveTrigger(triggerName)
+    await weaveApi.getWeaveTrigger(name)
     // Already exists — assume it was created by a previous run of this wizard
-    // for the same job name + entrypoint; nothing else to do.
+    // for the same job name; nothing else to do.
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) {
       const spec: weaveApi.WeaveTriggerSpec = {
-        chainRef: { name: chainName },
-        type: cfg.triggerType,
-        parameterOverrides: [{ name: 'ENTRYPOINT', value: cfg.file }],
+        chainRef: { name },
+        type:     triggerType.value,
       }
-      if (cfg.triggerType === 'Cron') spec.schedule = cfg.schedule
-      await weaveApi.createWeaveTrigger({ metadata: { name: triggerName }, spec })
+      if (triggerType.value === 'Cron') spec.schedule = schedule.value
+      await weaveApi.createWeaveTrigger({ metadata: { name }, spec })
       return
     }
     throw e
@@ -203,11 +163,13 @@ async function runProvisioning() {
     await ensureChain(name)
     setStatus('chain', 'done')
 
-    for (const cfg of entrypointConfigs.value) {
-      setStatus(`trigger:${cfg.file}`, 'running')
-      await ensureTrigger(cfg, build)
-      setStatus(`trigger:${cfg.file}`, 'done')
-    }
+    setStatus('trigger', 'running')
+    await ensureTrigger(name)
+    setStatus('trigger', 'done')
+
+    setStatus('run', 'running')
+    await weaveApi.fireWeaveTrigger(name)
+    setStatus('run', 'done')
 
     step.value = 3
   } catch (e) {
@@ -229,17 +191,16 @@ async function retry() {
 }
 
 function createAnother() {
-  jobName.value    = ''
-  repoUrl.value    = ''
-  repoRef.value    = ''
-  projectDir.value = ''
-  entrypointConfigs.value = []
-  newEntrypoint.value     = ''
-  newEntrypointErr.value  = null
-  progress.value          = []
-  provisionError.value    = null
-  resolvedBuild.value     = null
-  createdWatcherName.value = null
+  jobName.value            = ''
+  repoUrl.value             = ''
+  repoRef.value             = ''
+  projectDir.value          = ''
+  triggerType.value         = 'OnDemand'
+  schedule.value            = '0 9 * * *'
+  progress.value            = []
+  provisionError.value      = null
+  resolvedBuild.value       = null
+  createdWatcherName.value  = null
   step.value = 1
 }
 
@@ -261,10 +222,10 @@ const STATUS_ICON: Record<ProgressStatus, string> = {
         Wizards
       </button>
       <q-icon name="mdi-chevron-right" size="14px" class="muted-icon" />
-      <span class="breadcrumb__current">Git → Python Job</span>
+      <span class="breadcrumb__current">Git → Batch Job</span>
     </div>
 
-    <CanvasPanel title="Git → Python Job Wizard" icon="mdi-creation" :wide="true">
+    <CanvasPanel title="Git → Batch Job Wizard" icon="mdi-tray-full" :wide="true">
 
       <!-- Step indicator -->
       <div class="wizard-steps">
@@ -295,7 +256,7 @@ const STATUS_ICON: Record<ProgressStatus, string> = {
               v-model="jobName"
               class="fs-input fs-mono"
               :class="{ 'fs-input--error': jobNameErr }"
-              placeholder="my-scripts"
+              placeholder="my-batch-job"
             />
             <span v-if="jobNameErr" class="field-error">{{ jobNameErr }}</span>
             <span v-else class="field-hint">Shared Kubernetes name for the watcher, chain, and job blueprint</span>
@@ -319,10 +280,16 @@ const STATUS_ICON: Record<ProgressStatus, string> = {
         </div>
 
         <div class="form-row">
-          <label class="form-label">Ref</label>
+          <label class="form-label">Branch/Ref <span class="required">*</span></label>
           <div class="field-wrap">
-            <input v-model="repoRef" class="fs-input fs-mono" placeholder="main" />
-            <span class="field-hint">Branch or tag to watch (default: main)</span>
+            <input
+              v-model="repoRef"
+              class="fs-input fs-mono"
+              :class="{ 'fs-input--error': repoRefErr }"
+              placeholder="main"
+            />
+            <span v-if="repoRefErr" class="field-error">{{ repoRefErr }}</span>
+            <span v-else class="field-hint">Branch or tag containing the batch job</span>
           </div>
         </div>
 
@@ -333,62 +300,40 @@ const STATUS_ICON: Record<ProgressStatus, string> = {
               v-model="projectDir"
               class="fs-input fs-mono"
               :class="{ 'fs-input--error': projectDirErr }"
-              placeholder="services/myapp"
+              placeholder="jobs/myjob"
             />
             <span v-if="projectDirErr" class="field-error">{{ projectDirErr }}</span>
             <span v-else class="field-hint">Relative path containing metadata.yaml — no .. (optional)</span>
           </div>
         </div>
 
-        <div class="form-section-title">Entrypoints</div>
+        <div class="form-section-title">Schedule</div>
 
         <div class="form-row form-row--top">
-          <label class="form-label">Files <span class="required">*</span></label>
+          <label class="form-label">Recurrence</label>
           <div class="field-wrap">
-            <div class="entry-add">
-              <input
-                v-model="newEntrypoint"
-                class="fs-input fs-mono"
-                placeholder="train.py"
-                @keydown="onEntrypointKeydown"
-              />
-              <button class="fs-btn fs-btn--ghost" type="button" @click="addEntrypoint">
-                <q-icon name="mdi-plus" size="14px" /> Add
-              </button>
-            </div>
-            <span v-if="newEntrypointErr" class="field-error">{{ newEntrypointErr }}</span>
-            <span v-else-if="entrypointsErr" class="field-error">{{ entrypointsErr }}</span>
-            <span v-else class="field-hint">metadata.yaml must list these under `files` — no ENTRYPOINT key</span>
-          </div>
-        </div>
-
-        <div v-for="cfg in entrypointConfigs" :key="cfg.file" class="entry-row">
-          <div class="entry-row__head">
-            <span class="entry-row__file fs-mono">{{ cfg.file }}</span>
-            <div class="kind-toggle kind-toggle--sm">
+            <div class="kind-toggle">
               <button
                 class="kind-btn"
-                :class="{ 'kind-btn--active': cfg.triggerType === 'OnDemand' }"
+                :class="{ 'kind-btn--active': triggerType === 'OnDemand' }"
                 type="button"
-                @click="cfg.triggerType = 'OnDemand'"
-              >Manual</button>
+                @click="triggerType = 'OnDemand'"
+              >Manual only</button>
               <button
                 class="kind-btn"
-                :class="{ 'kind-btn--active': cfg.triggerType === 'Cron' }"
+                :class="{ 'kind-btn--active': triggerType === 'Cron' }"
                 type="button"
-                @click="cfg.triggerType = 'Cron'"
-              >Cron</button>
+                @click="triggerType = 'Cron'"
+              >Also on a schedule</button>
             </div>
-            <button class="entry-row__remove" type="button" title="Remove" @click="removeEntrypoint(cfg.file)">
-              <q-icon name="mdi-close" size="14px" />
-            </button>
+            <span class="field-hint">The batch always starts once immediately — this only controls future runs</span>
+            <CronPicker v-if="triggerType === 'Cron'" v-model="schedule" />
           </div>
-          <CronPicker v-if="cfg.triggerType === 'Cron'" v-model="cfg.schedule" />
         </div>
 
         <div class="form-actions">
           <button class="fs-btn fs-btn--primary" @click="startWizard">
-            Create <q-icon name="mdi-arrow-right" size="14px" />
+            Create &amp; Start <q-icon name="mdi-arrow-right" size="14px" />
           </button>
         </div>
 
@@ -426,11 +371,11 @@ const STATUS_ICON: Record<ProgressStatus, string> = {
       <!-- ── Step 3: Done ── -->
       <div v-else class="success-body">
         <q-icon name="mdi-check-circle-outline" size="48px" class="success-icon" />
-        <p class="success-title">Ready to run</p>
+        <p class="success-title">Batch started</p>
         <p class="success-sub">
-          <span class="fs-mono">{{ jobName }}</span> is wired up — the "stable" tag is pinned to
-          <span class="fs-mono">{{ resolvedBuild?.name }}:{{ resolvedBuild?.indexArtifactVersion ?? resolvedBuild?.version }}</span>,
-          and {{ entrypointConfigs.length }} trigger(s) are ready to fire.
+          <span class="fs-mono">{{ jobName }}</span> is wired up and its first run has been fired — the "stable" tag is pinned to
+          <span class="fs-mono">{{ resolvedBuild?.name }}:{{ resolvedBuild?.indexArtifactVersion ?? resolvedBuild?.version }}</span>.
+          <template v-if="triggerType === 'Cron'"> Future runs will also fire on the schedule you set.</template>
         </p>
         <div class="info-box">
           <q-icon name="mdi-information-outline" size="13px" />
@@ -539,28 +484,8 @@ const STATUS_ICON: Record<ProgressStatus, string> = {
 .fs-input:focus  { border-color: var(--fs-accent); }
 .fs-input--error { border-color: var(--fs-neg, #e57373); }
 
-/* Entrypoint add row */
-.entry-add { display: flex; gap: 8px; }
-.entry-add .fs-input { flex: 1; }
-
-/* Entrypoint config rows */
-.entry-row {
-  display: flex; flex-direction: column; gap: 8px;
-  padding: 10px 12px; border: 1px solid var(--fs-border); border-radius: 5px;
-  margin-left: 152px;
-}
-.entry-row__head { display: flex; align-items: center; gap: 10px; }
-.entry-row__file { flex: 1; font-size: 12.5px; color: var(--fs-text-primary); }
-.entry-row__remove {
-  background: none; border: none; cursor: pointer; padding: 2px;
-  color: var(--fs-text-muted); display: flex; align-items: center;
-  transition: color var(--fs-ease);
-}
-.entry-row__remove:hover { color: var(--fs-neg, #e57373); }
-
 /* Toggle (build type style, reused for OnDemand/Cron) */
 .kind-toggle { display: flex; border: 1px solid var(--fs-border); border-radius: 4px; overflow: hidden; width: fit-content; }
-.kind-toggle--sm .kind-btn { padding: 4px 10px; font-size: 11px; }
 .kind-btn {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 6px 14px; font-size: 12px; font-family: inherit; font-weight: 500;

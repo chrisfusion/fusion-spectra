@@ -49,6 +49,7 @@ export const contexts: Context[] = [
         icon: 'mdi-view-grid-outline',
         children: [
           { id: 'wizard-git-python-job', label: 'Git → Python Job', icon: 'mdi-language-python', route: '/wizards/git-python-job/create', tooltip: 'Build a job from a git repo with multiple entrypoint scripts' },
+          { id: 'wizard-git-batch-job', label: 'Git → Batch Job', icon: 'mdi-tray-full', route: '/wizards/git-batch-job/create', tooltip: 'Build and start a single batch job from a git repo, branch, and subfolder' },
         ]
       }
     ]
