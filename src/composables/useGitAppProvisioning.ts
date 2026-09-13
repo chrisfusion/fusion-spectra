@@ -99,14 +99,30 @@ export function useGitAppProvisioning() {
   // status.lastBuiltVersion is set) and a fast build can finish between the
   // initial delay and the first poll, so a build can complete without this
   // wizard ever observing lastBuildName set at all.
+  //
+  // GET /appbuilds (list) reads straight from Postgres with no sync; only
+  // GET /appbuilds/:id lazily syncs the underlying CIBuild CR's status into
+  // the DB row (fusion-forge internal/api/handlers/appbuilds.go). Polling
+  // list alone can never observe SUCCEEDED/FAILED even after the build
+  // actually finishes — so once the build's id is known, switch to polling
+  // it by id instead, which is what actually triggers that sync.
   async function waitForBuild(name: string): Promise<forgeApi.AppBuild> {
     await sleep(2_000)
 
+    let buildId: number | null = null
     for (let i = 0; i < 120 && !cancelled; i++) {
-      const page = await forgeApi.listAppBuilds({ name, pageSize: 5 })
-      const latest = page.items.reduce<forgeApi.AppBuild | null>(
-        (best, b) => (!best || b.id > best.id) ? b : best, null)
-      if (latest && (latest.status === 'SUCCEEDED' || latest.status === 'FAILED')) return latest
+      if (buildId === null) {
+        const page = await forgeApi.listAppBuilds({ name, pageSize: 5 })
+        const latest = page.items.reduce<forgeApi.AppBuild | null>(
+          (best, b) => (!best || b.id > best.id) ? b : best, null)
+        if (latest) {
+          buildId = latest.id
+          if (latest.status === 'SUCCEEDED' || latest.status === 'FAILED') return latest
+        }
+      } else {
+        const build = await forgeApi.getAppBuild(buildId)
+        if (build.status === 'SUCCEEDED' || build.status === 'FAILED') return build
+      }
       await sleep(5_000)
     }
     throw new Error('Timed out waiting for the build to start/finish — the watcher may still be polling. Check its detail page.')
