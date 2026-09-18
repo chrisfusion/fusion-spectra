@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import ChainDagView from '@/components/ChainDagView.vue'
 import SecretNamePicker from '@/components/SecretNamePicker.vue'
+import ExternalAuthRefPicker from '@/components/ExternalAuthRefPicker.vue'
 import * as weaveApi from '@/api/weaveApi'
 
 const router = useRouter()
@@ -23,6 +24,9 @@ const storageSize       = ref('1Gi')
 const storageSizeError  = ref<string | null>(null)
 const storageClass      = ref('')
 const authSecretRef     = ref('')
+const externalAuthRefMode = ref<'' | 'serviceAccount' | 'oidc'>('')
+const externalAuthRefName = ref('')
+const unsafeEnvironmentInjector = ref(true)
 
 function validateStep1(): boolean {
   let ok = true
@@ -310,6 +314,10 @@ function buildSpec(): weaveApi.WeaveChainSpec {
     if (storageClass.value.trim()) spec.sharedStorage.storageClassName = storageClass.value.trim()
   }
   if (authSecretRef.value.trim()) spec.authSecretRef = { name: authSecretRef.value.trim() }
+  if (externalAuthRefMode.value && externalAuthRefName.value.trim()) {
+    spec.externalAuthRef = { mode: externalAuthRefMode.value, name: externalAuthRefName.value.trim() }
+  }
+  if (!unsafeEnvironmentInjector.value) spec.unsafeEnvironmentInjector = false
   return spec
 }
 
@@ -338,6 +346,9 @@ function createAnother() {
   storageSizeError.value  = null
   storageClass.value      = ''
   authSecretRef.value     = ''
+  externalAuthRefMode.value = ''
+  externalAuthRefName.value = ''
+  unsafeEnvironmentInjector.value = true
   chainSteps.value        = []
   stepListError.value     = null
   submitError.value       = null
@@ -489,6 +500,34 @@ function createAnother() {
                 Overridable per-trigger and per-run.
               </span>
             </div>
+          </div>
+
+          <div class="form-row">
+            <label class="form-label">External auth</label>
+            <div class="field-wrap">
+              <ExternalAuthRefPicker
+                v-model:mode="externalAuthRefMode"
+                v-model:name="externalAuthRefName"
+                class="field-narrow"
+              />
+              <span class="field-hint">
+                Names a deploy-time-allowlisted ServiceAccount or Keycloak OIDC client — the operator mints a
+                short-lived token per job attempt, mounted as a file into Job-kind steps only. Independent of
+                and stackable with the auth secret above. Overridable per-trigger and per-run.
+              </span>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <label class="form-label">Env injection</label>
+            <label class="toggle-wrap">
+              <input v-model="unsafeEnvironmentInjector" type="checkbox" class="toggle-input" />
+              <span class="toggle-track"><span class="toggle-thumb" /></span>
+              <span class="toggle-text">
+                {{ unsafeEnvironmentInjector ? 'Enabled' : 'Disabled' }} —
+                also inject auth secret / external auth as env vars, on top of their file mount
+              </span>
+            </label>
           </div>
 
           <div class="form-actions">
@@ -787,6 +826,16 @@ function createAnother() {
               <div class="review-row">
                 <span class="review-key">authSecretRef</span>
                 <span class="review-val fs-mono">{{ authSecretRef || 'none' }}</span>
+              </div>
+              <div class="review-row">
+                <span class="review-key">externalAuthRef</span>
+                <span class="review-val fs-mono">
+                  {{ externalAuthRefMode && externalAuthRefName ? `${externalAuthRefMode}: ${externalAuthRefName}` : 'none' }}
+                </span>
+              </div>
+              <div class="review-row">
+                <span class="review-key">unsafeEnvironmentInjector</span>
+                <span class="review-val fs-mono">{{ unsafeEnvironmentInjector }}</span>
               </div>
             </div>
           </div>

@@ -223,6 +223,16 @@ export interface WeaveSharedStorageSpec {
   storageClassName?:  string
 }
 
+// Names a deploy-time-allowlisted ServiceAccount (mode "serviceAccount") or
+// Keycloak OIDC client (mode "oidc") — the operator mints a short-lived token
+// per job-creation attempt, mounted as a file (Job-kind steps only). Independent
+// of and stackable with authSecretRef. Valid names per mode come from
+// fetchExternalAuthOptions().
+export interface WeaveExternalAuthRef {
+  mode: 'serviceAccount' | 'oidc'
+  name: string
+}
+
 export interface WeaveChainSpec {
   steps:             WeaveChainStep[]
   failurePolicy?:    'StopAll' | 'ContinueOthers' | 'RetryFailed'
@@ -231,6 +241,11 @@ export interface WeaveChainSpec {
   // Names a Secret injected via envFrom into every step pod of the chain
   // (Job and Deploy kind alike); overridable per-trigger/per-run.
   authSecretRef?:    { name: string }
+  externalAuthRef?:  WeaveExternalAuthRef
+  // Whether authSecretRef/externalAuthRef are ALSO injected as env vars, on
+  // top of their unconditional file mount. Operator default is true; omit
+  // this field to keep that default.
+  unsafeEnvironmentInjector?: boolean
 }
 
 export interface WeaveChainStatus {
@@ -391,6 +406,11 @@ export interface WeaveTriggerSpec {
   // Overrides WeaveChainSpec.authSecretRef for every run created by this
   // trigger. Not settable via the Kafka/BatchCron dedicated endpoints.
   authSecretRefOverride?: { name: string }
+  // Overrides WeaveChainSpec.externalAuthRef / .unsafeEnvironmentInjector for
+  // every run created by this trigger. Not settable via the Kafka/BatchCron
+  // dedicated endpoints.
+  externalAuthRefOverride?: WeaveExternalAuthRef
+  unsafeEnvironmentInjectorOverride?: boolean
 }
 
 export interface WeaveTriggerStatus {
@@ -402,6 +422,14 @@ export interface WeaveTriggerStatus {
   // BatchCron only
   batchJobCount?:    number
   batchJobErrors?:   number
+  // Persists why status.active=false (e.g. chain not found/invalid).
+  inactiveReason?:   string
+  // Set when this trigger's activation-source goroutine panicked; the
+  // operator stops firing it until the one-shot fusion-platform.io/reset
+  // annotation is applied (see resetWeaveTrigger).
+  quarantined?:      boolean
+  quarantineReason?: string
+  quarantinedAt?:    string
 }
 
 export interface WeaveTrigger {
@@ -453,8 +481,30 @@ export function fireWeaveTrigger(name: string): Promise<void> {
   })
 }
 
+// Clears status.quarantined after a panic in this trigger's activation-source
+// goroutine. Generic to any WeaveTrigger (not type-specific), same as fire.
+export function resetWeaveTrigger(name: string): Promise<void> {
+  return bffPatch(`${BASE}/triggers/${encodeURIComponent(name)}`, {
+    metadata: { annotations: { 'fusion-platform.io/reset': 'true' } },
+  })
+}
+
 export function deleteWeaveTrigger(name: string): Promise<void> {
   return bffDelete(`${BASE}/triggers/${encodeURIComponent(name)}`)
+}
+
+// ─── External Auth ────────────────────────────────────────────────────────────
+
+export interface WeaveExternalAuthOptions {
+  serviceAccounts: string[]
+  oidcSecrets:     string[]
+}
+
+// Reports the deploy-time allowlists configured for externalAuthRef, so a
+// name picker can be populated per mode instead of hardcoding/guessing valid
+// values. Static config echo, no cluster lookups.
+export function fetchExternalAuthOptions(): Promise<WeaveExternalAuthOptions> {
+  return bffGet<WeaveExternalAuthOptions>(`${BASE}/external-auth/options`)
 }
 
 // Kafka triggers go through a dedicated endpoint (separate RBAC permission

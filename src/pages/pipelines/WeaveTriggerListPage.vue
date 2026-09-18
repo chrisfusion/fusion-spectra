@@ -19,9 +19,10 @@ const result  = ref<weaveApi.WeaveTriggerList | null>(null)
 const nameSearch  = ref('')
 const currentPage = ref(1)
 
-const deletingNames = ref<Set<string>>(new Set())
-const firingNames   = ref<Set<string>>(new Set())
-const pausingNames  = ref<Set<string>>(new Set())
+const deletingNames  = ref<Set<string>>(new Set())
+const firingNames    = ref<Set<string>>(new Set())
+const pausingNames   = ref<Set<string>>(new Set())
+const resettingNames = ref<Set<string>>(new Set())
 
 async function loadTriggers() {
   loading.value = true
@@ -85,6 +86,27 @@ function confirmFire(t: weaveApi.WeaveTrigger) {
       $q.notify({ type: 'negative', message: e instanceof Error ? e.message : 'Fire failed' })
     } finally {
       firingNames.value = new Set([...firingNames.value].filter(n => n !== t.metadata.name))
+    }
+  })
+}
+
+function confirmReset(t: weaveApi.WeaveTrigger) {
+  $q.dialog({
+    title:   'Reset Trigger',
+    message: `Clear the quarantine on <strong>${t.metadata.name}</strong> and resume firing?`,
+    html:    true,
+    ok:     { label: 'Reset', color: 'warning', flat: true },
+    cancel: { label: 'Cancel', flat: true },
+  }).onOk(async () => {
+    resettingNames.value = new Set([...resettingNames.value, t.metadata.name])
+    try {
+      await weaveApi.resetWeaveTrigger(t.metadata.name)
+      $q.notify({ type: 'positive', message: `Trigger ${t.metadata.name} reset.` })
+      await loadTriggers()
+    } catch (e) {
+      $q.notify({ type: 'negative', message: e instanceof Error ? e.message : 'Reset failed' })
+    } finally {
+      resettingNames.value = new Set([...resettingNames.value].filter(n => n !== t.metadata.name))
     }
   })
 }
@@ -240,10 +262,27 @@ onMounted(loadTriggers)
                 <span v-if="t.spec.paused" class="active-badge active-badge--paused">
                   <q-icon name="mdi-pause" size="12px" /> Paused
                 </span>
+                <span v-if="t.status?.quarantined" class="active-badge active-badge--quarantined">
+                  <q-icon name="mdi-alert-octagon-outline" size="12px" /> Quarantined
+                  <q-tooltip :delay="400" anchor="top middle">
+                    {{ t.status.quarantineReason ?? 'Activation-source panic' }}
+                    <template v-if="t.status.quarantinedAt"> — {{ new Date(t.status.quarantinedAt).toLocaleString() }}</template>
+                  </q-tooltip>
+                </span>
               </td>
               <td class="col-muted fs-mono">{{ t.status?.lastRunName ?? '—' }}</td>
               <td class="col-muted">{{ triggerAge(t) }}</td>
               <td class="col-actions">
+                <button
+                  v-if="t.status?.quarantined && can('weave:triggers:write')"
+                  class="icon-btn icon-btn--fire"
+                  :disabled="resettingNames.has(t.metadata.name)"
+                  title="Reset quarantine"
+                  @click.stop="confirmReset(t)"
+                >
+                  <q-spinner v-if="resettingNames.has(t.metadata.name)" size="13px" />
+                  <q-icon v-else name="mdi-shield-refresh-outline" size="16px" />
+                </button>
                 <button
                   v-if="t.spec.type === 'BatchCron' && can('weave:batchtriggers:write')"
                   class="icon-btn"
@@ -349,7 +388,7 @@ onMounted(loadTriggers)
 .auth-secret-icon { color: var(--fs-text-muted); margin-left: 4px; vertical-align: middle; }
 .col-chain   { color: var(--fs-text-secondary, var(--fs-text-muted)); font-size: 12px; }
 .col-muted   { color: var(--fs-text-muted); font-size: 12px; }
-.col-actions { width: 96px; text-align: center; white-space: nowrap; }
+.col-actions { width: 120px; text-align: center; white-space: nowrap; }
 
 /* Type badge */
 .type-badge {
@@ -385,6 +424,7 @@ onMounted(loadTriggers)
 .active-badge--on     { color: var(--fs-pos, #4caf50); background: color-mix(in srgb, var(--fs-pos, #4caf50) 10%, transparent); }
 .active-badge--off    { color: var(--fs-text-muted);   background: color-mix(in srgb, var(--fs-text-muted)   10%, transparent); }
 .active-badge--paused { color: var(--fs-warn, #ffa726); background: color-mix(in srgb, var(--fs-warn, #ffa726) 10%, transparent); }
+.active-badge--quarantined { color: var(--fs-neg, #e57373); background: color-mix(in srgb, var(--fs-neg, #e57373) 10%, transparent); }
 
 .empty-row { text-align: center; color: var(--fs-text-muted); padding: 32px 10px !important; }
 

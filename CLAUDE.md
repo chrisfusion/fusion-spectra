@@ -126,6 +126,7 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - Access Pinia stores in evaluate: `document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('storeName')`; theme store action is `.set(themeName)`
 - Playwright browser has its own separate session and cache from the user's browser — stale `config.js` there doesn't mean the user has the same problem
 - To call BFF APIs with auth during testing: `browser_evaluate` with `fetch('http://bff.fusion.local/api/...', { credentials: 'include' })` — uses the browser's session cookies
+- Mock OIDC login form (`http://bff.fusion.local/mock-oidc/...`, served by fusion-bff itself, not a separate host) fields: `input[name="sub"]`, `input[name="email"]`, `input[name="name"]`, `select[name="groups"]` (multi-select — `platform-admin`/`team-data`/`team-ml`/`platform-viewer`), submit `button[type="submit"]`
 
 ## Activity rail — utility zone
 - `Context.bottomUtil?: boolean` — renders between separator and admin; always visible (no `isAdmin` guard); use for standalone nav buttons with no sidebar
@@ -138,6 +139,7 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - nginx runs as non-root (`USER nginx`, uid 101) on **port 8080**; `fsGroup: 101` makes emptyDir mounts writable without an initContainer
 - Always use semver image tags (never `latest`/`local`): `eval $(minikube docker-env) && docker build -t fusion-spectra:X.Y.Z .`
 - Docker build MUST run inside minikube's daemon (`eval $(minikube docker-env)` first) — otherwise pod gets `ErrImageNeverPull`
+- Rebuilding the **same** tag (iterating on a fix before bumping version) is a silent no-op for `kubectl set image` — Kubernetes only reacts to a changed image string. Use `kubectl rollout restart deployment/fusion-spectra -n fusion` to force pod replacement instead.
 - After building, bump `package.json` `version`, `deployment/Chart.yaml` `version`/`appVersion`, and `image.tag` in `values-dev.yaml` together to the same semver, then run `helm upgrade`; tag change triggers pod replacement automatically
 - Helm field manager conflict: if `kubectl set image` was used, bypass with `kubectl set image deployment/fusion-spectra frontend=fusion-spectra:X.Y.Z -n fusion`
 - Stale probe ports: if nginx moved to 8080 but probes still hit 80, pods crash-loop — patch: `kubectl patch deployment fusion-spectra -n fusion --type=json -p='[{"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/httpGet/port","value":8080},...]'`

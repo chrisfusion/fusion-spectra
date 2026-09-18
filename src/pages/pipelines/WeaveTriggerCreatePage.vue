@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import CronPicker from '@/components/CronPicker.vue'
 import SecretNamePicker from '@/components/SecretNamePicker.vue'
+import ExternalAuthRefPicker from '@/components/ExternalAuthRefPicker.vue'
 import KafkaClusterFields from '@/components/KafkaClusterFields.vue'
 import { usePermission } from '@/composables/usePermission'
 import * as weaveApi from '@/api/weaveApi'
@@ -219,6 +220,9 @@ async function goToStep3() {
 interface EnvRow { key: string; value: string }
 const paramRows = ref<EnvRow[]>([{ key: '', value: '' }])
 const authSecretRefOverride = ref('')
+const externalAuthRefOverrideMode = ref<'' | 'serviceAccount' | 'oidc'>('')
+const externalAuthRefOverrideName = ref('')
+const unsafeEnvironmentInjectorOverride = ref<'' | 'true' | 'false'>('')
 
 function addParamRow() {
   paramRows.value = [...paramRows.value, { key: '', value: '' }]
@@ -262,6 +266,17 @@ function buildSpec(): weaveApi.WeaveTriggerSpec {
 
   if (authSecretRefOverride.value.trim()) {
     spec.authSecretRefOverride = { name: authSecretRefOverride.value.trim() }
+  }
+
+  if (externalAuthRefOverrideMode.value && externalAuthRefOverrideName.value.trim()) {
+    spec.externalAuthRefOverride = {
+      mode: externalAuthRefOverrideMode.value,
+      name: externalAuthRefOverrideName.value.trim(),
+    }
+  }
+
+  if (unsafeEnvironmentInjectorOverride.value) {
+    spec.unsafeEnvironmentInjectorOverride = unsafeEnvironmentInjectorOverride.value === 'true'
   }
 
   return spec
@@ -338,6 +353,9 @@ function createAnother() {
   batchValidateResult.value  = null
   paramRows.value        = [{ key: '', value: '' }]
   authSecretRefOverride.value = ''
+  externalAuthRefOverrideMode.value = ''
+  externalAuthRefOverrideName.value = ''
+  unsafeEnvironmentInjectorOverride.value = ''
   submitError.value      = null
   createdTrigger.value   = null
   step.value             = 1
@@ -774,6 +792,33 @@ loadChains()
             </div>
           </div>
 
+          <div v-if="triggerType !== 'Kafka' && triggerType !== 'BatchCron'" class="form-row">
+            <label class="form-label">External auth override</label>
+            <div class="field-wrap">
+              <ExternalAuthRefPicker
+                v-model:mode="externalAuthRefOverrideMode"
+                v-model:name="externalAuthRefOverrideName"
+                name-placeholder="(chain default)"
+              />
+              <span class="field-hint">
+                Overrides the chain's externalAuthRef for every run created by this trigger; leave blank to
+                inherit
+              </span>
+            </div>
+          </div>
+
+          <div v-if="triggerType !== 'Kafka' && triggerType !== 'BatchCron'" class="form-row">
+            <label class="form-label">Env injection override</label>
+            <div class="field-wrap">
+              <select v-model="unsafeEnvironmentInjectorOverride" class="fs-input field-narrow">
+                <option value="">(chain default)</option>
+                <option value="true">Enabled</option>
+                <option value="false">Disabled</option>
+              </select>
+              <span class="field-hint">Overrides the chain's unsafeEnvironmentInjector for every run created by this trigger</span>
+            </div>
+          </div>
+
           <!-- Summary box -->
           <div class="summary-box">
             <div class="summary-box__title">
@@ -796,6 +841,10 @@ loadChains()
               </li>
               <li v-if="triggerType !== 'Kafka' && triggerType !== 'BatchCron' && authSecretRefOverride">
                 <span class="sum-key">auth secret</span> <span class="sum-val fs-mono">{{ authSecretRefOverride }}</span>
+              </li>
+              <li v-if="triggerType !== 'Kafka' && triggerType !== 'BatchCron' && externalAuthRefOverrideMode && externalAuthRefOverrideName">
+                <span class="sum-key">external auth</span>
+                <span class="sum-val fs-mono">{{ externalAuthRefOverrideMode }}: {{ externalAuthRefOverrideName }}</span>
               </li>
             </ul>
           </div>
@@ -906,6 +955,7 @@ loadChains()
 .fs-input--error { border-color: var(--fs-neg, #e57373); }
 .fs-mono { font-family: var(--fs-font-mono); }
 .fs-textarea { resize: vertical; min-height: 140px; }
+.field-narrow { max-width: 200px; }
 
 .kind-toggle { display: flex; gap: 6px; }
 .kind-btn {

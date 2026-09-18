@@ -104,6 +104,16 @@ function formatDate(iso: string | undefined): string {
           <span class="meta-value fs-mono">{{ chain.spec.authSecretRef.name }}</span>
         </div>
 
+        <div v-if="chain.spec.externalAuthRef" class="meta-row">
+          <span class="meta-label">External Auth</span>
+          <span class="meta-value fs-mono">{{ chain.spec.externalAuthRef.mode }}: {{ chain.spec.externalAuthRef.name }}</span>
+        </div>
+
+        <div v-if="chain.spec.unsafeEnvironmentInjector === false" class="meta-row">
+          <span class="meta-label">Env Injection</span>
+          <span class="meta-value fs-mono">disabled</span>
+        </div>
+
         <div class="meta-row">
           <span class="meta-label">Validation</span>
           <span v-if="chain.status?.valid === true" class="valid-badge valid-badge--ok">
