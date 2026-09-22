@@ -5,7 +5,7 @@ import CanvasPanel from '@/components/CanvasPanel.vue'
 import CronPicker from '@/components/CronPicker.vue'
 import TagChipInput from '@/components/TagChipInput.vue'
 import * as wizardApi from '@/api/wizardApi'
-import { wizardDisplayMeta } from '@/data/wizardDisplayMeta'
+import { wizardDisplayMeta, wizardTitleOverrides } from '@/data/wizardDisplayMeta'
 import type { WizardFieldDisplayMeta } from '@/data/wizardDisplayMeta'
 
 // Generic wizard-run page: renders its Setup form from a WizardDefinition's own parameter
@@ -230,6 +230,7 @@ const STEP_TYPE_LABEL: Record<string, string> = {
   jobTemplate: 'Job blueprint',
   chain:       'Run blueprint (chain)',
   trigger:     'Trigger',
+  batchTrigger: 'BatchCron trigger',
 }
 function stepLabel(name: string, type?: string, item?: string): string {
   const base = (type && STEP_TYPE_LABEL[type]) || name
@@ -267,13 +268,14 @@ const STATUS_ICON: Record<ProgressStatus, string> = {
 // ─── Done step ──────────────────────────────────────────────────────────────
 
 const chainName = computed(() => run.value?.status.steps?.find(s => s.type === 'chain')?.outputs?.name)
+const TRIGGER_STEP_TYPES = new Set(['trigger', 'batchTrigger'])
 const triggerNames = computed(() =>
   (run.value?.status.steps ?? [])
-    .filter(s => s.type === 'trigger' && s.outputs?.name)
+    .filter(s => s.type && TRIGGER_STEP_TYPES.has(s.type) && s.outputs?.name)
     .map(s => s.outputs!.name))
 
 const shortTitle = computed(() =>
-  defName.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()))
+  wizardTitleOverrides[defName] ?? defName.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()))
 const pageTitle = computed(() => `${shortTitle.value} Wizard`)
 const pageDescription = computed(() => definition.value?.spec.description)
 </script>
@@ -318,7 +320,7 @@ const pageDescription = computed(() => definition.value?.spec.description)
         <div v-if="step === 1" class="form-body">
 
           <template v-for="p in definition.spec.parameters" :key="p.name">
-            <div v-if="isVisible(p)" class="form-row" :class="{ 'form-row--top': widgetFor(p) === 'tags' }">
+            <div v-if="isVisible(p)" class="form-row" :class="{ 'form-row--top': widgetFor(p) === 'tags' || widgetFor(p) === 'textarea' }">
               <label class="form-label">
                 {{ labelFor(p) }} <span v-if="p.required" class="required">*</span>
               </label>
@@ -331,6 +333,15 @@ const pageDescription = computed(() => definition.value?.spec.description)
                   :class="{ 'fs-input--error': fieldErrors[p.name] }"
                   :placeholder="metaFor(p.name).placeholder"
                 />
+
+                <textarea
+                  v-else-if="widgetFor(p) === 'textarea'"
+                  v-model="(fields[p.name] as string)"
+                  class="fs-input fs-mono fs-textarea"
+                  :class="{ 'fs-input--error': fieldErrors[p.name] }"
+                  rows="10"
+                  :placeholder="metaFor(p.name).placeholder"
+                ></textarea>
 
                 <select
                   v-else-if="widgetFor(p) === 'select'"
@@ -515,6 +526,7 @@ const pageDescription = computed(() => definition.value?.spec.description)
 .fs-input:focus  { border-color: var(--fs-accent); }
 .fs-input--error { border-color: var(--fs-neg, #e57373); }
 .fs-select { cursor: pointer; }
+.fs-textarea { resize: vertical; min-height: 140px; }
 
 .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--fs-text-primary); cursor: pointer; }
 

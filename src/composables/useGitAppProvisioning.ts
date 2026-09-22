@@ -3,14 +3,13 @@ import * as forgeApi from '@/api/forgeApi'
 import * as weaveApi from '@/api/weaveApi'
 import { ApiError } from '@/api/bffClient'
 
-// Shared by the remaining client-side-orchestrated shortcut wizards
-// (GitPythonJobWizardPage, GitBatchCronJobWizardPage): GitWatcher -> build ->
-// "stable" tag -> job blueprint -> run blueprint (chain). Wizard-specific
-// trigger creation stays in each wizard — the shapes diverge there (one
-// trigger per entrypoint file with a parameterOverride vs. a BatchCron
-// trigger). Git -> Batch Job was migrated onto the fusion-wizard backend
-// (WizardRunPage.vue + the batch-git-job WizardDefinition) and no longer
-// uses this composable — see PLAN_fusion_wizard.md.
+// Shared by the one remaining client-side-orchestrated shortcut wizard,
+// GitPythonJobWizardPage: GitWatcher -> build -> "stable" tag -> job
+// blueprint -> run blueprint (chain). Git -> Batch Job and Git -> BatchCron
+// Job were both migrated onto the fusion-wizard backend (WizardRunPage.vue
+// + the batch-git-job / batchcron-git-job WizardDefinitions) and no longer
+// use this composable — see PLAN_fusion_wizard.md. Python Job stays here
+// until the step catalogue supports per-entrypoint Cron schedules.
 
 // Job-kind steps never read resources/runner image from metadata.yaml (verified
 // in fusion-flux/internal/jobbuilder/builder.go) so these have to live somewhere

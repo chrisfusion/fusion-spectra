@@ -7,6 +7,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.40] — 2026-09-22
+
+<!-- 2026-09-22 -->
+### Added
+- **Wizards**: Git → BatchCron Job migrated onto the generic `WizardRunPage.vue` (`/wizards/run/batchcron-git-job/create`), backed by fusion-wizard's new `batchTrigger` step and `batchcron-git-job` `WizardDefinition`. The old `GitBatchCronJobWizardPage.vue` and its route are removed. `WizardRunPage.vue` gained a `textarea` widget (`wizardDisplayMeta.ts`) for the `jobs` field. The jobs blob is no longer pre-validated field-by-field before submit (the old `/batchtriggers/validate` call) — a malformed blob now fails at creation with fusion-wizard/weave's own error message instead; documented as an accepted gap in `PLAN_fusion_wizard.md`. File upload for the jobs blob (the old page supported paste-or-upload) is also not carried over — paste only for now.
+- **Wizards**: Git → Python Job is now the only wizard left on the legacy client-side-orchestrated pattern (`useGitAppProvisioning.ts`) — blocked on the fusion-wizard step catalogue supporting per-entrypoint Cron schedules; see `PLAN_fusion_wizard.md`.
+
 ## [0.10.39] — 2026-09-22
 
 <!-- 2026-09-22 -->

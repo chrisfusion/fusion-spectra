@@ -104,14 +104,46 @@ fusion-wizard `4c9c175`, committed and deployed:
   rollback left zero leftover resources — all through the actual browser UI, not just curl.
   `src/pages/wizards/CLAUDE.md` rewritten to document the two coexisting patterns.
 
-## Phase 4 — python-git-job and BatchCron (blocked, separate backend effort each)
-- `python-git-job`: needs the step catalogue to support per-`forEach`-item `type`/`schedule` (or an
-  equivalent), not just a shared value for every expansion — before it can be migrated without losing the
-  per-entrypoint OnDemand/Cron choice `GitPythonJobWizardPage` has today.
-- BatchCron: needs a new step type (or a `trigger` extension) accepting a structured list parameter (many
-  `{cron, params}` entries) instead of a `stringList`, plus equivalent of `weaveApi.validateBatchJobs`'s
-  field-level validation. Until either lands, `GitPythonJobWizardPage.vue`/`GitBatchCronJobWizardPage.vue`
-  and their parts of `useGitAppProvisioning.ts` stay as-is.
+## Phase 4a — BatchCron backend — ✅ DONE (2026-09-22)
+fusion-wizard: new `batchTrigger` step type, creating a single BatchCron `WeaveTrigger` through weave's
+dedicated `POST /api/v1/batchtriggers` (generic trigger endpoint can't carry an inline job list). `jobs`
+is opaque text, passed straight through — weave validates it at creation (loses the old wizard's
+field-level pre-validation UI, documented as an accepted gap). Managed-by labels stamped via a follow-up
+`PatchLabels` call (dedicated create endpoint has no labels field) — verified empirically that weave
+accepts a labels-only merge-patch on the generic trigger PATCH endpoint. New `batchcron-git-job`
+`WizardDefinition`. E2E verified on minikube: created a real run, confirmed the BatchCron trigger + jobs
+ConfigMap, confirmed `managed-by` labels, waited for the `* * * * *` entry to fire on its own schedule
+(not a one-shot fire — BatchCron never uses `fireOnCreate`), confirmed the fired pod's `JOB_*` env vars
+matched the submitted entry, then deleted the run and confirmed zero leftover resources.
+
+Frontend wiring — ✅ DONE (fusion-spectra 0.10.40): new `textarea` widget in `WizardRunPage.vue` +
+`wizardDisplayMeta.ts`, per-definition `shortTitle` override (`wizardTitleOverrides`, since
+"batchcron-git-job" auto-title-cases to "Batchcron" not "BatchCron"), Done-step trigger-link matching
+fixed to include the `batchTrigger` step type (was only checking `type === 'trigger'`). Migrated onto
+`/wizards/run/batchcron-git-job/create`; old `GitBatchCronJobWizardPage.vue` removed. `useGitAppProvisioning.ts`
+is now used by only one remaining wizard (Python Job). No file-upload affordance for the jobs blob
+(paste only) and no client-side field-level pre-validation before submit — both accepted gaps, documented
+in the 0.10.40 CHANGELOG entry.
+
+E2E verified via the browser (direct-Playwright-script workaround): filled and submitted the real form,
+reached Ready, confirmed View Chain/View Trigger links. Second fire-on-schedule confirmation was
+inconclusive due to `fusion-weave-operator` (a different repo, fusion-flux) OOMKilling and crash-looping
+in this shared minikube cluster — unrelated to this work. The `batchTrigger` step itself was already
+proven correct by an earlier clean curl-based test (real pod fired with correct `JOB_*` env vars) before
+that started happening. Not investigated further — out of scope, a different repo's infra issue.
+
+## Phase 4b — python-git-job per-entrypoint schedule (not started)
+Needs the step catalogue / templating engine to support per-`forEach`-item `type`/`schedule` (or an
+equivalent), not just a shared value for every expansion — before it can be migrated without losing the
+per-entrypoint OnDemand/Cron choice `GitPythonJobWizardPage` has today. Design sketched but not
+implemented: new `objectList` parameter type (JSON array of flat string-keyed objects), `${item.field}`
+placeholder syntax alongside the existing bare `${item}` (which keeps meaning "the entry's `key` field",
+backward compatible), touching `internal/params` (Context, parseRef, lookup, ResolveList),
+`internal/plan` (Instance.ItemFields), `internal/controller` (thread ItemFields through), and
+`internal/steps/catalog.go` (ValidateDefinition allow objectList as a forEach source). Every object
+entry needs all fields present (empty string, not omitted) — no implicit per-field defaults.
+
+Until Phase 4b lands, `GitPythonJobWizardPage.vue` and its part of `useGitAppProvisioning.ts` stay as-is.
 
 ## Cleanup (after phase 3)
 - `useGitAppProvisioning.ts` keeps only what python-job/BatchCron still need — do not delete the file
