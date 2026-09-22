@@ -132,18 +132,39 @@ in this shared minikube cluster — unrelated to this work. The `batchTrigger` s
 proven correct by an earlier clean curl-based test (real pod fired with correct `JOB_*` env vars) before
 that started happening. Not investigated further — out of scope, a different repo's infra issue.
 
-## Phase 4b — python-git-job per-entrypoint schedule (not started)
-Needs the step catalogue / templating engine to support per-`forEach`-item `type`/`schedule` (or an
-equivalent), not just a shared value for every expansion — before it can be migrated without losing the
-per-entrypoint OnDemand/Cron choice `GitPythonJobWizardPage` has today. Design sketched but not
-implemented: new `objectList` parameter type (JSON array of flat string-keyed objects), `${item.field}`
-placeholder syntax alongside the existing bare `${item}` (which keeps meaning "the entry's `key` field",
-backward compatible), touching `internal/params` (Context, parseRef, lookup, ResolveList),
-`internal/plan` (Instance.ItemFields), `internal/controller` (thread ItemFields through), and
-`internal/steps/catalog.go` (ValidateDefinition allow objectList as a forEach source). Every object
-entry needs all fields present (empty string, not omitted) — no implicit per-field defaults.
+## Phase 4b — python-git-job per-entrypoint schedule: backend — ✅ DONE (2026-09-22)
+fusion-wizard gained the `objectList` parameter type (JSON array of flat string-keyed objects, every
+entry needs a non-empty `"key"` field) and `${item.<field>}` placeholder syntax alongside the existing
+bare `${item}` (which keeps meaning "the entry's `key` field" — fully backward compatible, no other
+definition needed to change). Touched `internal/params` (`Context.ItemFields`, `parseRef`, `lookup`,
+`ResolveList` now returns `[]ForEachItem{Key, Fields}`), `internal/plan` (`Instance.ItemFields`),
+`internal/controller` (threaded through), `internal/steps/catalog.go` (`ValidateDefinition` accepts
+objectList as a forEach source). Every object entry needs all fields present (empty string, not
+omitted) — no implicit per-field defaults; referencing a field an entry omits is an `UnresolvedError`.
 
-Until Phase 4b lands, `GitPythonJobWizardPage.vue` and its part of `useGitAppProvisioning.ts` stay as-is.
+`python-git-job`'s `entrypoints` parameter is now `objectList` (`key`/`type`/`schedule` per entry); its
+trigger step's `type`/`schedule` params reference `${item.type}`/`${item.schedule}`. New
+`internal/controller.TestMixedOnDemandAndCronEntrypoints` proves it at the reconciler level. E2E verified
+on minikube: created a real run with one `OnDemand` and one `Cron` (`0 9 * * *`) entrypoint, confirmed
+the two resulting `WeaveTrigger`s have independently correct `type`/`schedule`, deleted the run and
+confirmed zero leftover resources.
+
+**Found along the way, fixed in the same pass:** `python-git-job`'s `gitWatcher` step was never wired
+with a `projectDir` param, unlike `batch-git-job`/`batchcron-git-job` — the original (pre-Phase-4b)
+definition just never carried it over from `GitPythonJobWizardPage`'s "Subfolder" field. Added
+`projectDir` (default `""`, matching the other two), wired into the watcher step, in both
+`stepstest.PythonJob()` and the chart YAML. E2E verified: a real run using
+`projectDir: testcases_v2/app-builds/etl-pipeline` built successfully and the `GitWatcher`'s spec shows
+the projectDir correctly set.
+
+## Phase 4b — python-git-job per-entrypoint schedule: frontend (not started)
+Migrate `GitPythonJobWizardPage.vue` onto `WizardRunPage.vue`. The `entrypoints` field needs a new,
+genuinely custom widget — unlike every other field so far, it's a repeatable list of small forms (file +
+Manual/Cron toggle + `CronPicker` per row, matching today's page), not a simple single-value input.
+Needs a new `WizardFieldWidget` variant in `wizardDisplayMeta.ts` (e.g. `'objectRows'`) with per-subfield
+config (which fields are text vs. select vs. cron, labels/options per subfield) since `objectList`
+entries have no declared per-field schema on the backend to introspect from. Until this lands,
+`GitPythonJobWizardPage.vue` and its part of `useGitAppProvisioning.ts` stay as-is.
 
 ## Cleanup (after phase 3)
 - `useGitAppProvisioning.ts` keeps only what python-job/BatchCron still need — do not delete the file
