@@ -7,6 +7,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.41] — 2026-09-22
+
+<!-- 2026-09-22 -->
+### Added
+- **Wizards**: Git → Python Job migrated onto the generic `WizardRunPage.vue` (`/wizards/run/python-git-job/create`) — the last of the three shortcut wizards to move off client-side orchestration. New `objectRows` widget (`wizardDisplayMeta.ts`: `WizardRowField`, `rowFields`) — a repeatable per-entrypoint row editor (filename + Manual/Cron toggle + conditional `CronPicker`), the UI counterpart of fusion-wizard's new `objectList` parameter type. Each entrypoint can independently be OnDemand or Cron with its own schedule, matching what the old page offered. The old `GitPythonJobWizardPage.vue` and its route are removed; `useGitAppProvisioning.ts` is no longer imported by any wizard (kept as a reference, per fusion-wizard's own CLAUDE.md note).
+- **Wizards**: `src/pages/wizards/CLAUDE.md` rewritten — the generic, backend-driven pattern is now used by all three wizards; the legacy client-side pattern section is historical reference only.
+
 ## [0.10.40] — 2026-09-22
 
 <!-- 2026-09-22 -->

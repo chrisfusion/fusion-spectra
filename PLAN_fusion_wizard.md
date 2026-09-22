@@ -157,14 +157,31 @@ definition just never carried it over from `GitPythonJobWizardPage`'s "Subfolder
 `projectDir: testcases_v2/app-builds/etl-pipeline` built successfully and the `GitWatcher`'s spec shows
 the projectDir correctly set.
 
-## Phase 4b — python-git-job per-entrypoint schedule: frontend (not started)
-Migrate `GitPythonJobWizardPage.vue` onto `WizardRunPage.vue`. The `entrypoints` field needs a new,
-genuinely custom widget — unlike every other field so far, it's a repeatable list of small forms (file +
-Manual/Cron toggle + `CronPicker` per row, matching today's page), not a simple single-value input.
-Needs a new `WizardFieldWidget` variant in `wizardDisplayMeta.ts` (e.g. `'objectRows'`) with per-subfield
-config (which fields are text vs. select vs. cron, labels/options per subfield) since `objectList`
-entries have no declared per-field schema on the backend to introspect from. Until this lands,
-`GitPythonJobWizardPage.vue` and its part of `useGitAppProvisioning.ts` stay as-is.
+## Phase 4b — python-git-job per-entrypoint schedule: frontend — ✅ DONE (fusion-spectra 0.10.41)
+New `objectRows` widget (`wizardDisplayMeta.ts`: `WizardRowField`, `rowFields`, `keyPlaceholder`;
+`WizardRunPage.vue`: `ObjectRow` type, `newRowKey`/`newRowKeyError` state, `addRow`/`removeRow`) — a
+repeatable per-entry row editor (add-row text input + declared sub-fields, e.g. a `select` type toggle
+and a conditionally-shown `CronPicker`), reusing the original wizard's `entry-add`/`entry-row`/
+`kind-toggle` CSS verbatim. Migrated onto `/wizards/run/python-git-job/create`; old
+`GitPythonJobWizardPage.vue` removed. `useGitAppProvisioning.ts` is no longer imported by any wizard
+(kept in place per fusion-wizard's own CLAUDE.md note). `src/pages/wizards/CLAUDE.md` rewritten — the
+generic pattern is now the only one any current wizard uses.
+
+E2E verified in a **headed, visible** browser (user asked to watch it live): filled the form including
+adding two entrypoints via the new row editor (one Manual, one switched to Cron with the CronPicker's
+default daily-09:00), submitted, reached Ready with both "View Trigger" links. Confirmed via `kubectl`
+that the two resulting `WeaveTrigger`s have independently correct `type`/`schedule` (`OnDemand` /
+`Cron 0 9 * * *`) and `managed-by` labels, then deleted the run and confirmed zero leftover resources.
+
+**All three "Git → X" shortcut wizards are now fully migrated onto the generic, backend-driven pattern.**
+
+**Open UX gap surfaced by the user while testing (not yet decided/scoped):** `WizardRunPage.vue` only
+polls a run while mounted — the run name/progress live in local component state, not the URL or any
+store. Navigating away and back loses track of an in-progress run entirely (the backend run itself is
+unaffected). Two options discussed, decision deferred: (a) a full "Wizard Runs" list/monitoring page
+(the originally-deferred work from the top of this plan) or (b) a smaller URL-param resume
+(`?run=<name>` during Provisioning/Done, so reopening that exact link resumes polling). Revisit before
+calling the wizard migration fully "done" from a UX standpoint.
 
 ## Cleanup (after phase 3)
 - `useGitAppProvisioning.ts` keeps only what python-job/BatchCron still need — do not delete the file

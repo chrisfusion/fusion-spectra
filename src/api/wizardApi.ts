@@ -6,7 +6,7 @@ const BASE = '/api/wizard/api/v1'
 // Mirrors fusion-wizard's internal/apiserver view types (definitionView, runView,
 // resourceView) and api/v1alpha1 CRD types. See fusion-wizard/CLAUDE.md.
 
-export type ParameterType = 'string' | 'number' | 'boolean' | 'stringList'
+export type ParameterType = 'string' | 'number' | 'boolean' | 'stringList' | 'objectList'
 
 export interface WizardParameter {
   name:        string
@@ -17,7 +17,7 @@ export interface WizardParameter {
   pattern?:    string
 }
 
-export type StepType = 'gitWatcher' | 'waitBuild' | 'tag' | 'jobTemplate' | 'chain' | 'trigger'
+export type StepType = 'gitWatcher' | 'waitBuild' | 'tag' | 'jobTemplate' | 'chain' | 'trigger' | 'batchTrigger'
 
 export interface WizardStep {
   name:    string

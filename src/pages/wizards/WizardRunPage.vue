@@ -8,6 +8,8 @@ import * as wizardApi from '@/api/wizardApi'
 import { wizardDisplayMeta, wizardTitleOverrides } from '@/data/wizardDisplayMeta'
 import type { WizardFieldDisplayMeta } from '@/data/wizardDisplayMeta'
 
+type ObjectRow = Record<string, string>
+
 // Generic wizard-run page: renders its Setup form from a WizardDefinition's own parameter
 // schema (fusion-wizard backend), instead of one hand-written page per wizard. A definition
 // needs zero frontend code to get a working wizard here; wizardDisplayMeta.ts is only for
@@ -28,16 +30,21 @@ const loading    = ref(true)
 
 // ─── Setup form state ────────────────────────────────────────────────────────
 
-const fields       = reactive<Record<string, string | string[] | boolean>>({})
+const fields       = reactive<Record<string, string | string[] | boolean | ObjectRow[]>>({})
 const fieldErrors  = reactive<Record<string, string | null>>({})
 
-function defaultValueFor(p: wizardApi.WizardParameter): string | string[] | boolean {
+// 'objectRows' widget state: the pending "add row" key input, per objectList param.
+const newRowKey      = reactive<Record<string, string>>({})
+const newRowKeyError = reactive<Record<string, string | null>>({})
+
+function defaultValueFor(p: wizardApi.WizardParameter): string | string[] | boolean | ObjectRow[] {
   if (p.default !== undefined && p.default !== null) {
     if (p.type === 'stringList') return Array.isArray(p.default) ? p.default as string[] : []
+    if (p.type === 'objectList') return Array.isArray(p.default) ? p.default as ObjectRow[] : []
     if (p.type === 'boolean')    return Boolean(p.default)
     return String(p.default)
   }
-  if (p.type === 'stringList') return []
+  if (p.type === 'stringList' || p.type === 'objectList') return []
   if (p.type === 'boolean')    return false
   return ''
 }
@@ -47,6 +54,42 @@ function resetFields() {
   for (const p of definition.value.spec.parameters) {
     fields[p.name]      = defaultValueFor(p)
     fieldErrors[p.name] = null
+    newRowKey[p.name]      = ''
+    newRowKeyError[p.name] = null
+  }
+}
+
+function addRow(p: wizardApi.WizardParameter) {
+  const val = (newRowKey[p.name] ?? '').trim()
+  newRowKeyError[p.name] = null
+  if (!val) return
+  if (p.pattern) {
+    try {
+      if (!new RegExp(p.pattern).test(val)) {
+        newRowKeyError[p.name] = `Must match pattern: ${p.pattern}`
+        return
+      }
+    } catch { /* a bad pattern on the definition itself isn't this form's problem */ }
+  }
+  const rows = fields[p.name] as ObjectRow[]
+  if (rows.some(r => r.key === val)) {
+    newRowKeyError[p.name] = 'Already added'
+    return
+  }
+  const row: ObjectRow = { key: val }
+  for (const rf of metaFor(p.name).rowFields ?? []) {
+    row[rf.key] = rf.widget === 'select' ? (rf.options?.[0]?.value ?? '') : ''
+  }
+  rows.push(row)
+  newRowKey[p.name] = ''
+}
+function removeRow(p: wizardApi.WizardParameter, key: string) {
+  fields[p.name] = (fields[p.name] as ObjectRow[]).filter(r => r.key !== key)
+}
+function onNewRowKeydown(e: KeyboardEvent, p: wizardApi.WizardParameter) {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault()
+    addRow(p)
   }
 }
 
@@ -78,6 +121,7 @@ function widgetFor(p: wizardApi.WizardParameter): NonNullable<WizardFieldDisplay
   const w = metaFor(p.name).widget
   if (w) return w
   if (p.type === 'stringList') return 'tags'
+  if (p.type === 'objectList') return 'objectRows'
   if (p.type === 'boolean')    return 'checkbox'
   return 'text'
 }
@@ -96,8 +140,8 @@ function validateSetup(): boolean {
     fieldErrors[p.name] = null
     if (!isVisible(p)) continue
     const v = fields[p.name]
-    const empty = p.type === 'stringList'
-      ? (v as string[]).length === 0
+    const empty = p.type === 'stringList' || p.type === 'objectList'
+      ? (v as unknown[]).length === 0
       : typeof v === 'string' && v.trim() === ''
     if (p.required && empty) {
       fieldErrors[p.name] = 'Required'
@@ -122,7 +166,7 @@ function buildParameters(): Record<string, unknown> {
   for (const p of definition.value.spec.parameters) {
     if (!isVisible(p)) continue
     const v = fields[p.name]
-    if (p.type === 'stringList') { out[p.name] = v; continue }
+    if (p.type === 'stringList' || p.type === 'objectList') { out[p.name] = v; continue }
     if (p.type === 'boolean')    { out[p.name] = Boolean(v); continue }
     if (p.type === 'number') {
       const n = Number(v)
@@ -320,7 +364,7 @@ const pageDescription = computed(() => definition.value?.spec.description)
         <div v-if="step === 1" class="form-body">
 
           <template v-for="p in definition.spec.parameters" :key="p.name">
-            <div v-if="isVisible(p)" class="form-row" :class="{ 'form-row--top': widgetFor(p) === 'tags' || widgetFor(p) === 'textarea' }">
+            <div v-if="isVisible(p)" class="form-row" :class="{ 'form-row--top': widgetFor(p) === 'tags' || widgetFor(p) === 'textarea' || widgetFor(p) === 'objectRows' }">
               <label class="form-label">
                 {{ labelFor(p) }} <span v-if="p.required" class="required">*</span>
               </label>
@@ -365,6 +409,45 @@ const pageDescription = computed(() => definition.value?.spec.description)
                   <input type="checkbox" v-model="(fields[p.name] as unknown as boolean)" />
                   <span>{{ helpFor(p) }}</span>
                 </label>
+
+                <template v-else-if="widgetFor(p) === 'objectRows'">
+                  <div class="entry-add">
+                    <input
+                      v-model="newRowKey[p.name]"
+                      class="fs-input fs-mono"
+                      :placeholder="metaFor(p.name).keyPlaceholder"
+                      @keydown="onNewRowKeydown($event, p)"
+                    />
+                    <button class="fs-btn fs-btn--ghost" type="button" @click="addRow(p)">
+                      <q-icon name="mdi-plus" size="14px" /> Add
+                    </button>
+                  </div>
+                  <span v-if="newRowKeyError[p.name]" class="field-error">{{ newRowKeyError[p.name] }}</span>
+
+                  <div v-for="row in (fields[p.name] as ObjectRow[])" :key="row.key" class="entry-row">
+                    <div class="entry-row__head">
+                      <span class="entry-row__file fs-mono">{{ row.key }}</span>
+                      <template v-for="rf in (metaFor(p.name).rowFields ?? [])" :key="rf.key">
+                        <div v-if="rf.widget === 'select'" class="kind-toggle kind-toggle--sm">
+                          <button
+                            v-for="o in rf.options" :key="o.value"
+                            class="kind-btn" :class="{ 'kind-btn--active': row[rf.key] === o.value }"
+                            type="button" @click="row[rf.key] = o.value"
+                          >{{ o.label }}</button>
+                        </div>
+                      </template>
+                      <button class="entry-row__remove" type="button" title="Remove" @click="removeRow(p, row.key)">
+                        <q-icon name="mdi-close" size="14px" />
+                      </button>
+                    </div>
+                    <template v-for="rf in (metaFor(p.name).rowFields ?? [])" :key="`${rf.key}-sub`">
+                      <CronPicker
+                        v-if="rf.widget === 'cron' && (!rf.showIf || row[rf.showIf.field] === rf.showIf.equals)"
+                        v-model="row[rf.key]"
+                      />
+                    </template>
+                  </div>
+                </template>
 
                 <span v-if="fieldErrors[p.name]" class="field-error">{{ fieldErrors[p.name] }}</span>
                 <span v-else-if="helpFor(p) && widgetFor(p) !== 'checkbox'" class="field-hint">{{ helpFor(p) }}</span>
@@ -529,6 +612,36 @@ const pageDescription = computed(() => definition.value?.spec.description)
 .fs-textarea { resize: vertical; min-height: 140px; }
 
 .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--fs-text-primary); cursor: pointer; }
+
+/* objectRows widget: add-row input + repeatable per-entry rows */
+.entry-add { display: flex; gap: 8px; }
+.entry-add .fs-input { flex: 1; }
+.entry-row {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px 12px; border: 1px solid var(--fs-border); border-radius: 5px;
+  margin-top: 8px;
+}
+.entry-row__head { display: flex; align-items: center; gap: 10px; }
+.entry-row__file { flex: 1; font-size: 12.5px; color: var(--fs-text-primary); }
+.entry-row__remove {
+  background: none; border: none; cursor: pointer; padding: 2px;
+  color: var(--fs-text-muted); display: flex; align-items: center;
+  transition: color var(--fs-ease);
+}
+.entry-row__remove:hover { color: var(--fs-neg, #e57373); }
+
+.kind-toggle { display: flex; border: 1px solid var(--fs-border); border-radius: 4px; overflow: hidden; width: fit-content; }
+.kind-toggle--sm .kind-btn { padding: 4px 10px; font-size: 11px; }
+.kind-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 14px; font-size: 12px; font-family: inherit; font-weight: 500;
+  cursor: pointer; background: var(--fs-bg-hover); border: none;
+  border-right: 1px solid var(--fs-border); color: var(--fs-text-muted);
+  transition: background var(--fs-ease), color var(--fs-ease);
+}
+.kind-btn:last-child { border-right: none; }
+.kind-btn:hover { color: var(--fs-text-primary); }
+.kind-btn--active { background: var(--fs-accent); color: #fff; }
 
 /* Progress checklist */
 .progress-list { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; }

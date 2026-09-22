@@ -22,7 +22,7 @@ const wizards = computed<WizardCard[]>(() => {
       title: 'Git → Python Job',
       icon:  'mdi-language-python',
       desc:  'Point at a git repo with several Python scripts — get a GitOps-built artifact, a run blueprint, and one trigger per entrypoint, wired up automatically.',
-      route: '/wizards/git-python-job/create',
+      route: '/wizards/run/python-git-job/create',
     },
     {
       id:    'git-batch-job',

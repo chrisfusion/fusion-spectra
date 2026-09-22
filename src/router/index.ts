@@ -12,7 +12,6 @@ const router = createRouter({
       children: [
         { path: '/dashboard', component: () => import('@/pages/DashboardPage.vue'), meta: { context: 'home' } },
         { path: '/wizards',                       component: () => import('@/pages/wizards/WizardsLandingPage.vue'),      meta: { context: 'wizards' } },
-        { path: '/wizards/git-python-job/create', component: () => import('@/pages/wizards/GitPythonJobWizardPage.vue'),  meta: { context: 'wizards' } },
         { path: '/wizards/run/:definition/create', component: () => import('@/pages/wizards/WizardRunPage.vue'), meta: { context: 'wizards' } },
         { path: '/data/:pathMatch(.*)*',          component: () => import('@/pages/DataPage.vue'),        meta: { context: 'data' } },
         { path: '/pipelines/weave/jobtemplates',         component: () => import('@/pages/pipelines/JobTemplateListPage.vue'),   meta: { context: 'pipelines' } },

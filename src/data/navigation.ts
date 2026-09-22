@@ -48,7 +48,7 @@ export const contexts: Context[] = [
         label: 'Available',
         icon: 'mdi-view-grid-outline',
         children: [
-          { id: 'wizard-git-python-job', label: 'Git → Python Job', icon: 'mdi-language-python', route: '/wizards/git-python-job/create', tooltip: 'Build a job from a git repo with multiple entrypoint scripts' },
+          { id: 'wizard-git-python-job', label: 'Git → Python Job', icon: 'mdi-language-python', route: '/wizards/run/python-git-job/create', tooltip: 'Build a job from a git repo with multiple entrypoint scripts' },
           { id: 'wizard-git-batch-job', label: 'Git → Batch Job', icon: 'mdi-tray-full', route: '/wizards/run/batch-git-job/create', tooltip: 'Build and start a single batch job from a git repo, branch, and subfolder' },
           { id: 'wizard-git-batchcron-job', label: 'Git → BatchCron Job', icon: 'mdi-calendar-multiple', route: '/wizards/run/batchcron-git-job/create', tooltip: 'Build a job and wire up a BatchCron trigger from a pasted list of many cron-scheduled entries' },
         ]
