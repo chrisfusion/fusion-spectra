@@ -17,7 +17,7 @@ const $q     = useQuasar()
 const { can } = usePermission()
 const runName = route.params.name as string
 
-type ProgressStatus = 'pending' | 'running' | 'done' | 'error'
+type ProgressStatus = 'pending' | 'running' | 'done' | 'error' | 'rolledback'
 
 const run       = ref<wizardApi.WizardRun | null>(null)
 const loadError = ref<string | null>(null)
@@ -130,9 +130,11 @@ function stepLabel(name: string, type?: string, item?: string): string {
   return item ? `${base} — ${item}` : base
 }
 
+// RolledBack is a successful, intentional outcome — visually distinct from an actual failure
+// (Failed / RollbackFailed), even though all three are "not Succeeded".
 const STEP_PHASE_TO_PROGRESS: Record<string, ProgressStatus> = {
   Pending: 'pending', Running: 'running', Succeeded: 'done',
-  Failed: 'error', RolledBack: 'error', RollbackFailed: 'error',
+  Failed: 'error', RollbackFailed: 'error', RolledBack: 'rolledback',
 }
 
 interface ProgressItem { key: string, label: string, status: ProgressStatus, detail?: string }
@@ -146,10 +148,11 @@ const progress = computed<ProgressItem[]>(() =>
   })))
 
 const STATUS_ICON: Record<ProgressStatus, string> = {
-  pending: 'mdi-circle-outline',
-  running: 'mdi-loading',
-  done:    'mdi-check-circle-outline',
-  error:   'mdi-alert-circle-outline',
+  pending:    'mdi-circle-outline',
+  running:    'mdi-loading',
+  done:       'mdi-check-circle-outline',
+  error:      'mdi-alert-circle-outline',
+  rolledback: 'mdi-undo-variant',
 }
 
 const PHASE_LABEL: Record<string, string> = {
@@ -304,9 +307,11 @@ const triggerNames = computed(() =>
 .progress-item__icon--pending { color: var(--fs-text-muted); opacity: 0.5; }
 .progress-item__icon--done    { color: var(--fs-pos, #4caf50); }
 .progress-item__icon--error   { color: var(--fs-neg, #e57373); }
+.progress-item__icon--rolledback { color: var(--fs-text-muted); }
 .progress-item__label { font-size: 12.5px; color: var(--fs-text-muted); }
 .progress-item__label--done  { color: var(--fs-text-primary); }
 .progress-item__label--error { color: var(--fs-neg, #e57373); }
+.progress-item__label--rolledback { color: var(--fs-text-muted); }
 .progress-item__detail { font-size: 11px; color: var(--fs-text-muted); margin-left: auto; }
 .progress-empty { font-size: 12px; color: var(--fs-text-muted); padding: 8px 4px; }
 

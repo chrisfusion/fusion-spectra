@@ -7,6 +7,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.43] — 2026-09-22
+
+<!-- 2026-09-22 -->
+### Fixed
+- **Wizards**: `WizardRunDetailPage.vue`'s step progress list rendered a successfully rolled-back run identically to a genuinely failed one — every step showed the red error icon/label regardless of whether it failed or was intentionally, successfully rolled back. `RolledBack` now gets its own neutral/muted visual state instead of sharing `Failed`/`RollbackFailed`'s red styling. Found during a full cross-wizard smoke test.
+
 ## [0.10.42] — 2026-09-22
 
 <!-- 2026-09-22 -->
