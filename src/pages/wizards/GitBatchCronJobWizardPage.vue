@@ -147,7 +147,7 @@ watch(batchJobsRaw, () => { batchJobsRawError.value = null; batchValidateResult.
 // ─── Provisioning ───────────────────────────────────────────────────────────────
 // Shared watcher/build/tag/template/chain logic lives in useGitAppProvisioning();
 // this wizard adds a BatchCron trigger instead of a single OnDemand/Cron one.
-// Unlike GitBatchJobWizardPage, there is no "fire now" step: BatchCron entries
+// Unlike a single OnDemand/Cron trigger, there is no "fire now" step: BatchCron entries
 // each start on their own schedule/startdate via fusion-flux's internal
 // BatchCronScheduler — the generic fire annotation goes through a different,
 // unrelated code path (maybeCreateRun) that would create a bare run with none

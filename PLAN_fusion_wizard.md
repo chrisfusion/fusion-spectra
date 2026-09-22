@@ -13,6 +13,13 @@ Decisions made (2026-09-22):
 - BatchCron wizard **stays on the legacy path** — fusion-wizard's `trigger` step only supports a single
   OnDemand/Cron `WeaveTrigger`, not a list of many cron-scheduled entries. Needs new backend step-type
   work first (separate effort).
+- **Migration order flipped**: `batch-git-job` is the first migrated wizard, not `python-git-job`.
+  `python-git-job`'s definition can't express per-entrypoint Cron schedules (the `trigger` step's
+  `type`/`schedule` apply to every `forEach`-expanded instance identically) — migrating it as-is would
+  silently drop that capability from today's `GitPythonJobWizardPage`. Holding off until the step
+  catalogue supports per-item type/schedule (separate backend effort, same shape as the BatchCron gap).
+  `batch-git-job` had its own gap (no "fire immediately" capability) which got fixed directly (see below)
+  since it was small and contained — unlike the other two, which need real new step-catalogue work.
 
 ## Phase 1 — fusion-bff proxy wiring — ✅ DONE (2026-09-22)
 Code was already written and committed by the user (fusion-bff `8ed2a66`) before this session; this
@@ -53,7 +60,20 @@ session deployed and verified it end-to-end on minikube:
 - Verify: raw curl with a real BFF session cookie through `/api/wizard/definitions` returns the
   pre-seeded `python-git-job` definition
 
-## Phase 2 — fusion-spectra: generic wizard-run page + Python-job migration
+## Phase 2 (backend prerequisite for batch-job) — ✅ DONE (2026-09-22)
+fusion-wizard `4c9c175`, committed and deployed:
+- Trigger step gained `fireOnCreate: "true"` — fires the trigger exactly once, only on the call that
+  actually creates it (never on adopt/re-confirm/retry); new `WeaveClient.Fire`/`Weave.Fire`, test
+  coverage (`TestTriggerFireOnCreate`) confirming exactly-once across create/adopt/re-ensure.
+- New pre-seeded `WizardDefinition` `batch-git-job` (`definitions.batchGitJob.enabled`, default `true`):
+  watcher/build/tag/template/chain/trigger, single fixed trigger (`type`/`schedule` parameterised,
+  `fireOnCreate: true`) — matches `GitBatchJobWizardPage`'s shape. Chart contract test + `stepstest.BatchJob`
+  reference fixture, mirroring `python-git-job`'s existing pattern.
+- E2E verified on minikube: created a real run (`wizard-fw-batch-verify`) through the BFF proxy, confirmed
+  a real pod ran and completed (`fireOnCreate` actually fired), confirmed `managed-by` labels on every
+  created resource, deleted the run and confirmed rollback left zero leftover resources.
+
+## Phase 3 — fusion-spectra: generic wizard-run page + Batch-job migration — ✅ DONE (2026-09-22)
 - `src/api/wizardApi.ts` (mirrors `forgeApi.ts`/`weaveApi.ts` conventions):
   types `WizardDefinition`, `WizardParameter`, `WizardRun`, `WizardRunStepStatus`, `WizardResource`;
   functions `listDefinitions`, `getDefinition(name)`, `createRun(req)`, `getRun(name)`, `listRuns(filters)`,
@@ -73,26 +93,27 @@ session deployed and verified it end-to-end on minikube:
   3. Done — link to the created chain/trigger, same as today
   - Route: `/wizards/run/:definition/create` (definition name in the path); `WizardsLandingPage.vue`
     cards point here instead of a per-wizard route once migrated
-- Migrate `python-git-job` first: point its landing card at `/wizards/run/python-git-job/create`,
-  remove `GitPythonJobWizardPage.vue` + its router/nav entries once verified
-- E2E verify on minikube: real GitWatcher/build/template/chain/trigger created, `managed-by` labels
-  present via `kubectl get -o yaml`, same functional outcome as the old wizard (per the existing
-  "wizard reaching Done doesn't prove the job runs" gotcha — check pods/logs too)
+- Migrate `batch-git-job` first: point its landing card at `/wizards/run/batch-git-job/create`,
+  remove `GitBatchJobWizardPage.vue` + its router/nav entries once verified — **done**
+- E2E verify via the browser: confirm the generic page's Setup/Progress/Done flow matches the old
+  wizard's UX, and check pods/logs, not just "reached Done" — **done**. fusion-spectra:0.10.39.
+  Playwright MCP tool crashes on launch (sandbox bug, see `reference_playwright_sandbox_issue.md`
+  memory) — used the documented direct-`playwright-core`-script workaround instead, no MCP-layer
+  re-diagnosis. Filled and submitted the real form, watched provisioning reach Ready, confirmed a real
+  pod completed (`kubectl get pods`), confirmed `managed-by` labels, deleted the run and confirmed
+  rollback left zero leftover resources — all through the actual browser UI, not just curl.
+  `src/pages/wizards/CLAUDE.md` rewritten to document the two coexisting patterns.
 
-## Phase 3 — batch-job definition + migration
-- Add `batch-git-job` `WizardDefinition` to `deployment/fusion-wizard/templates/definitions/` (new file,
-  toggled via `values.yaml` `definitions.batchGitJob.enabled`): same step shape as `python-git-job` but a
-  single fixed trigger (no `forEach`) — fits the existing catalogue, no fusion-wizard Go changes needed
-- Migrate `GitBatchJobWizardPage.vue` the same way as phase 2; remove the old page once verified
-
-## Phase 4 — BatchCron (blocked, separate effort)
-- Needs a new fusion-wizard step type (or an extension of `trigger`) accepting a structured list
-  parameter (many `{cron, params}` entries) instead of a `stringList`, plus equivalent of
-  `weaveApi.validateBatchJobs`'s field-level validation. Until then `GitBatchCronJobWizardPage.vue` and
-  the BatchCron parts of `useGitAppProvisioning.ts` stay as-is.
+## Phase 4 — python-git-job and BatchCron (blocked, separate backend effort each)
+- `python-git-job`: needs the step catalogue to support per-`forEach`-item `type`/`schedule` (or an
+  equivalent), not just a shared value for every expansion — before it can be migrated without losing the
+  per-entrypoint OnDemand/Cron choice `GitPythonJobWizardPage` has today.
+- BatchCron: needs a new step type (or a `trigger` extension) accepting a structured list parameter (many
+  `{cron, params}` entries) instead of a `stringList`, plus equivalent of `weaveApi.validateBatchJobs`'s
+  field-level validation. Until either lands, `GitPythonJobWizardPage.vue`/`GitBatchCronJobWizardPage.vue`
+  and their parts of `useGitAppProvisioning.ts` stay as-is.
 
 ## Cleanup (after phase 3)
-- `useGitAppProvisioning.ts` keeps only what BatchCron still needs (or nothing, if BatchCron gets its own
-  minimal inline logic) — do not delete the file outright; fusion-wizard's own CLAUDE.md already notes
-  it's kept as a reference/proof-of-concept
-- `src/pages/wizards/CLAUDE.md` gets rewritten for the new generic-page pattern once phase 2 lands
+- `useGitAppProvisioning.ts` keeps only what python-job/BatchCron still need — do not delete the file
+  outright; fusion-wizard's own CLAUDE.md already notes it's kept as a reference/proof-of-concept
+- `src/pages/wizards/CLAUDE.md` gets rewritten for the new generic-page pattern once phase 3 lands

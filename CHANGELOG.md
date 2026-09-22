@@ -7,6 +7,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.39] — 2026-09-22
+
+<!-- 2026-09-22 -->
+### Added
+- **Wizards**: new generic, definition-driven `WizardRunPage.vue` (`/wizards/run/:definition/create`) that renders its Setup form directly from a `fusion-wizard` backend `WizardDefinition`'s parameter schema instead of a hand-written page per wizard — new definitions need zero frontend code. New `src/api/wizardApi.ts` client (definitions/runs/resources against the new `/api/wizard/*` BFF proxy) and optional `src/data/wizardDisplayMeta.ts` override layer (custom label/help/widget/conditional-visibility per parameter, falling back to the definition's own `description` when absent).
+- **Wizards**: Git → Batch Job is the first wizard migrated onto this — its card/nav leaf now route to `/wizards/run/batch-git-job/create`; the old client-side-orchestrated `GitBatchJobWizardPage.vue` and its route are removed. Provisioning is now driven server-side by fusion-wizard's `batch-git-job` `WizardDefinition` (ledger-backed, real rollback/retry) instead of `useGitAppProvisioning.ts`. Git → Python Job and Git → BatchCron Job are not migrated yet — the fusion-wizard step catalogue doesn't yet support per-entrypoint Cron schedules or many-cron-entry triggers respectively; see `PLAN_fusion_wizard.md`. Verified end-to-end in a real browser against minikube: filled and submitted the form, watched provisioning reach Ready, confirmed a real pod ran, then deleted the run and confirmed rollback left no leftover resources.
+
 ## [0.10.38] — 2026-09-18
 
 <!-- 2026-09-18 -->

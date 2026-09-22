@@ -29,7 +29,7 @@ const wizards = computed<WizardCard[]>(() => {
       title: 'Git → Batch Job',
       icon:  'mdi-tray-full',
       desc:  'Point at a git repo/branch/subfolder containing a single batch job — get a GitOps-built artifact, a run blueprint and trigger, and the first run fired immediately.',
-      route: '/wizards/git-batch-job/create',
+      route: '/wizards/run/batch-git-job/create',
     },
   ]
   if (can('weave:batchtriggers:write')) {
