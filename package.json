@@ -1,6 +1,6 @@
 {
   "name": "fusion-spectra",
-  "version": "0.10.41",
+  "version": "0.10.42",
   "private": true,
   "scripts": {
     "dev": "vite",

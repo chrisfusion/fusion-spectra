@@ -175,13 +175,28 @@ that the two resulting `WeaveTrigger`s have independently correct `type`/`schedu
 
 **All three "Git → X" shortcut wizards are now fully migrated onto the generic, backend-driven pattern.**
 
-**Open UX gap surfaced by the user while testing (not yet decided/scoped):** `WizardRunPage.vue` only
-polls a run while mounted — the run name/progress live in local component state, not the URL or any
-store. Navigating away and back loses track of an in-progress run entirely (the backend run itself is
-unaffected). Two options discussed, decision deferred: (a) a full "Wizard Runs" list/monitoring page
-(the originally-deferred work from the top of this plan) or (b) a smaller URL-param resume
-(`?run=<name>` during Provisioning/Done, so reopening that exact link resumes polling). Revisit before
-calling the wizard migration fully "done" from a UX standpoint.
+## Wizard Runs monitoring — ✅ DONE (fusion-spectra 0.10.42)
+Closes the "lost track of a run after navigating away" gap above. Chose the full list/monitoring page
+option, with a naming/architecture cleanup to avoid confusion between "create a run" and "look at a run":
+
+- `WizardRunPage.vue` **renamed** to `WizardCreatePage.vue`, reduced to the Setup step only — on success
+  it redirects to `/wizards/runs/:name` instead of handling Provisioning/Done itself.
+- New `WizardRunDetailPage.vue` (`/wizards/runs/:name`) is now the **one** place that polls and renders a
+  run's progress (moved verbatim from the old page's steps 2/3), used both right after creation and when
+  revisiting later — a run's state lives at its URL, not component memory. Actions: Retry (Failed only),
+  Roll Back, Delete, all gated by the matching `wizard:runs:*` permission and using the repo's standard
+  `$q.dialog()` confirm pattern. Terminal-phase-aware polling (`setInterval` + stop on
+  Ready/Failed/RolledBack/RollbackFailed), mirroring `WeaveRunDetailPage.vue`'s pattern exactly.
+- New `WizardRunsPage.vue` (`/wizards/runs`) — stats-by-phase row, client-side filterable table
+  (definition/phase, matching weave's list pages' no-server-filter approach), same row actions, links to
+  detail. Bulk rollback deferred (no existing row-selection UI precedent to mirror, not blocking).
+- New "Runs" nav group (`wizards-runs` / `wizard-runs` leaf) and a "View Runs" header action on the
+  wizards landing page.
+
+E2E verified in a **headed, visible** browser: created a run, redirect to detail confirmed, navigated
+away to the dashboard (simulating "lost track of it"), went to `/wizards/runs`, confirmed the run listed
+with live phase, clicked through, confirmed it resumed showing the same step-by-step progress and reached
+Ready with working View Chain/Trigger links. Cleaned up both test runs, confirmed zero leftover resources.
 
 ## Cleanup (after phase 3)
 - `useGitAppProvisioning.ts` keeps only what python-job/BatchCron still need — do not delete the file

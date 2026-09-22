@@ -7,6 +7,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.42] — 2026-09-22
+
+<!-- 2026-09-22 -->
+### Added
+- **Wizards**: new "Wizard Runs" monitoring feature — `WizardRunsPage.vue` (`/wizards/runs`, stats-by-phase row, filterable table, retry/rollback/delete per row) and `WizardRunDetailPage.vue` (`/wizards/runs/:name`, live step progress, same actions). Closes the gap where navigating away from a run mid-provisioning lost track of it — a run's state now lives at its URL, not component memory. New "Runs" nav group and a "View Runs" header action on the wizards landing page.
+### Changed
+- **Wizards**: `WizardRunPage.vue` renamed to `WizardCreatePage.vue` and reduced to the Setup step only — on success it now redirects to `/wizards/runs/:name` (the detail page above) instead of handling Provisioning/Done itself, so there's a single implementation of "watch a run's progress" used both right after creation and when revisiting later.
+
 ## [0.10.41] — 2026-09-22
 
 <!-- 2026-09-22 -->

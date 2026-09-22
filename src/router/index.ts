@@ -12,7 +12,9 @@ const router = createRouter({
       children: [
         { path: '/dashboard', component: () => import('@/pages/DashboardPage.vue'), meta: { context: 'home' } },
         { path: '/wizards',                       component: () => import('@/pages/wizards/WizardsLandingPage.vue'),      meta: { context: 'wizards' } },
-        { path: '/wizards/run/:definition/create', component: () => import('@/pages/wizards/WizardRunPage.vue'), meta: { context: 'wizards' } },
+        { path: '/wizards/runs',                  component: () => import('@/pages/wizards/WizardRunsPage.vue'),      meta: { context: 'wizards' } },
+        { path: '/wizards/runs/:name',            component: () => import('@/pages/wizards/WizardRunDetailPage.vue'), meta: { context: 'wizards' } },
+        { path: '/wizards/run/:definition/create', component: () => import('@/pages/wizards/WizardCreatePage.vue'), meta: { context: 'wizards' } },
         { path: '/data/:pathMatch(.*)*',          component: () => import('@/pages/DataPage.vue'),        meta: { context: 'data' } },
         { path: '/pipelines/weave/jobtemplates',         component: () => import('@/pages/pipelines/JobTemplateListPage.vue'),   meta: { context: 'pipelines' } },
         { path: '/pipelines/weave/jobtemplates/create', component: () => import('@/pages/pipelines/JobTemplateCreatePage.vue'),  meta: { context: 'pipelines' } },

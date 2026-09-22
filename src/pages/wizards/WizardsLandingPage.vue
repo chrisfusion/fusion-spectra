@@ -48,6 +48,11 @@ const wizards = computed<WizardCard[]>(() => {
 <template>
   <div class="page-grid">
     <CanvasPanel title="Wizards" icon="mdi-creation" :wide="true">
+      <template #actions>
+        <button class="fs-btn fs-btn--ghost" @click="router.push('/wizards/runs')">
+          <q-icon name="mdi-history" size="14px" /> View Runs
+        </button>
+      </template>
       <div class="wizard-grid">
         <button
           v-for="w in wizards"
@@ -98,4 +103,13 @@ const wizards = computed<WizardCard[]>(() => {
 .wizard-card__icon  { color: var(--fs-accent); }
 .wizard-card__title { font-size: 13.5px; font-weight: 600; color: var(--fs-text-primary); }
 .wizard-card__desc  { font-size: 11.5px; color: var(--fs-text-muted); line-height: 1.5; }
+
+.fs-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px;
+  border-radius: 4px; font-size: 12.5px; font-family: inherit; font-weight: 500;
+  cursor: pointer; border: 1px solid transparent;
+  transition: background var(--fs-ease), border-color var(--fs-ease), color var(--fs-ease);
+}
+.fs-btn--ghost { background: transparent; color: var(--fs-text-muted); border-color: var(--fs-border); }
+.fs-btn--ghost:hover { color: var(--fs-text-primary); background: var(--fs-bg-hover); }
 </style>
