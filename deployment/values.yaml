@@ -80,3 +80,5 @@ config:
   etlStorageClass:       ""
   gitlabUrl:             "https://gitlab.fusion.local"
   gitlabProjectPath:     "fusion-platform/fusion-spectra"
+  # URL of a wizard-deployed service; {name} = its ingress name (weave ingress.hostSuffix appended by DNS)
+  serviceUrlPattern:     "http://{name}.fusion.local"

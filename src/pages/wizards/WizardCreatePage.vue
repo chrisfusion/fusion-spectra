@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import CronPicker from '@/components/CronPicker.vue'
 import TagChipInput from '@/components/TagChipInput.vue'
 import * as wizardApi from '@/api/wizardApi'
+import * as weaveApi from '@/api/weaveApi'
 import { wizardDisplayMeta, wizardTitleOverrides } from '@/data/wizardDisplayMeta'
 import type { WizardFieldDisplayMeta } from '@/data/wizardDisplayMeta'
 
@@ -93,12 +94,55 @@ function onNewRowKeydown(e: KeyboardEvent, p: wizardApi.WizardParameter) {
   }
 }
 
+// ─── Advanced section + external-auth name picker ───────────────────────────
+
+const showAdvanced = ref(false)
+
+// Advanced params sort last, so the toggle sits directly above the first of them.
+const orderedParams = computed(() => {
+  const params = definition.value?.spec.parameters ?? []
+  return [...params.filter(p => !metaFor(p.name).advanced), ...params.filter(p => metaFor(p.name).advanced)]
+})
+const firstAdvanced = computed(() => orderedParams.value.find(p => metaFor(p.name).advanced)?.name)
+
+// weave's allowlist of token names, loaded only when the definition has an externalAuthName field.
+const authOptions      = ref<weaveApi.ExternalAuthOptions | null>(null)
+const authOptionsError = ref<string | null>(null)
+
+const authNameParams = computed(() =>
+  (definition.value?.spec.parameters ?? []).filter(p => widgetFor(p) === 'externalAuthName'))
+
+async function loadAuthOptions() {
+  authOptions.value = null
+  authOptionsError.value = null
+  if (authNameParams.value.length === 0) return
+  try {
+    authOptions.value = await weaveApi.getExternalAuthOptions()
+  } catch (e) {
+    authOptionsError.value = e instanceof Error ? e.message : 'Failed to load the allowed token names'
+  }
+}
+
+function authNamesFor(p: wizardApi.WizardParameter): string[] {
+  const mode = fields[metaFor(p.name).modeField ?? '']
+  if (mode === 'serviceAccount') return authOptions.value?.serviceAccounts ?? []
+  if (mode === 'oidc')           return authOptions.value?.oidcSecrets ?? []
+  return []
+}
+
+// A stale name from another mode's allowlist must never survive a mode change.
+watch(
+  () => authNameParams.value.map(p => fields[metaFor(p.name).modeField ?? '']),
+  () => { for (const p of authNameParams.value) fields[p.name] = '' },
+)
+
 async function loadDefinition() {
   loading.value   = true
   loadError.value = null
   try {
     definition.value = await wizardApi.getDefinition(defName)
     resetFields()
+    await loadAuthOptions()
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : 'Failed to load this wizard'
   } finally {
@@ -128,7 +172,15 @@ function widgetFor(p: wizardApi.WizardParameter): NonNullable<WizardFieldDisplay
 function isVisible(p: wizardApi.WizardParameter): boolean {
   const showIf = metaFor(p.name).showIf
   if (!showIf) return true
-  return fields[showIf.field] === showIf.equals
+  const v = fields[showIf.field]
+  if (showIf.equals !== undefined)    return v === showIf.equals
+  if (showIf.notEquals !== undefined) return v !== showIf.notEquals
+  return true
+}
+
+// Collapsing the advanced section only hides fields; values set there still validate and submit.
+function isShown(p: wizardApi.WizardParameter): boolean {
+  return isVisible(p) && (!metaFor(p.name).advanced || showAdvanced.value)
 }
 
 // ─── Validation ─────────────────────────────────────────────────────────────
@@ -155,6 +207,15 @@ function validateSetup(): boolean {
           ok = false
         }
       } catch { /* a bad pattern on the definition itself isn't this form's problem */ }
+    }
+  }
+  // externalAuth is both-or-neither: a mode without a (allowlisted) name would be a 422 at creation.
+  for (const p of authNameParams.value) {
+    if (!isVisible(p)) continue
+    if (!authNamesFor(p).includes(String(fields[p.name]))) {
+      fieldErrors[p.name] = 'Choose one of the allowed names'
+      showAdvanced.value = true
+      ok = false
     }
   }
   return ok
@@ -219,8 +280,16 @@ const pageDescription = computed(() => definition.value?.spec.description)
 
         <div class="form-body">
 
-          <template v-for="p in definition.spec.parameters" :key="p.name">
-            <div v-if="isVisible(p)" class="form-row" :class="{ 'form-row--top': widgetFor(p) === 'tags' || widgetFor(p) === 'textarea' || widgetFor(p) === 'objectRows' }">
+          <template v-for="p in orderedParams" :key="p.name">
+            <button
+              v-if="p.name === firstAdvanced"
+              class="advanced-toggle" type="button"
+              @click="showAdvanced = !showAdvanced"
+            >
+              <q-icon :name="showAdvanced ? 'mdi-chevron-down' : 'mdi-chevron-right'" size="16px" />
+              Advanced options
+            </button>
+            <div v-if="isShown(p)" class="form-row" :class="{ 'form-row--top': widgetFor(p) === 'tags' || widgetFor(p) === 'textarea' || widgetFor(p) === 'objectRows' }">
               <label class="form-label">
                 {{ labelFor(p) }} <span v-if="p.required" class="required">*</span>
               </label>
@@ -250,6 +319,21 @@ const pageDescription = computed(() => definition.value?.spec.description)
                 >
                   <option v-for="o in metaFor(p.name).options" :key="o.value" :value="o.value">{{ o.label }}</option>
                 </select>
+
+                <template v-else-if="widgetFor(p) === 'externalAuthName'">
+                  <select
+                    v-model="(fields[p.name] as string)"
+                    class="fs-input fs-select"
+                    :class="{ 'fs-input--error': fieldErrors[p.name] }"
+                  >
+                    <option value="" disabled>Select…</option>
+                    <option v-for="n in authNamesFor(p)" :key="n" :value="n">{{ n }}</option>
+                  </select>
+                  <span v-if="authOptionsError" class="field-error">{{ authOptionsError }}</span>
+                  <span v-else-if="authOptions && authNamesFor(p).length === 0" class="field-hint">
+                    No names are allowlisted for this mode — ask an admin to configure weave's externalAuth
+                  </span>
+                </template>
 
                 <CronPicker
                   v-else-if="widgetFor(p) === 'cron'"
@@ -362,6 +446,12 @@ const pageDescription = computed(() => definition.value?.spec.description)
 /* Form layout */
 .form-body { display: flex; flex-direction: column; gap: 16px; padding: 16px 10px 10px; }
 
+.advanced-toggle {
+  display: flex; align-items: center; gap: 4px; align-self: flex-start;
+  background: none; border: none; padding: 4px 0; cursor: pointer;
+  color: var(--fs-text-muted); font-size: 12px; font-family: inherit;
+}
+.advanced-toggle:hover { color: var(--fs-text-primary); }
 .form-row { display: grid; grid-template-columns: 140px 1fr; align-items: center; gap: 12px; }
 .form-row--top { align-items: start; }
 .form-label {

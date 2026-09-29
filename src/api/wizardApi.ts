@@ -17,7 +17,7 @@ export interface WizardParameter {
   pattern?:    string
 }
 
-export type StepType = 'gitWatcher' | 'waitBuild' | 'tag' | 'jobTemplate' | 'chain' | 'trigger' | 'batchTrigger'
+export type StepType = 'gitWatcher' | 'waitBuild' | 'tag' | 'jobTemplate' | 'serviceTemplate' | 'chain' | 'trigger' | 'batchTrigger'
 
 export interface WizardStep {
   name:    string

@@ -7,4 +7,5 @@ window.FUSION_CONFIG = {
   etlStorageClass:       '',
   gitlabUrl:             'https://gitlab.fusion.local',
   gitlabProjectPath:     'fusion-platform/fusion-spectra',
+  serviceUrlPattern:     'http://{name}.fusion.local',
 }

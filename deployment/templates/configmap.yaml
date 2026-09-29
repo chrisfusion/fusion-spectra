@@ -15,4 +15,5 @@ data:
       etlStorageClass:       {{ .Values.config.etlStorageClass | quote }},
       gitlabUrl:             {{ .Values.config.gitlabUrl | quote }},
       gitlabProjectPath:     {{ .Values.config.gitlabProjectPath | quote }},
+      serviceUrlPattern:     {{ .Values.config.serviceUrlPattern | quote }},
     };

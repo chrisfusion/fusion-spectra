@@ -566,3 +566,15 @@ export function unpauseBatchTrigger(name: string): Promise<WeaveTrigger> {
     spec: { paused: false },
   })
 }
+
+// ─── External auth (short-lived SA/OIDC token injection) ─────────────────────
+
+// Deploy-time allowlists; the only names weave accepts for an externalAuthRef of that mode.
+export interface ExternalAuthOptions {
+  serviceAccounts: string[]
+  oidcSecrets:     string[]
+}
+
+export function getExternalAuthOptions(): Promise<ExternalAuthOptions> {
+  return bffGet<ExternalAuthOptions>(`${BASE}/external-auth/options`)
+}

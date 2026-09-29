@@ -41,6 +41,15 @@ const wizards = computed<WizardCard[]>(() => {
       route: '/wizards/run/batchcron-git-job/create',
     })
   }
+  if (can('weave:servicetemplates:write')) {
+    cards.push({
+      id:    'git-python-service',
+      title: 'Git → Python Service',
+      icon:  'mdi-application-cog-outline',
+      desc:  'Point at a git repo with a Streamlit (or other Python web) app — get a GitOps-built artifact, a long-running deployment, and its URL, kept current when the tag moves.',
+      route: '/wizards/run/python-git-service/create',
+    })
+  }
   return cards
 })
 </script>

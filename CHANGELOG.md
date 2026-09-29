@@ -7,6 +7,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.44] — 2026-09-29
+
+### Added
+- "Git → Python Service" wizard (`python-git-service`): deploys a long-running Streamlit/Python app; the run page shows the full service URL and a "View Service Blueprint" link
+- Optional short-lived token injection (weave `externalAuthRef`) on the Python, Batch and BatchCron job wizards, plus a trigger-level override on Python/Batch — collapsed under "Advanced options", name picker fed by weave's allowlist
+- `serviceUrlPattern` runtime config (`{name}` = ingress name) for the service URL
+
 ## [0.10.43] — 2026-09-22
 
 <!-- 2026-09-22 -->

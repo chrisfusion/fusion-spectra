@@ -1,7 +1,7 @@
 ## Shortcut wizard pattern: generic, backend-driven
 
-All three "Git → X" shortcut wizards (Batch Job, BatchCron Job, Python Job) run through
-`WizardRunPage.vue` (`/wizards/run/:definition/create`) against a real `fusion-wizard` backend
+All four "Git → X" shortcut wizards (Batch Job, BatchCron Job, Python Job, Python Service) run through
+`WizardCreatePage.vue` (`/wizards/run/:definition/create`) against a real `fusion-wizard` backend
 `WizardDefinition` — ledger-backed provisioning with real rollback/retry, not client-side
 orchestration. The Setup form renders itself from the `WizardDefinition`'s own `spec.parameters` — a
 new definition needs **zero** frontend code by default.
@@ -24,6 +24,16 @@ declared in `WizardFieldDisplayMeta.rowFields`, e.g. a `select` type toggle and 
 `CronPicker`). Each row is a plain object keyed by field name, always including `"key"` (the row's
 identity, matching the backend's `objectList` convention — see fusion-wizard's `CLAUDE.md`). This is
 the one widget so far with real per-row structure; every other widget is a single value.
+
+**`externalAuthName` widget + `advanced` flag**: weave's optional `externalAuthRef` is a mode select plus a
+name picker (`widget: 'externalAuthName'`, `modeField` = sibling mode param) fed by
+`weaveApi.getExternalAuthOptions()` (weave's allowlist; only offered names are valid). Changing the mode
+clears the name; a mode without an allowlisted name blocks submit (backend would 422). `advanced: true`
+fields sit under a collapsed "Advanced options" toggle but still validate/submit while collapsed. Shared
+via `externalAuthFields()` in `wizardDisplayMeta.ts`; the service definition deliberately has none.
+
+**Service URL**: `python-git-service` runs show `serviceUrlPattern` (`FUSION_CONFIG`, `{name}` = the run's
+`ingressName` parameter) once Ready — the wizard doesn't report a host, weave appends its `hostSuffix`.
 
 **Known gaps vs. the old client-side wizards** (accepted, not fixed): no field-level pre-validation
 before submit (a malformed input now fails at creation with the backend's own error message, not a

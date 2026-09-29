@@ -8,6 +8,7 @@ declare global {
       etlStorageClass?:       string
       gitlabUrl?:             string
       gitlabProjectPath?:     string
+      serviceUrlPattern?:     string
     }
   }
 }
@@ -38,4 +39,10 @@ export function getGitlabUrl(): string {
 
 export function getGitlabProjectPath(): string {
   return window.FUSION_CONFIG?.gitlabProjectPath ?? import.meta.env.VITE_GITLAB_PROJECT_PATH ?? ''
+}
+
+// URL a deployed service is reachable at; `{name}` is its ingress name (the DNS label weave prefixes
+// to its cluster-wide ingress.hostSuffix). Empty = unknown, callers fall back to showing the name only.
+export function getServiceUrlPattern(): string {
+  return window.FUSION_CONFIG?.serviceUrlPattern ?? ''
 }

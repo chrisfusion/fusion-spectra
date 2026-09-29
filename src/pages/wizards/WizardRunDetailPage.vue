@@ -5,6 +5,7 @@ import { useQuasar } from 'quasar'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import * as wizardApi from '@/api/wizardApi'
 import { usePermission } from '@/composables/usePermission'
+import { getServiceUrlPattern } from '@/config/runtime'
 
 // The one place that polls and renders a WizardRun's progress — used both right after creation
 // (WizardCreatePage.vue redirects here on success) and when revisiting a run later from
@@ -121,6 +122,7 @@ const STEP_TYPE_LABEL: Record<string, string> = {
   waitBuild:   'Building artifact',
   tag:         'Assigning tag',
   jobTemplate: 'Job blueprint',
+  serviceTemplate: 'Service blueprint',
   chain:       'Run blueprint (chain)',
   trigger:     'Trigger',
   batchTrigger: 'BatchCron trigger',
@@ -161,6 +163,16 @@ const PHASE_LABEL: Record<string, string> = {
 }
 
 const chainName = computed(() => run.value?.status.steps?.find(s => s.type === 'chain')?.outputs?.name)
+const serviceTemplateName = computed(() => run.value?.status.steps?.find(s => s.type === 'serviceTemplate')?.outputs?.name)
+
+// A service run is reachable once the wizard has finished, at <ingressName> filled into the configured
+// pattern. Weave appends its cluster host suffix itself, so this is config, not something the run reports.
+const serviceUrl = computed(() => {
+  const ingress = run.value?.parameters?.ingressName
+  const pattern = getServiceUrlPattern()
+  if (run.value?.status.phase !== 'Ready' || typeof ingress !== 'string' || !ingress || !pattern) return null
+  return pattern.replace('{name}', ingress)
+})
 const TRIGGER_STEP_TYPES = new Set(['trigger', 'batchTrigger'])
 const triggerNames = computed(() =>
   (run.value?.status.steps ?? [])
@@ -214,6 +226,12 @@ const triggerNames = computed(() =>
           {{ run.status.message }}
         </div>
 
+        <div v-if="serviceUrl" class="inline-msg inline-msg--info">
+          <q-icon name="mdi-open-in-new" size="13px" />
+          Service URL:
+          <a :href="serviceUrl" target="_blank" rel="noopener" class="fs-mono">{{ serviceUrl }}</a>
+        </div>
+
         <div class="progress-list">
           <div v-for="item in progress" :key="item.key" class="progress-item">
             <q-spinner v-if="item.status === 'running'" size="16px" class="progress-item__spinner" />
@@ -232,6 +250,9 @@ const triggerNames = computed(() =>
         <div class="run-actions">
           <button v-if="chainName" class="fs-btn fs-btn--ghost" @click="router.push(`/pipelines/weave/chains/${encodeURIComponent(chainName)}`)">
             <q-icon name="mdi-link-chain" size="14px" /> View Chain
+          </button>
+          <button v-if="serviceTemplateName" class="fs-btn fs-btn--ghost" @click="router.push('/pipelines/weave/servicetemplates')">
+            <q-icon name="mdi-application-cog-outline" size="14px" /> View Service Blueprint
           </button>
           <button v-for="t in triggerNames" :key="t" class="fs-btn fs-btn--ghost" @click="router.push('/pipelines/weave/triggers')">
             <q-icon name="mdi-lightning-bolt-outline" size="14px" /> View Trigger — {{ t }}
