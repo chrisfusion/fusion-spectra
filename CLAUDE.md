@@ -126,6 +126,10 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - Access Pinia stores in evaluate: `document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('storeName')`; theme store action is `.set(themeName)`
 - Playwright browser has its own separate session and cache from the user's browser — stale `config.js` there doesn't mean the user has the same problem
 - To call BFF APIs with auth during testing: `browser_evaluate` with `fetch('http://bff.fusion.local/api/...', { credentials: 'include' })` — uses the browser's session cookies
+- Playwright MCP tools crash on launch here (Chromium sandbox). Use a throwaway `.mjs` script importing `playwright-core` from `~/.npm/_npx/*/node_modules/playwright-core/index.mjs`, launched with `executablePath: ~/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome` and `args: ['--no-sandbox','--disable-setuid-sandbox']` in the `launch()` call itself
+- Mock-OIDC login redirects to `/#/dashboard`, not the page you started on — `goto` the target route again after submitting the login form
+- Wizard form rows are `.form-row` with a `.form-label`; locate fields by label text (`.form-row:has(.form-label:text("Repo URL")) input`)
+- E2E wizard runs use gitea `fusion-testcases` (`http://gitea.fusion.local/gitea_admin/fusion-testcases.git`, `testcases_v2/app-builds/*`); `streamlit-showcase` is the only Streamlit app and is shared with the showroom watcher — don't roll back/delete such a run (fusion-wizard rollback can delete the shared index artifact)
 - Mock OIDC login form (`http://bff.fusion.local/mock-oidc/...`, served by fusion-bff itself, not a separate host) fields: `input[name="sub"]`, `input[name="email"]`, `input[name="name"]`, `select[name="groups"]` (multi-select — `platform-admin`/`team-data`/`team-ml`/`platform-viewer`), submit `button[type="submit"]`
 
 ## Activity rail — utility zone
@@ -144,6 +148,8 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - Helm field manager conflict: if `kubectl set image` was used, bypass with `kubectl set image deployment/fusion-spectra frontend=fusion-spectra:X.Y.Z -n fusion`
 - Stale probe ports: if nginx moved to 8080 but probes still hit 80, pods crash-loop — patch: `kubectl patch deployment fusion-spectra -n fusion --type=json -p='[{"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/httpGet/port","value":8080},...]'`
 - Stale JS chunks after redeploy: `router.onError` + `unhandledrejection` + `vite:preloadError` in `src/router/index.ts` auto-reload on chunk-not-found; guard is **timestamp-based** (8s cooldown in `__chunk_reload_ts__`) — do NOT use a boolean flag, Ctrl+Shift+R does not clear `sessionStorage` so a boolean guard permanently blocks recovery
+- `helm upgrade fusion-spectra` still fails with the `kubectl-set` image-field conflict but applies the ConfigMap first — follow with `kubectl set image` (release stays `failed`, harmless)
+- Enabling a new fusion-wizard definition: `cd ../fusion-wizard && helm upgrade fusion-wizard deployment/fusion-wizard -n fusion --reuse-values --set definitions.<x>.enabled=true`; verify with `kubectl get wizarddefinitions -n fusion`
 - "Clean reinstall on minikube" = `eval $(minikube docker-env) && docker build -t fusion-spectra:X.Y.Z . && kubectl set image deployment/fusion-spectra frontend=fusion-spectra:X.Y.Z -n fusion`
 
 ## Runtime config gotchas
@@ -153,6 +159,7 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
   static-asset rule, unlike `index.html`'s no-cache rule), so a normal reload isn't enough. In Playwright,
   a hard reload may still serve the cached copy from the shared browser-context disk cache — use a CDP
   session (`page.context().newCDPSession(page)` → `Network.clearBrowserCache`) or a fresh browser context.
+- `serviceUrlPattern` (`{name}` = wizard run's `ingressName` param) builds the deployed-service URL on `WizardRunDetailPage`; empty = URL hidden. Weave appends its own `ingress.hostSuffix`, so this must match that cluster domain. A new `FUSION_CONFIG` field touches `runtime.ts`, `public/config.js`, `values.yaml`, `configmap.yaml`
 - Direct ConfigMap patch when helm upgrade has a field manager conflict: `kubectl create configmap <name> --from-literal=config.js='...' --dry-run=client -o yaml | kubectl apply -f - && kubectl rollout restart deployment/<name> -n fusion`
 
 ## fusion-bff deployment (minikube)
