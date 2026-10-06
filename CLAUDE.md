@@ -215,3 +215,7 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - `GET /api/content/api/v1/changelog?page=1&pageSize=20` → `{ data: DateGroup[], pagination }`; `DateGroup`: `{ date, projects: ProjectEntry[] }`; `ProjectEntry`: `{ project, version, changes: { added?, changed?, fixed?, removed? } }`
 - `GET /api/content/api/v1/help` params: `service`, `type`, `tag`, `route`, `q`, `page`, `pageSize` → `{ data: HelpArticle[], pagination }`; `HelpArticle`: `{ service, type: DiátaxisType, slug, title, tags, routes, summary }`
 - `GET /api/content/api/v1/videos` params: `service`, `pageSize` → `{ data: VideoItem[], pagination }`; `VideoItem`: `{ service, slug, title, summary, thumbnailUrl, videoUrl, tags }`
+
+## Multi-tenancy / ownership
+
+Cross-project plan (owner groups, trusted headers `X-User-Groups` etc., migration, rollout): `../fusion-shared/docs/multi-tenancy.md` — read it before touching ownership, groups or the `X-User-*` headers.
