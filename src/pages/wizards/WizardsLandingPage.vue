@@ -50,6 +50,33 @@ const wizards = computed<WizardCard[]>(() => {
       route: '/wizards/run/python-git-service/create',
     })
   }
+  if (can('weave:servicetemplates:write') && can('weave:runs:write')) {
+    cards.push({
+      id:    'image-service',
+      title: 'Image → Service',
+      icon:  'mdi-docker',
+      desc:  'Deploy a long-running service from a container image — many services with the same base name share one template and chain, each with its own run and optional URL.',
+      route: '/wizards/run/image-service/create',
+    })
+  }
+  if (can('weave:jobtemplates:write') && can('weave:runs:write')) {
+    cards.push({
+      id:    'image-job',
+      title: 'Image → Job',
+      icon:  'mdi-play-circle-outline',
+      desc:  'Run a one-shot job from a container image — it starts right away, sharing a template and chain with other jobs of the same base name.',
+      route: '/wizards/run/image-job/create',
+    })
+  }
+  if (can('weave:jobtemplates:write') && can('weave:triggers:write')) {
+    cards.push({
+      id:    'image-cron-job',
+      title: 'Image → Cron Job',
+      icon:  'mdi-clock-outline',
+      desc:  'Run a container image on a cron schedule — one trigger per job on a shared template and chain.',
+      route: '/wizards/run/image-cron-job/create',
+    })
+  }
   return cards
 })
 </script>

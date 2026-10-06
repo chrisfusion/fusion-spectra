@@ -42,7 +42,23 @@ function clampHour()  { hour.value = clamp(hour.value, 0, 23) }
 function clampMinute() { minute.value = clamp(minute.value, 0, 59) }
 function clampDay()   { dayOfMonth.value = clamp(dayOfMonth.value, 1, 31) }
 
+// Weave's scheduler wants 6 fields, seconds first (a 5-field expression leaves the trigger inactive:
+// "expected exactly 6 fields"). Presets are built as 5-field minute-resolution cron, then get a leading "0".
 function buildCron(): string {
+  const five = buildFiveField()
+  return preset.value === 'custom' ? five : `0 ${five}`
+}
+
+// A 6-field expression whose seconds are exactly "0" maps back onto the minute-resolution presets;
+// legacy 5-field values still do too. Anything else (non-zero seconds, odd length) is left to Custom.
+function minuteFields(expr: string): string[] | null {
+  const parts = expr.trim().split(/\s+/)
+  if (parts.length === 5) return parts
+  if (parts.length === 6 && parts[0] === '0') return parts.slice(1)
+  return null
+}
+
+function buildFiveField(): string {
   switch (preset.value) {
     case 'every5':  return '*/5 * * * *'
     case 'every15': return '*/15 * * * *'
@@ -59,8 +75,8 @@ function buildCron(): string {
 // matching preset (and prefill its fields) so re-opening this component
 // with an already-set schedule doesn't dump the user into raw-text mode.
 function detectPreset(expr: string) {
-  const parts = expr.trim().split(/\s+/)
-  if (parts.length < 5) {
+  const parts = minuteFields(expr)
+  if (!parts) {
     preset.value = 'custom'
     customValue.value = expr
     return
@@ -119,8 +135,8 @@ watch(customValue, () => {
 const summary = computed(() => describeCron(props.modelValue))
 
 function describeCron(expr: string): string {
-  const parts = expr.trim().split(/\s+/)
-  if (parts.length < 5) return expr ? `Custom schedule: ${expr}` : 'No schedule set'
+  const parts = minuteFields(expr)
+  if (!parts) return expr.trim() ? `Custom schedule: ${expr}` : 'No schedule set'
   const [min, hr, dom, mon, dow] = parts
   let m: RegExpMatchArray | null
 
@@ -172,10 +188,13 @@ function describeCron(expr: string): string {
       <input
         v-model="customValue"
         class="cronp__input cronp__input--mono cronp__input--wide"
-        placeholder="*/5 * * * *"
+        placeholder="0 */5 * * * *"
       />
     </div>
 
+    <span v-if="preset === 'custom'" class="cronp__summary">
+      6 fields, seconds first: <code>sec min hour day month weekday</code>
+    </span>
     <span v-if="error" class="cronp__error">{{ error }}</span>
     <span v-else class="cronp__summary">
       <q-icon name="mdi-information-outline" size="12px" />

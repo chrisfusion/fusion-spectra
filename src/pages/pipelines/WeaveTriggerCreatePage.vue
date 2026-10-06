@@ -125,8 +125,8 @@ function toggleKafkaEvent(kind: 'put' | 'delete' | 'get') {
   kafkaEventFilter.value = next
 }
 
-// Minimal cron expression format check (5 or 6 fields)
-const CRON_RE = /^(\S+\s+){4}\S+(\s+\S+)?$/
+// Weave's scheduler needs exactly 6 fields, seconds first (5 fields leave the trigger inactive)
+const CRON_RE = /^(\S+\s+){5}\S+$/
 
 watch(triggerType, () => {
   scheduleError.value             = null
@@ -147,7 +147,7 @@ function validateStep2(): boolean {
       scheduleError.value = 'Schedule is required'
       ok = false
     } else if (!CRON_RE.test(s)) {
-      scheduleError.value = 'Must be a valid cron expression, e.g. "*/5 * * * *"'
+      scheduleError.value = 'Must be a 6-field cron expression (seconds first), e.g. "0 */5 * * * *"'
       ok = false
     } else {
       scheduleError.value = null

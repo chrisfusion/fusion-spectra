@@ -74,7 +74,7 @@ No footer slot — add pagination below the table inside the default slot.
 - `src/utils/format.ts` — `formatSize(bytes)`: human-readable file size (B / KB / MB / GB)
 - `src/components/TagChipInput.vue` — v-model `string[]` chip input; Enter/comma adds, Backspace removes last, × removes specific; validation `/^[a-zA-Z0-9-]+$/` max 64 chars; trailing commas stripped
 - `src/components/JsonEditor.vue` — CodeMirror 6 JSON editor; emits `valid` (false on non-empty invalid JSON); `{ } Format` button pretty-prints; `defineExpose({ format })` for programmatic use; theme via `--fs-*` CSS vars
-- `src/components/CronPicker.vue` — v-model on a cron-expression string; presets dropdown (every 5/15/30 min, hourly, daily, weekly, monthly) + "Custom (advanced)" raw-expression fallback + live human-readable summary; defaults to daily 09:00 rather than a blank field
+- `src/components/CronPicker.vue` — v-model on a **6-field, seconds-first** cron-expression string (weave rejects 5-field; presets prepend `0`); presets dropdown (every 5/15/30 min, hourly, daily, weekly, monthly) + "Custom (advanced)" raw-expression fallback + live human-readable summary; defaults to daily 09:00 rather than a blank field
 - `src/composables/useGitAppProvisioning.ts` — shared by every "Git → X" shortcut wizard: `ensureGitWatcher`/`waitForBuild`/`ensureJobTemplate`/`ensureChain`/`toK8sName` + progress state. Reuse this for any new wizard rather than re-implementing provisioning.
 
 ## Themes
@@ -163,6 +163,10 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
   session (`page.context().newCDPSession(page)` → `Network.clearBrowserCache`) or a fresh browser context.
 - `serviceUrlPattern` (`{name}` = wizard run's `ingressName` param) builds the deployed-service URL on `WizardRunDetailPage`; empty = URL hidden. Weave appends its own `ingress.hostSuffix`, so this must match that cluster domain. A new `FUSION_CONFIG` field touches `runtime.ts`, `public/config.js`, `values.yaml`, `configmap.yaml`
 - Direct ConfigMap patch when helm upgrade has a field manager conflict: `kubectl create configmap <name> --from-literal=config.js='...' --dry-run=client -o yaml | kubectl apply -f - && kubectl rollout restart deployment/<name> -n fusion`
+
+## fusion-wizard deployment (minikube)
+- `eval $(minikube docker-env) && docker build -t fusion-wizard:X.Y.Z ../fusion-wizard`, then `helm upgrade fusion-wizard deployment/fusion-wizard -n fusion --reuse-values --set image.tag=X.Y.Z` (from `../fusion-wizard`); enabling a new definition also needs `--set definitions.<x>.enabled=true` explicitly (reuse-values misses new chart defaults). Verify with `kubectl get wizarddefinitions -n fusion`.
+- Clean up wizard E2E runs with `kubectl patch wizardrun <name> -n fusion --type=merge -p '{"spec":{"desiredState":"RolledBack"}}'` — never delete the weave objects by hand (leaves the ledger inconsistent).
 
 ## fusion-flux deployment (minikube)
 - Operator and API share one image: `eval $(minikube docker-env) && docker build -t fusion-weave-operator:X.Y.Z ../fusion-flux`, then `kubectl set image deployment/fusion-weave-operator manager=… -n fusion` and `deployment/fusion-weave-api api-server=… -n fusion`. Spectra features that need new flux endpoints (e.g. `POST /runs/{name}/image`, `GET /image-overrides/options`) 404 until both are updated.

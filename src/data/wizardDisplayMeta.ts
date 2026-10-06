@@ -5,7 +5,7 @@
 // rendering genuinely needs help: a friendlier label, a non-text widget (select/cron/tags), or a
 // field that should only show conditionally on another field's value (showIf).
 
-export type WizardFieldWidget = 'text' | 'textarea' | 'select' | 'cron' | 'tags' | 'checkbox' | 'objectRows' | 'externalAuthName'
+export type WizardFieldWidget = 'text' | 'textarea' | 'select' | 'cron' | 'tags' | 'checkbox' | 'objectRows' | 'externalAuthName' | 'image'
 
 export interface WizardFieldOption {
   label: string
@@ -46,6 +46,36 @@ export interface WizardFieldDisplayMeta {
 // "batchcron-git-job" would otherwise render "Batchcron Git Job" instead of "BatchCron Git Job".
 export const wizardTitleOverrides: Record<string, string> = {
   'batchcron-git-job': 'BatchCron Git Job',
+  'image-service':     'Image → Service',
+  'image-job':         'Image → Job',
+  'image-cron-job':    'Image → Cron Job',
+}
+
+// Shared by the three image-based definitions (a container image instead of a git repo). Allowed
+// prefixes come from weave's imageOverrides.allowedPrefixes; the 'image' widget pre-checks the rule.
+const imageFields: Record<string, WizardFieldDisplayMeta> = {
+  baseName: {
+    label: 'Base Name',
+    placeholder: 'my-apps',
+    help: 'Shared template and chain — everything with the same base name reuses them',
+  },
+  image: {
+    label: 'Image',
+    widget: 'image',
+    placeholder: 'registry/name:1.2.3',
+    help: 'Full image reference with an explicit tag (not latest) or a digest.',
+  },
+  imagePullPolicy: {
+    label: 'Pull Policy',
+    widget: 'select',
+    advanced: true,
+    options: [
+      { label: 'Default',      value: '' },
+      { label: 'IfNotPresent', value: 'IfNotPresent' },
+      { label: 'Always',       value: 'Always' },
+      { label: 'Never',        value: 'Never' },
+    ],
+  },
 }
 
 // Optional weave externalAuthRef (short-lived SA/OIDC token injected into job pods): a mode select plus a
@@ -206,5 +236,40 @@ export const wizardDisplayMeta: Record<string, Record<string, WizardFieldDisplay
       placeholder: 'my-dashboard',
       help: 'DNS label to expose the service at <name>.<cluster domain> (optional, lowercase letters, digits, hyphens)',
     },
+  },
+  'image-service': {
+    ...imageFields,
+    serviceName: {
+      label: 'Service Name',
+      placeholder: 'my-dashboard',
+      help: 'Name of this service (its run and Deployment)',
+    },
+    port: {
+      label: 'Port',
+      placeholder: '8080',
+      help: 'Port the container listens on',
+    },
+    ingressName: {
+      label: 'Ingress Name',
+      placeholder: 'my-dashboard',
+      help: 'DNS label to expose the service at <name>.<cluster domain> (optional, lowercase letters, digits, hyphens)',
+    },
+  },
+  'image-job': {
+    ...imageFields,
+    jobName: {
+      label: 'Job Name',
+      placeholder: 'nightly-report',
+      help: 'Name of this job run — it starts right away',
+    },
+  },
+  'image-cron-job': {
+    ...imageFields,
+    jobName: {
+      label: 'Job Name',
+      placeholder: 'nightly-report',
+      help: 'Name of this job\'s trigger',
+    },
+    schedule: { label: 'Schedule', widget: 'cron' },
   },
 }

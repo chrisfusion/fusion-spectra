@@ -6,6 +6,8 @@ import CronPicker from '@/components/CronPicker.vue'
 import TagChipInput from '@/components/TagChipInput.vue'
 import * as wizardApi from '@/api/wizardApi'
 import * as weaveApi from '@/api/weaveApi'
+import { validateImage } from '@/utils/imagePolicy'
+import { useImageOverrideOptions } from '@/composables/useImageOverrideOptions'
 import { wizardDisplayMeta, wizardTitleOverrides } from '@/data/wizardDisplayMeta'
 import type { WizardFieldDisplayMeta } from '@/data/wizardDisplayMeta'
 
@@ -20,6 +22,7 @@ type ObjectRow = Record<string, string>
 // revisiting a run later, so navigating away and back never loses track of it.
 
 const route  = useRoute()
+const { allowedPrefixes } = useImageOverrideOptions()
 const router = useRouter()
 const defName = route.params.definition as string
 
@@ -159,7 +162,12 @@ function labelFor(p: wizardApi.WizardParameter): string {
     ?? p.name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^./, c => c.toUpperCase())
 }
 function helpFor(p: wizardApi.WizardParameter): string | undefined {
-  return metaFor(p.name).help ?? (p.description || undefined)
+  const base = metaFor(p.name).help ?? (p.description || undefined)
+  // 'image' fields: show weave's allowed prefixes (when known) so a rejected image is no surprise.
+  if (widgetFor(p) === 'image' && allowedPrefixes.value?.length) {
+    return `${base ?? ''} Allowed prefixes: ${allowedPrefixes.value.join(', ')}`.trim()
+  }
+  return base
 }
 function widgetFor(p: wizardApi.WizardParameter): NonNullable<WizardFieldDisplayMeta['widget']> {
   const w = metaFor(p.name).widget
@@ -199,6 +207,10 @@ function validateSetup(): boolean {
       fieldErrors[p.name] = 'Required'
       ok = false
       continue
+    }
+    if (widgetFor(p) === 'image' && typeof v === 'string' && v.trim() !== '') {
+      const imgErr = validateImage(v, allowedPrefixes.value)
+      if (imgErr) { fieldErrors[p.name] = imgErr; ok = false; continue }
     }
     if (p.pattern && typeof v === 'string' && v.trim() !== '') {
       try {
@@ -296,11 +308,12 @@ const pageDescription = computed(() => definition.value?.spec.description)
               <div class="field-wrap">
 
                 <input
-                  v-if="widgetFor(p) === 'text'"
+                  v-if="widgetFor(p) === 'text' || widgetFor(p) === 'image'"
                   v-model="(fields[p.name] as string)"
                   class="fs-input fs-mono"
                   :class="{ 'fs-input--error': fieldErrors[p.name] }"
                   :placeholder="metaFor(p.name).placeholder"
+                  @input="fieldErrors[p.name] = null"
                 />
 
                 <textarea

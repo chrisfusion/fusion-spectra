@@ -7,6 +7,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.46] — 2026-10-06
+
+### Added
+- **Wizards**: three container-image shortcut wizards on the generic wizard page, backed by fusion-wizard's new `image-service`, `image-job` and `image-cron-job` definitions — **Image → Service** (shared image-only template + chain, one run-owned Deployment per service, optional ingress URL), **Image → Job** (one-shot run that starts right away) and **Image → Cron Job** (one Cron trigger per job). Nav leaves + landing cards (gated on the weave permissions each needs), display metadata (`imageFields`, title overrides), no new route or page.
+- `image` widget for the generic wizard form (`wizardDisplayMeta.ts`): a text field validated client-side with the same tag/digest rule as the image overrides (`validateImage`) and showing weave's allowed prefixes in its hint.
+
+### Fixed
+- `CronPicker.vue` now emits the 6-field, seconds-first cron expression weave requires (daily 09:00 is `0 0 9 * * *`; presets get a leading `0`). It previously emitted 5 fields, which weave's trigger reconciler rejects ("expected exactly 6 fields, found 5") — the trigger was created but never became active. Affects every Cron trigger created from the Trigger wizard and the cron entrypoints of the Python Job wizard. Existing 5- and 6-field values still map back onto the presets; Custom mode shows the field order. The Trigger wizard's Cron validation now requires exactly 6 fields.
+
 ## [0.10.45] — 2026-10-06
 
 ### Added

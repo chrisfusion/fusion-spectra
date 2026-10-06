@@ -52,6 +52,9 @@ export const contexts: Context[] = [
           { id: 'wizard-git-batch-job', label: 'Git → Batch Job', icon: 'mdi-tray-full', route: '/wizards/run/batch-git-job/create', tooltip: 'Build and start a single batch job from a git repo, branch, and subfolder' },
           { id: 'wizard-git-python-service', label: 'Git → Python Service', icon: 'mdi-application-cog-outline', route: '/wizards/run/python-git-service/create', tooltip: 'Deploy a long-running Streamlit/Python app from a git repo, with an optional ingress URL' },
           { id: 'wizard-git-batchcron-job', label: 'Git → BatchCron Job', icon: 'mdi-calendar-multiple', route: '/wizards/run/batchcron-git-job/create', tooltip: 'Build a job and wire up a BatchCron trigger from a pasted list of many cron-scheduled entries' },
+          { id: 'wizard-image-service', label: 'Image → Service', icon: 'mdi-docker', route: '/wizards/run/image-service/create', tooltip: 'Deploy a long-running service from a container image — many services share one template and chain' },
+          { id: 'wizard-image-job', label: 'Image → Job', icon: 'mdi-play-circle-outline', route: '/wizards/run/image-job/create', tooltip: 'Run a one-shot job from a container image right away' },
+          { id: 'wizard-image-cron-job', label: 'Image → Cron Job', icon: 'mdi-clock-outline', route: '/wizards/run/image-cron-job/create', tooltip: 'Run a container image on a cron schedule' },
         ]
       },
       {

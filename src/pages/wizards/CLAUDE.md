@@ -1,6 +1,6 @@
 ## Shortcut wizard pattern: generic, backend-driven
 
-All four "Git → X" shortcut wizards (Batch Job, BatchCron Job, Python Job, Python Service) run through
+All seven shortcut wizards (the four "Git → X": Batch Job, BatchCron Job, Python Job, Python Service; and the three "Image → X": Service, Job, Cron Job) run through
 `WizardCreatePage.vue` (`/wizards/run/:definition/create`) against a real `fusion-wizard` backend
 `WizardDefinition` — ledger-backed provisioning with real rollback/retry, not client-side
 orchestration. The Setup form renders itself from the `WizardDefinition`'s own `spec.parameters` — a
@@ -31,6 +31,17 @@ name picker (`widget: 'externalAuthName'`, `modeField` = sibling mode param) fed
 clears the name; a mode without an allowlisted name blocks submit (backend would 422). `advanced: true`
 fields sit under a collapsed "Advanced options" toggle but still validate/submit while collapsed. Shared
 via `externalAuthFields()` in `wizardDisplayMeta.ts`; the service definition deliberately has none.
+
+**Image wizards** (`image-service`, `image-job`, `image-cron-job`): same generic page, no per-wizard code. They share
+`imageFields` in `wizardDisplayMeta.ts` and the `image` widget (client-side tag/digest check via `utils/imagePolicy.ts`,
+allowed-prefix hint from weave's `GET /image-overrides/options`; the prefix allowlist itself is weave's). `baseName`
+names the shared template + chain (n images = 1 template + 1 chain + n runs/triggers). The created run/trigger's step is
+named `run` (so the Deployment is `<serviceName>-run`). Needs the weave instance's `imageOverrides.allowedPrefixes`
+(minikube: `nginx:,busybox:`) and `definitions.imageService/imageJob/imageCronJob.enabled=true` on fusion-wizard.
+
+**Cron**: weave needs 6-field cron, seconds first; `CronPicker` emits that. A 5-field schedule creates a trigger weave never
+activates (wizard run still goes Ready) — if a Cron trigger shows no ACTIVE state, check the operator log for
+"expected exactly 6 fields".
 
 **Service URL**: `python-git-service` runs show `serviceUrlPattern` (`FUSION_CONFIG`, `{name}` = the run's
 `ingressName` parameter) once Ready — the wizard doesn't report a host, weave appends its `hostSuffix`.
