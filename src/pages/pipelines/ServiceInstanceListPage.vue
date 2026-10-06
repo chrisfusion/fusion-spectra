@@ -6,6 +6,9 @@ import CanvasPanel from '@/components/CanvasPanel.vue'
 import * as monitorApi from '@/api/weaveMonitorApi'
 import { listWeaveChains } from '@/api/weaveApi'
 import { useRunsPolling } from '@/composables/useRunsPolling'
+import ManagedByBadge from '@/components/ManagedByBadge.vue'
+import ManagedByFilter from '@/components/ManagedByFilter.vue'
+import { matchesManagedBy, type ManagedByFilterValue } from '@/utils/managedBy'
 import { usePermission } from '@/composables/usePermission'
 
 const router = useRouter()
@@ -15,6 +18,7 @@ const { can } = usePermission()
 const allRuns      = ref<monitorApi.WeaveRun[]>([])
 const chains       = ref<string[]>([])
 const chainFilter  = ref<string | null>(null)
+const ownerFilter  = ref<ManagedByFilterValue>('')
 const loading      = ref(false)
 const error        = ref<string | null>(null)
 const stoppingRuns = ref<Set<string>>(new Set())
@@ -28,6 +32,7 @@ const serviceRuns = computed(() =>
 const filteredRuns = computed(() => {
   let runs = serviceRuns.value
   if (chainFilter.value) runs = runs.filter(r => r.spec.chainRef.name === chainFilter.value)
+  runs = runs.filter(r => matchesManagedBy(r.metadata, ownerFilter.value))
   return runs
 })
 
@@ -68,7 +73,12 @@ function deploymentHealth(r: monitorApi.WeaveRun): monitorApi.DeploymentHealth |
 
 function stepOverrideSummary(r: monitorApi.WeaveRun): string {
   const o = r.spec.stepOverrides?.[0]
-  return o ? `${o.artifactName} @ ${o.tag}` : '—'
+  if (!o) return '—'
+  if (!o.artifactName) {
+    // image-only mode: show the step's overridden image instead
+    return r.spec.imageOverrides?.find(i => i.stepName === o.stepName)?.image ?? 'image only'
+  }
+  return `${o.artifactName} @ ${o.tag}`
 }
 
 function runPhase(r: monitorApi.WeaveRun): string {
@@ -195,6 +205,7 @@ onMounted(async () => {
           <option :value="null">All chains</option>
           <option v-for="c in chains" :key="c" :value="c">{{ c }}</option>
         </select>
+        <ManagedByFilter v-model="ownerFilter" />
         <span class="total-hint">{{ filteredRuns.length }} instance{{ filteredRuns.length !== 1 ? 's' : '' }}</span>
       </div>
 
@@ -205,6 +216,7 @@ onMounted(async () => {
               <th>Name</th>
               <th>Chain</th>
               <th>Artifact @ Tag</th>
+              <th>Owner</th>
               <th>Version</th>
               <th>Health</th>
               <th>Phase</th>
@@ -222,6 +234,7 @@ onMounted(async () => {
               <td class="col-name fs-mono">{{ r.metadata.name }}</td>
               <td class="col-muted fs-mono">{{ r.spec.chainRef.name }}</td>
               <td class="col-artifact">{{ stepOverrideSummary(r) }}</td>
+              <td><ManagedByBadge :meta="r.metadata" /></td>
               <td class="col-mono col-muted">{{ deployedVersion(r) }}</td>
               <td>
                 <span
@@ -272,7 +285,7 @@ onMounted(async () => {
               </td>
             </tr>
             <tr v-if="!loading && filteredRuns.length === 0">
-              <td colspan="8" class="empty-row">No service instances found.</td>
+              <td colspan="9" class="empty-row">No service instances found.</td>
             </tr>
           </tbody>
         </table>

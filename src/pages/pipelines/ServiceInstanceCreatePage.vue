@@ -3,9 +3,13 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import CanvasPanel from '@/components/CanvasPanel.vue'
+import ImageOverrideEditor from '@/components/ImageOverrideEditor.vue'
+import { validateImage } from '@/utils/imagePolicy'
+import { useImageOverrideOptions } from '@/composables/useImageOverrideOptions'
 import * as monitorApi from '@/api/weaveMonitorApi'
 import { listWeaveChains } from '@/api/weaveApi'
 import type { WeaveChain } from '@/api/weaveApi'
+import type { ImageOverride } from '@/api/weaveApi'
 
 const router = useRouter()
 const $q     = useQuasar()
@@ -26,6 +30,14 @@ const selectedStep   = ref('')
 const artifactName   = ref('')
 const tag            = ref('stable')
 const ingressName    = ref('')
+// 'artifact' = code-loader pulls an index artifact; 'image' = image-only (no artifact lookup)
+const source         = ref<'artifact' | 'image'>('artifact')
+const imageOverrides = ref<ImageOverride[]>([])
+const imageEditor    = ref<InstanceType<typeof ImageOverrideEditor> | null>(null)
+const { allowedPrefixes } = useImageOverrideOptions()
+// Image-only mode: a single image for the selected step, kept apart from the optional extra-overrides editor.
+const stepImage      = ref('')
+const stepImageError = ref<string | null>(null)
 
 // validation
 const artifactError = ref<string | null>(null)
@@ -39,8 +51,9 @@ const deploySteps = computed(() =>
 )
 
 const generatedName = computed(() => {
-  if (!artifactName.value) return ''
-  const base = artifactName.value
+  const raw = source.value === 'image' ? selectedStep.value : artifactName.value
+  if (!raw) return ''
+  const base = raw
     .toLowerCase()
     .replace(/[^a-z0-9-]/g, '-')
     .replace(/-+/g, '-')
@@ -50,14 +63,22 @@ const generatedName = computed(() => {
 })
 
 const previewName = computed(() => {
-  if (!generatedName.value) return '(enter artifact name)'
+  if (!generatedName.value) return source.value === 'image' ? '(select a step)' : '(enter artifact name)'
   return `${generatedName.value}-<suffix>`
 })
 
 watch(selectedChain, () => {
   selectedStep.value = ''
   stepError.value = null
+  imageOverrides.value = []
 })
+
+watch(stepImage, () => { stepImageError.value = null })
+
+// Extra overrides apply to other steps than the one configured above.
+const otherSteps = computed(() =>
+  (selectedChain.value?.spec.steps ?? []).map(s => s.name).filter(n => n !== selectedStep.value)
+)
 
 // ─── Load ──────────────────────────────────────────────────────────────────────
 
@@ -84,14 +105,27 @@ function validateStep1(): boolean {
   artifactError.value = null
   ingressNameError.value = null
 
+  stepImageError.value = null
+
   if (!selectedChain.value) { ok = false }
   if (!selectedStep.value) { stepError.value = 'Select a deploy step'; ok = false }
-  if (!artifactName.value.trim()) { artifactError.value = 'Artifact name is required'; ok = false }
-  if (artifactName.value && !/^[a-zA-Z0-9._-]+$/.test(artifactName.value)) {
-    artifactError.value = 'Use letters, digits, dots, hyphens, underscores'
-    ok = false
+  if (source.value === 'artifact') {
+    if (!artifactName.value.trim()) { artifactError.value = 'Artifact name is required'; ok = false }
+    if (artifactName.value && !/^[a-zA-Z0-9._-]+$/.test(artifactName.value)) {
+      artifactError.value = 'Use letters, digits, dots, hyphens, underscores'
+      ok = false
+    }
+    if (!tag.value.trim()) { ok = false }
+    // optional custom image replacing the template's image for this step
+    if (stepImage.value.trim()) {
+      stepImageError.value = validateImage(stepImage.value, allowedPrefixes.value)
+      if (stepImageError.value) ok = false
+    }
+  } else {
+    stepImageError.value = validateImage(stepImage.value, allowedPrefixes.value)
+    if (stepImageError.value) ok = false
   }
-  if (!tag.value.trim()) { ok = false }
+  if (imageEditor.value && !imageEditor.value.validate()) ok = false
   const trimmedIngressName = ingressName.value.trim()
   if (trimmedIngressName && (!DNS_LABEL_RE.test(trimmedIngressName) || trimmedIngressName.length > 63)) {
     ingressNameError.value = 'Lowercase letters, digits and hyphens only, max 63 chars'
@@ -115,20 +149,31 @@ function makeName(): string {
   return `${generatedName.value}-${suffix}`
 }
 
+// Step image (from the dedicated field) + extra overrides; an extra row for the same step is dropped.
+function buildImageOverrides(): ImageOverride[] {
+  const own: ImageOverride[] = stepImage.value.trim()
+    ? [{ stepName: selectedStep.value, image: stepImage.value.trim() }]
+    : []
+  return [...own, ...imageOverrides.value.filter(o => o.stepName !== selectedStep.value)]
+}
+
 async function submit() {
   submitting.value = true
   const runName = makeName()
+  const overrides = buildImageOverrides()
   try {
     await monitorApi.createServiceRun({
       metadata: { name: runName },
       spec: {
         chainRef: { name: selectedChain.value!.metadata.name },
         stepOverrides: [{
-          stepName:     selectedStep.value,
-          artifactName: artifactName.value.trim(),
-          tag:          tag.value.trim(),
+          stepName: selectedStep.value,
+          ...(source.value === 'artifact'
+            ? { artifactName: artifactName.value.trim(), tag: tag.value.trim() }
+            : {}),
           ...(ingressName.value.trim() ? { ingressName: ingressName.value.trim() } : {}),
         }],
+        ...(overrides.length ? { imageOverrides: overrides } : {}),
       },
     })
     $q.notify({ type: 'positive', message: `Service instance ${runName} created` })
@@ -195,6 +240,18 @@ async function submit() {
         </div>
 
         <div class="form-section">
+          <label class="form-label">Source</label>
+          <div class="source-toggle">
+            <button type="button" class="source-btn" :class="{ active: source === 'artifact' }" @click="source = 'artifact'">Index artifact</button>
+            <button type="button" class="source-btn" :class="{ active: source === 'image' }" @click="source = 'image'">Container image only</button>
+          </div>
+          <p class="form-hint">
+            <template v-if="source === 'artifact'">The code-loader fetches the artifact from Fusion Index; ports, resources and env come from its <code class="inline-code">metadata.yaml</code>.</template>
+            <template v-else>No artifact lookup or code-loader — the step runs the image below with ports, resources and env from the service template.</template>
+          </p>
+        </div>
+
+        <div v-if="source === 'artifact'" class="form-section">
           <label class="form-label">Artifact Name <span class="req">*</span></label>
           <input
             v-model="artifactName"
@@ -209,7 +266,7 @@ async function submit() {
           </p>
         </div>
 
-        <div class="form-section">
+        <div v-if="source === 'artifact'" class="form-section">
           <label class="form-label">Tag <span class="req">*</span></label>
           <input
             v-model="tag"
@@ -217,6 +274,17 @@ async function submit() {
             placeholder="stable"
           />
           <p class="form-hint">Mutable tag to track (e.g. <code class="inline-code">stable</code>, <code class="inline-code">canary</code>). The operator polls for tag changes every 60s.</p>
+        </div>
+
+        <div class="form-section">
+          <label class="form-label">
+            Container Image
+            <span v-if="source === 'image'" class="req">*</span>
+            <span v-else class="opt">(optional — replaces the template image)</span>
+          </label>
+          <input v-model="stepImage" class="fs-input fs-mono" placeholder="registry/name:1.2.3" />
+          <p v-if="stepImageError" class="form-error">{{ stepImageError }}</p>
+          <p v-else class="form-hint">Needs an explicit tag (not <code class="inline-code">latest</code>) or digest, and an operator-allowed prefix. Can be changed or rolled back later on the instance page.</p>
         </div>
 
         <div class="form-section">
@@ -229,6 +297,11 @@ async function submit() {
           />
           <p v-if="ingressNameError" class="form-error">{{ ingressNameError }}</p>
           <p v-else class="form-hint">DNS label for the Ingress rule — the cluster appends its ingress suffix automatically. Leave blank to skip Ingress creation.</p>
+        </div>
+
+        <div v-if="otherSteps.length" class="form-section">
+          <label class="form-label">Image overrides for other steps <span class="opt">(optional)</span></label>
+          <ImageOverrideEditor ref="imageEditor" v-model="imageOverrides" :steps="otherSteps" />
         </div>
 
         <div class="form-actions">
@@ -251,13 +324,23 @@ async function submit() {
               <td class="review-label">Deploy Step</td>
               <td class="review-value fs-mono">{{ selectedStep }}</td>
             </tr>
-            <tr>
-              <td class="review-label">Artifact Name</td>
-              <td class="review-value fs-mono">{{ artifactName }}</td>
+            <template v-if="source === 'artifact'">
+              <tr>
+                <td class="review-label">Artifact Name</td>
+                <td class="review-value fs-mono">{{ artifactName }}</td>
+              </tr>
+              <tr>
+                <td class="review-label">Tag</td>
+                <td class="review-value fs-mono">{{ tag }}</td>
+              </tr>
+            </template>
+            <tr v-else>
+              <td class="review-label">Source</td>
+              <td class="review-value">Container image only</td>
             </tr>
-            <tr>
-              <td class="review-label">Tag</td>
-              <td class="review-value fs-mono">{{ tag }}</td>
+            <tr v-for="o in buildImageOverrides()" :key="o.stepName">
+              <td class="review-label">Image · {{ o.stepName }}</td>
+              <td class="review-value fs-mono">{{ o.image }}</td>
             </tr>
             <tr v-if="ingressName">
               <td class="review-label">Ingress Name</td>
@@ -339,7 +422,7 @@ async function submit() {
   flex-direction: column;
   gap: 4px;
   margin-bottom: 18px;
-  max-width: 520px;
+  max-width: 640px;
 }
 .form-label {
   font-size: 12px;
@@ -450,4 +533,17 @@ async function submit() {
 .fs-btn--ghost:hover:not(:disabled) { color: var(--fs-text-primary); background: var(--fs-bg-hover); }
 
 .fs-mono { font-family: var(--fs-font-mono); }
+
+.source-toggle { display: inline-flex; border: 1px solid var(--fs-border); border-radius: 4px; overflow: hidden; align-self: flex-start; }
+.source-btn {
+  background: transparent;
+  border: none;
+  color: var(--fs-text-muted);
+  cursor: pointer;
+  font-size: 12.5px;
+  padding: 6px 14px;
+  font-family: inherit;
+}
+.source-btn + .source-btn { border-left: 1px solid var(--fs-border); }
+.source-btn.active { background: color-mix(in srgb, var(--fs-accent) 14%, transparent); color: var(--fs-accent); font-weight: 600; }
 </style>

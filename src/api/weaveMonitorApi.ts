@@ -1,4 +1,7 @@
 import { bffGet, bffPost, bffDelete, bffPatch } from './bffClient'
+import type { ImageOverride } from './weaveApi'
+
+export type { ImageOverride }
 
 const BASE         = '/api/weave/monitor/v1'
 const CRUD_BASE    = '/api/weave/api/v1'
@@ -51,8 +54,10 @@ export interface RunStepStatus {
 
 export interface StepOverride {
   stepName:     string
-  artifactName: string
-  tag:          string
+  // artifactName/tag are both set or both omitted; omitted = image-only mode
+  // (no code-loader / fusion-index lookup, needs an imageOverrides entry).
+  artifactName?: string
+  tag?:          string
   ingressName?: string
   indexURL?:    string
 }
@@ -62,6 +67,7 @@ export interface WeaveRunSpec {
   triggerRef?:          { name: string } | null
   parameterOverrides?:  Array<{ name: string; value: string }>
   stepOverrides?:       StepOverride[]
+  imageOverrides?:      ImageOverride[]
 }
 
 export type DeploymentHealth = 'Healthy' | 'Unhealthy' | 'RollingBack' | 'RolledBack' | 'Unknown'
@@ -70,9 +76,12 @@ export interface ActiveDeploymentStatus {
   deploymentName:            string
   stepName:                  string
   health:                    DeploymentHealth
-  codeSourceArtifact:        string
-  codeSourceTag:             string
-  codeSourceDeployedVersion: string
+  codeSourceArtifact?:       string
+  codeSourceTag?:            string
+  codeSourceDeployedVersion?: string
+  // Present while an image override is active; previousImage enables rollback.
+  image?:                    string
+  previousImage?:            string
   unhealthyDurationSeconds?: number
   unhealthySince?:           string | null
 }
@@ -170,6 +179,12 @@ export function restartDeployStep(runName: string, stepName: string): Promise<vo
   })
 }
 
+// Upserts one imageOverrides entry on a non-terminal run (validated server-side
+// against the allowed prefixes); a Deployed run-owned step rolls to the image.
+export function setRunImage(runName: string, override: ImageOverride): Promise<WeaveRun> {
+  return bffPost<WeaveRun>(`${CRUD_BASE}/runs/${encodeURIComponent(runName)}/image`, override)
+}
+
 export interface WeaveRunList {
   items: WeaveRun[]
 }
@@ -180,7 +195,7 @@ export function listAllRuns(): Promise<WeaveRun[]> {
 
 export function createServiceRun(payload: {
   metadata: { name: string; namespace?: string }
-  spec: { chainRef: { name: string }; stepOverrides: StepOverride[] }
+  spec: { chainRef: { name: string }; stepOverrides: StepOverride[]; imageOverrides?: ImageOverride[] }
 }): Promise<WeaveRun> {
   return bffPost<WeaveRun>(`${CRUD_BASE}/runs`, {
     apiVersion: 'weave.fusion-platform.io/v1alpha1',

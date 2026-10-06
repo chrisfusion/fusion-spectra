@@ -3,6 +3,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import CanvasPanel from '@/components/CanvasPanel.vue'
+import ManagedByBadge from '@/components/ManagedByBadge.vue'
+import ManagedByFilter from '@/components/ManagedByFilter.vue'
+import { matchesManagedBy, type ManagedByFilterValue } from '@/utils/managedBy'
 import { usePermission } from '@/composables/usePermission'
 import * as weaveApi from '@/api/weaveApi'
 
@@ -17,6 +20,7 @@ const error   = ref<string | null>(null)
 const result  = ref<weaveApi.WeaveChainList | null>(null)
 
 const nameSearch  = ref('')
+const ownerFilter = ref<ManagedByFilterValue>('')
 const currentPage = ref(1)
 
 const deletingNames = ref<Set<string>>(new Set())
@@ -37,7 +41,8 @@ const allItems = computed(() => result.value?.items ?? [])
 
 const filteredItems = computed(() => {
   const q = nameSearch.value.trim().toLowerCase()
-  return q ? allItems.value.filter(c => c.metadata.name.toLowerCase().includes(q)) : allItems.value
+  return allItems.value.filter(c =>
+    (!q || c.metadata.name.toLowerCase().includes(q)) && matchesManagedBy(c.metadata, ownerFilter.value))
 })
 
 const pagedItems = computed(() => {
@@ -107,6 +112,7 @@ onMounted(loadChains)
           placeholder="Search by name…"
           @input="onSearch"
         />
+        <ManagedByFilter v-model="ownerFilter" @update:model-value="onSearch" />
         <span class="total-hint">{{ filteredItems.length }} chain{{ filteredItems.length !== 1 ? 's' : '' }}</span>
       </div>
 
@@ -120,6 +126,7 @@ onMounted(loadChains)
               <th>Failure Policy</th>
               <th>Concurrency</th>
               <th>Valid</th>
+              <th>Owner</th>
               <th>Created</th>
               <th></th>
             </tr>
@@ -144,6 +151,7 @@ onMounted(loadChains)
                   <q-icon name="mdi-clock-outline" size="12px" /> Pending
                 </span>
               </td>
+              <td><ManagedByBadge :meta="c.metadata" /></td>
               <td class="col-muted">{{ chainAge(c) }}</td>
               <td class="col-actions" @click.stop>
                 <button
@@ -159,7 +167,7 @@ onMounted(loadChains)
               </td>
             </tr>
             <tr v-if="!loading && pagedItems.length === 0">
-              <td colspan="7" class="empty-row">No chains found.</td>
+              <td colspan="8" class="empty-row">No chains found.</td>
             </tr>
           </tbody>
         </table>

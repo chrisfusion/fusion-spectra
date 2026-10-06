@@ -7,6 +7,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.45] — 2026-10-06
+
+### Added
+- **Weave image overrides** (fusion-flux `imageOverrides`): new shared `ImageOverrideEditor.vue` (step + image + pull policy rows, client-side check mirroring flux's tag/digest rule via `src/utils/imagePolicy.ts`, allowed-prefix hint from the new `GET /image-overrides/options` via `useImageOverrideOptions`) used on the Trigger wizard (step 3, Job steps only, hidden for Kafka/BatchCron) and the Service Instance create page.
+- Service Instance create: "Container image only" source mode (flux image-only `stepOverrides` — no artifact/tag, no code-loader), an optional custom image replacing the template image in artifact mode, and optional overrides for other steps.
+- Service Instance detail: current/previous image on the deployment card, "Change image" (rolling update) and "Roll back" actions via the new `POST /runs/{name}/image` (`weave:runs:image` permission), and the step message is shown so a rejected image is explained. List page shows the image for image-only instances.
+- Managed-by owner badge (`fusion-platform.io/managed-by`: manual / wizard) and owner filter on the Chains, Triggers and Service Instances lists (`ManagedByBadge.vue`, `ManagedByFilter.vue`).
+- Triggers list: image-override icon with tooltip, and `status.inactiveReason` as a tooltip on the Inactive badge.
+- Help: new how-to "Run a step with a custom image"; service-instance how-to updated.
+
+### Changed
+- `StepOverride.artifactName`/`tag` are optional in the API types (image-only mode).
+- Requires fusion-flux with `POST /runs/{name}/image` + `GET /image-overrides/options` and fusion-bff with `weave:runs:image` (admin/engineer) — apply the updated `rbac.yaml` ConfigMap before using Change image/Roll back.
+
 ## [0.10.44] — 2026-09-29
 
 ### Added

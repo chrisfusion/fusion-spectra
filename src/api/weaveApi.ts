@@ -9,6 +9,12 @@ export interface EnvVar {
   value?: string
 }
 
+export interface ImageOverride {
+  stepName:         string
+  image:            string
+  imagePullPolicy?: 'Always' | 'IfNotPresent' | 'Never'
+}
+
 export interface ResourceList {
   cpu?:    string
   memory?: string
@@ -264,6 +270,7 @@ export interface WeaveChain {
     resourceVersion?:   string
     creationTimestamp?: string
     generation?:        number
+    labels?:            Record<string, string>
   }
   spec:    WeaveChainSpec
   status?: WeaveChainStatus
@@ -411,6 +418,9 @@ export interface WeaveTriggerSpec {
   // dedicated endpoints.
   externalAuthRefOverride?: WeaveExternalAuthRef
   unsafeEnvironmentInjectorOverride?: boolean
+  // Copied into every run this trigger creates; Job steps only (a trigger
+  // can't set stepOverrides). Not settable via the Kafka/BatchCron endpoints.
+  imageOverrides?: ImageOverride[]
 }
 
 export interface WeaveTriggerStatus {
@@ -442,6 +452,7 @@ export interface WeaveTrigger {
     resourceVersion?:   string
     creationTimestamp?: string
     generation?:        number
+    labels?:            Record<string, string>
   }
   spec:    WeaveTriggerSpec
   status?: WeaveTriggerStatus
@@ -577,4 +588,11 @@ export interface ExternalAuthOptions {
 
 export function getExternalAuthOptions(): Promise<ExternalAuthOptions> {
   return bffGet<ExternalAuthOptions>(`${BASE}/external-auth/options`)
+}
+
+// ─── Image overrides ─────────────────────────────────────────────────────────
+
+// Operator's ALLOWED_IMAGE_PREFIXES; empty means image overrides are disabled.
+export function getImageOverrideOptions(): Promise<{ allowedPrefixes: string[] }> {
+  return bffGet<{ allowedPrefixes: string[] }>(`${BASE}/image-overrides/options`)
 }

@@ -5,6 +5,7 @@ import CanvasPanel from '@/components/CanvasPanel.vue'
 import CronPicker from '@/components/CronPicker.vue'
 import SecretNamePicker from '@/components/SecretNamePicker.vue'
 import ExternalAuthRefPicker from '@/components/ExternalAuthRefPicker.vue'
+import ImageOverrideEditor from '@/components/ImageOverrideEditor.vue'
 import KafkaClusterFields from '@/components/KafkaClusterFields.vue'
 import { usePermission } from '@/composables/usePermission'
 import * as weaveApi from '@/api/weaveApi'
@@ -223,6 +224,16 @@ const authSecretRefOverride = ref('')
 const externalAuthRefOverrideMode = ref<'' | 'serviceAccount' | 'oidc'>('')
 const externalAuthRefOverrideName = ref('')
 const unsafeEnvironmentInjectorOverride = ref<'' | 'true' | 'false'>('')
+const imageOverrides = ref<weaveApi.ImageOverride[]>([])
+const imageEditor    = ref<InstanceType<typeof ImageOverrideEditor> | null>(null)
+
+// A trigger can't set stepOverrides, so only Job steps can take an image override.
+const jobStepNames = computed(() =>
+  (chains.value.find(c => c.metadata.name === selectedChain.value)?.spec.steps ?? [])
+    .filter(s => (s.stepKind ?? 'Job') === 'Job')
+    .map(s => s.name)
+)
+watch(selectedChain, () => { imageOverrides.value = [] })
 
 function addParamRow() {
   paramRows.value = [...paramRows.value, { key: '', value: '' }]
@@ -275,6 +286,8 @@ function buildSpec(): weaveApi.WeaveTriggerSpec {
     }
   }
 
+  if (imageOverrides.value.length) spec.imageOverrides = imageOverrides.value
+
   if (unsafeEnvironmentInjectorOverride.value) {
     spec.unsafeEnvironmentInjectorOverride = unsafeEnvironmentInjectorOverride.value === 'true'
   }
@@ -298,6 +311,7 @@ function buildKafkaConfig(): weaveApi.WeaveKafkaConfig {
 }
 
 async function submit() {
+  if (imageEditor.value && !imageEditor.value.validate()) return
   submitting.value  = true
   submitError.value = null
   try {
@@ -356,6 +370,7 @@ function createAnother() {
   externalAuthRefOverrideMode.value = ''
   externalAuthRefOverrideName.value = ''
   unsafeEnvironmentInjectorOverride.value = ''
+  imageOverrides.value   = []
   submitError.value      = null
   createdTrigger.value   = null
   step.value             = 1
@@ -819,6 +834,17 @@ loadChains()
             </div>
           </div>
 
+          <div v-if="triggerType !== 'Kafka' && triggerType !== 'BatchCron' && jobStepNames.length" class="form-row">
+            <label class="form-label">Image overrides</label>
+            <div class="field-wrap">
+              <ImageOverrideEditor ref="imageEditor" v-model="imageOverrides" :steps="jobStepNames" />
+              <span class="field-hint">
+                Replaces the container image of Job steps for every run created by this trigger. Service (Deploy)
+                steps can't be overridden from a trigger — set those on the run instead.
+              </span>
+            </div>
+          </div>
+
           <!-- Summary box -->
           <div class="summary-box">
             <div class="summary-box__title">
@@ -841,6 +867,9 @@ loadChains()
               </li>
               <li v-if="triggerType !== 'Kafka' && triggerType !== 'BatchCron' && authSecretRefOverride">
                 <span class="sum-key">auth secret</span> <span class="sum-val fs-mono">{{ authSecretRefOverride }}</span>
+              </li>
+              <li v-for="o in (triggerType !== 'Kafka' && triggerType !== 'BatchCron' ? imageOverrides : [])" :key="o.stepName">
+                <span class="sum-key">image · {{ o.stepName }}</span> <span class="sum-val fs-mono">{{ o.image }}</span>
               </li>
               <li v-if="triggerType !== 'Kafka' && triggerType !== 'BatchCron' && externalAuthRefOverrideMode && externalAuthRefOverrideName">
                 <span class="sum-key">external auth</span>

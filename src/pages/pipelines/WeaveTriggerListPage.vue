@@ -3,6 +3,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import CanvasPanel from '@/components/CanvasPanel.vue'
+import ManagedByBadge from '@/components/ManagedByBadge.vue'
+import ManagedByFilter from '@/components/ManagedByFilter.vue'
+import { matchesManagedBy, type ManagedByFilterValue } from '@/utils/managedBy'
 import { usePermission } from '@/composables/usePermission'
 import * as weaveApi from '@/api/weaveApi'
 
@@ -17,6 +20,7 @@ const error   = ref<string | null>(null)
 const result  = ref<weaveApi.WeaveTriggerList | null>(null)
 
 const nameSearch  = ref('')
+const ownerFilter = ref<ManagedByFilterValue>('')
 const currentPage = ref(1)
 
 const deletingNames  = ref<Set<string>>(new Set())
@@ -40,7 +44,8 @@ const allItems = computed(() => result.value?.items ?? [])
 
 const filteredItems = computed(() => {
   const q = nameSearch.value.trim().toLowerCase()
-  return q ? allItems.value.filter(t => t.metadata.name.toLowerCase().includes(q)) : allItems.value
+  return allItems.value.filter(t =>
+    (!q || t.metadata.name.toLowerCase().includes(q)) && matchesManagedBy(t.metadata, ownerFilter.value))
 })
 
 const pagedItems = computed(() => {
@@ -193,6 +198,7 @@ onMounted(loadTriggers)
           placeholder="Search by name…"
           @input="onSearch"
         />
+        <ManagedByFilter v-model="ownerFilter" @update:model-value="onSearch" />
         <span class="total-hint">{{ filteredItems.length }} trigger{{ filteredItems.length !== 1 ? 's' : '' }}</span>
       </div>
 
@@ -206,6 +212,7 @@ onMounted(loadTriggers)
               <th>Chain</th>
               <th>Schedule / Path</th>
               <th>Active</th>
+              <th>Owner</th>
               <th>Last Run</th>
               <th>Created</th>
               <th></th>
@@ -223,6 +230,16 @@ onMounted(loadTriggers)
                 >
                   <q-tooltip :delay="400" anchor="top middle">
                     Auth secret override: {{ t.spec.authSecretRefOverride.name }}
+                  </q-tooltip>
+                </q-icon>
+                <q-icon
+                  v-if="t.spec.imageOverrides?.length"
+                  name="mdi-docker"
+                  size="12px"
+                  class="auth-secret-icon"
+                >
+                  <q-tooltip :delay="400" anchor="top middle">
+                    <div v-for="o in t.spec.imageOverrides" :key="o.stepName">Image · {{ o.stepName }}: {{ o.image }}</div>
                   </q-tooltip>
                 </q-icon>
               </td>
@@ -258,6 +275,7 @@ onMounted(loadTriggers)
                 </span>
                 <span v-else class="active-badge active-badge--off">
                   <q-icon name="mdi-pause-circle-outline" size="12px" /> Inactive
+                  <q-tooltip v-if="t.status?.inactiveReason" :delay="400" anchor="top middle">{{ t.status.inactiveReason }}</q-tooltip>
                 </span>
                 <span v-if="t.spec.paused" class="active-badge active-badge--paused">
                   <q-icon name="mdi-pause" size="12px" /> Paused
@@ -270,6 +288,7 @@ onMounted(loadTriggers)
                   </q-tooltip>
                 </span>
               </td>
+              <td><ManagedByBadge :meta="t.metadata" /></td>
               <td class="col-muted fs-mono">{{ t.status?.lastRunName ?? '—' }}</td>
               <td class="col-muted">{{ triggerAge(t) }}</td>
               <td class="col-actions">
@@ -317,7 +336,7 @@ onMounted(loadTriggers)
               </td>
             </tr>
             <tr v-if="!loading && pagedItems.length === 0">
-              <td colspan="8" class="empty-row">No triggers found.</td>
+              <td colspan="9" class="empty-row">No triggers found.</td>
             </tr>
           </tbody>
         </table>

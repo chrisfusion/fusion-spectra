@@ -29,8 +29,12 @@ explicitly stop it.
 3. Select the **chain** with the deploy step.
 4. Enter the **artifact name** from Fusion Index.
 5. Enter the **tag** that points to the version to deploy (e.g. `stable`).
-6. Optionally set an **ingress host** for external access.
+6. Optionally set an **ingress name** for external access.
 7. Click **Create**.
+
+Instead of an index artifact you can choose **Container image only**: the
+step runs the image you enter, with ports, resources and env taken from the
+Service Blueprint. See [Run a step with a custom image](run-custom-image).
 
 ## Checking health
 
@@ -51,6 +55,12 @@ If you move a tag in Fusion Index to a new artifact version and want the
 service to pick it up, trigger a rolling restart from the detail page. The
 operator replaces the running pods with a fresh deployment using the updated
 image.
+
+## Changing the image
+
+On the deployment card, **Change image** rolls the service to a new image and
+**Roll back** returns to the previous one. Both need the `weave:runs:image`
+permission.
 
 ## Stopping
 

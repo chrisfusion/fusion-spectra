@@ -130,6 +130,8 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - Mock-OIDC login redirects to `/#/dashboard`, not the page you started on — `goto` the target route again after submitting the login form
 - Wizard form rows are `.form-row` with a `.form-label`; locate fields by label text (`.form-row:has(.form-label:text("Repo URL")) input`)
 - E2E wizard runs use gitea `fusion-testcases` (`http://gitea.fusion.local/gitea_admin/fusion-testcases.git`, `testcases_v2/app-builds/*`); `streamlit-showcase` is the only Streamlit app and is shared with the showroom watcher — don't roll back/delete such a run (fusion-wizard rollback can delete the shared index artifact)
+- Headed run to watch the browser (verified 2026-10-06): same throwaway `.mjs` + `playwright-core` setup, but `headless: false`, `slowMo: 400`, and run with `DISPLAY=:1 node script.mjs`. The mock-OIDC `platform-admin` group is enough for every weave permission incl. `weave:runs:image`.
+- Image-override E2E fixture: chain `webservice-chain` (Deploy step `service` on `nginx-server-template`, Job step `smoketest`); flux allows `nginx:`/`busybox:` prefixes only. Delete the run/trigger you create afterwards.
 - Mock OIDC login form (`http://bff.fusion.local/mock-oidc/...`, served by fusion-bff itself, not a separate host) fields: `input[name="sub"]`, `input[name="email"]`, `input[name="name"]`, `select[name="groups"]` (multi-select — `platform-admin`/`team-data`/`team-ml`/`platform-viewer`), submit `button[type="submit"]`
 
 ## Activity rail — utility zone
@@ -161,6 +163,10 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
   session (`page.context().newCDPSession(page)` → `Network.clearBrowserCache`) or a fresh browser context.
 - `serviceUrlPattern` (`{name}` = wizard run's `ingressName` param) builds the deployed-service URL on `WizardRunDetailPage`; empty = URL hidden. Weave appends its own `ingress.hostSuffix`, so this must match that cluster domain. A new `FUSION_CONFIG` field touches `runtime.ts`, `public/config.js`, `values.yaml`, `configmap.yaml`
 - Direct ConfigMap patch when helm upgrade has a field manager conflict: `kubectl create configmap <name> --from-literal=config.js='...' --dry-run=client -o yaml | kubectl apply -f - && kubectl rollout restart deployment/<name> -n fusion`
+
+## fusion-flux deployment (minikube)
+- Operator and API share one image: `eval $(minikube docker-env) && docker build -t fusion-weave-operator:X.Y.Z ../fusion-flux`, then `kubectl set image deployment/fusion-weave-operator manager=… -n fusion` and `deployment/fusion-weave-api api-server=… -n fusion`. Spectra features that need new flux endpoints (e.g. `POST /runs/{name}/image`, `GET /image-overrides/options`) 404 until both are updated.
+- Weave image-override UI specifics live in `src/pages/pipelines/CLAUDE.md`.
 
 ## fusion-bff deployment (minikube)
 - Build: `cd /path/to/fusion-bff && eval $(minikube docker-env) && docker build -t fusion-bff:X.Y.Z .`

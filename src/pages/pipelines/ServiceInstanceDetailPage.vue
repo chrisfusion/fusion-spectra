@@ -5,6 +5,8 @@ import { useQuasar } from 'quasar'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import * as monitorApi from '@/api/weaveMonitorApi'
 import { usePermission } from '@/composables/usePermission'
+import { validateImage } from '@/utils/imagePolicy'
+import { useImageOverrideOptions } from '@/composables/useImageOverrideOptions'
 
 const route  = useRoute()
 const router = useRouter()
@@ -12,6 +14,7 @@ const $q     = useQuasar()
 const { can } = usePermission()
 
 const runName = route.params.name as string
+const { allowedPrefixes } = useImageOverrideOptions()
 
 // ─── State ─────────────────────────────────────────────────────────────────────
 
@@ -22,6 +25,7 @@ const error   = ref<string | null>(null)
 const stopping  = ref(false)
 const deleting  = ref(false)
 const restartingSteps = ref<Set<string>>(new Set())
+const imageBusySteps = ref<Set<string>>(new Set())
 
 // ─── Polling — inline setInterval; Deployed is non-terminal ───────────────────
 
@@ -94,6 +98,15 @@ function stepOverride(): monitorApi.StepOverride | undefined {
   return detail.value?.run.spec.stepOverrides?.[0]
 }
 
+// Operator explains a rejected image override in the step's message.
+function stepMessage(stepName: string): string | undefined {
+  return detail.value?.run.status?.steps.find(s => s.name === stepName)?.message || undefined
+}
+
+function imageOverrides(): monitorApi.ImageOverride[] {
+  return detail.value?.run.spec.imageOverrides ?? []
+}
+
 // ─── Actions ───────────────────────────────────────────────────────────────────
 
 function confirmStop() {
@@ -140,6 +153,49 @@ function confirmDelete() {
       deleting.value = false
     }
   })
+}
+
+// Posts one imageOverrides entry; the operator rolls the Deployment and ignores an invalid image
+// (old one keeps serving), so the step message is re-read after the next poll rather than assumed.
+async function applyImage(stepName: string, image: string, okMessage: string) {
+  imageBusySteps.value = new Set([...imageBusySteps.value, stepName])
+  try {
+    const pullPolicy = imageOverrides().find(o => o.stepName === stepName)?.imagePullPolicy
+    await monitorApi.setRunImage(runName, { stepName, image, ...(pullPolicy ? { imagePullPolicy: pullPolicy } : {}) })
+    $q.notify({ type: 'positive', message: okMessage })
+    await loadDetail()
+  } catch (e) {
+    $q.notify({ type: 'negative', message: e instanceof Error ? e.message : 'Image update failed' })
+  } finally {
+    imageBusySteps.value = new Set([...imageBusySteps.value].filter(s => s !== stepName))
+  }
+}
+
+function changeImage(d: monitorApi.ActiveDeploymentStatus) {
+  $q.dialog({
+    title:   'Change Image',
+    message: `New image for <strong>${d.stepName}</strong> — the Deployment is rolled to it (rolling update).`,
+    html:    true,
+    prompt:  {
+      model:   d.image ?? '',
+      type:    'text',
+      isValid: (v: string) => validateImage(v, allowedPrefixes.value) === null,
+    },
+    ok:     { label: 'Roll out', color: 'warning', flat: true },
+    cancel: { label: 'Cancel', flat: true },
+  }).onOk((image: string) => applyImage(d.stepName, image.trim(), `Rolling ${d.stepName} to ${image.trim()}`))
+}
+
+function rollbackImage(d: monitorApi.ActiveDeploymentStatus) {
+  if (!d.previousImage) return
+  const prev = d.previousImage
+  $q.dialog({
+    title:   'Roll Back Image',
+    message: `Roll <strong>${d.stepName}</strong> back to <code>${prev}</code>?`,
+    html:    true,
+    ok:     { label: 'Roll back', color: 'warning', flat: true },
+    cancel: { label: 'Cancel', flat: true },
+  }).onOk(() => applyImage(d.stepName, prev, `Rolling ${d.stepName} back to ${prev}`))
 }
 
 function restartStep(d: monitorApi.ActiveDeploymentStatus) {
@@ -198,11 +254,22 @@ function restartStep(d: monitorApi.ActiveDeploymentStatus) {
           <dt>Chain</dt>
           <dd class="fs-mono">{{ detail.run.spec.chainRef.name }}</dd>
 
-          <dt>Artifact</dt>
-          <dd class="fs-mono">{{ stepOverride()?.artifactName ?? '—' }}</dd>
+          <template v-if="stepOverride()?.artifactName">
+            <dt>Artifact</dt>
+            <dd class="fs-mono">{{ stepOverride()?.artifactName }}</dd>
 
-          <dt>Tag</dt>
-          <dd class="fs-mono">{{ stepOverride()?.tag ?? '—' }}</dd>
+            <dt>Tag</dt>
+            <dd class="fs-mono">{{ stepOverride()?.tag ?? '—' }}</dd>
+          </template>
+          <template v-else>
+            <dt>Source</dt>
+            <dd>Container image only</dd>
+          </template>
+
+          <template v-for="o in imageOverrides()" :key="o.stepName">
+            <dt>Image · {{ o.stepName }}</dt>
+            <dd class="fs-mono">{{ o.image }}</dd>
+          </template>
 
           <template v-if="stepOverride()?.ingressName">
             <dt>Ingress Name</dt>
@@ -271,11 +338,22 @@ function restartStep(d: monitorApi.ActiveDeploymentStatus) {
             <dt>Step</dt>
             <dd class="fs-mono">{{ d.stepName }}</dd>
 
-            <dt>Running version</dt>
-            <dd class="fs-mono version-chip">{{ d.codeSourceDeployedVersion || '—' }}</dd>
+            <template v-if="d.codeSourceArtifact">
+              <dt>Running version</dt>
+              <dd class="fs-mono version-chip">{{ d.codeSourceDeployedVersion || '—' }}</dd>
 
-            <dt>Tracking tag</dt>
-            <dd class="fs-mono">{{ d.codeSourceTag }}</dd>
+              <dt>Tracking tag</dt>
+              <dd class="fs-mono">{{ d.codeSourceTag }}</dd>
+            </template>
+
+            <template v-if="d.image">
+              <dt>Image</dt>
+              <dd class="fs-mono">{{ d.image }}</dd>
+            </template>
+            <template v-if="d.previousImage">
+              <dt>Previous image</dt>
+              <dd class="fs-mono col-muted">{{ d.previousImage }}</dd>
+            </template>
 
             <template v-if="d.health !== 'Healthy' && d.unhealthyDurationSeconds">
               <dt>Unhealthy for</dt>
@@ -283,7 +361,28 @@ function restartStep(d: monitorApi.ActiveDeploymentStatus) {
             </template>
           </dl>
 
+          <p v-if="stepMessage(d.stepName)" class="dep-message">{{ stepMessage(d.stepName) }}</p>
+
           <div class="dep-actions">
+            <button
+              v-if="can('weave:runs:image') && detail.run.status?.phase === 'Running'"
+              class="fs-btn fs-btn--ghost fs-btn--sm"
+              :disabled="imageBusySteps.has(d.stepName)"
+              @click="changeImage(d)"
+            >
+              <q-spinner v-if="imageBusySteps.has(d.stepName)" size="12px" style="margin-right:4px" />
+              <q-icon v-else name="mdi-docker" size="13px" style="margin-right:4px" />
+              Change image
+            </button>
+            <button
+              v-if="can('weave:runs:image') && d.previousImage && detail.run.status?.phase === 'Running'"
+              class="fs-btn fs-btn--ghost fs-btn--sm"
+              :disabled="imageBusySteps.has(d.stepName)"
+              @click="rollbackImage(d)"
+            >
+              <q-icon name="mdi-undo-variant" size="13px" style="margin-right:4px" />
+              Roll back
+            </button>
             <button
               v-if="can('weave:steps:restart')"
               class="fs-btn fs-btn--ghost fs-btn--sm"
@@ -446,7 +545,8 @@ function restartStep(d: monitorApi.ActiveDeploymentStatus) {
   font-weight: 600;
 }
 
-.dep-actions { display: flex; gap: 6px; }
+.dep-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.dep-message { font-size: 11.5px; color: var(--fs-warn, #ff9800); margin: 8px 0 0; line-height: 1.5; }
 
 .col-warn { color: var(--fs-warn, #ff9800); }
 .col-muted { color: var(--fs-text-muted); }
