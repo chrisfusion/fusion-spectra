@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import WizardPhaseBadge from '@/components/WizardPhaseBadge.vue'
+import WizardRunLogsPanel from '@/components/WizardRunLogsPanel.vue'
 import * as wizardApi from '@/api/wizardApi'
 import { usePermission } from '@/composables/usePermission'
 import { useUiModeStore } from '@/stores/uiMode'
@@ -62,6 +63,19 @@ onMounted(async () => {
     startPolling()
   }
 })
+
+// ?logs=1 — the logs icon on the runs list / Home jumps straight to the Logs panel. Waits for the
+// panel's first load, then keeps it pinned for 2s while its content (e.g. a service's log tail)
+// still grows — a single scroll at load time lands short or gets cancelled.
+async function onLogsLoaded() {
+  if (!route.query.logs) return
+  await nextTick()
+  const el = document.getElementById('run-logs')
+  if (!el) return
+  const pin = new ResizeObserver(() => el.scrollIntoView({ block: 'start' }))
+  pin.observe(el)
+  setTimeout(() => pin.disconnect(), 2000)
+}
 
 // ─── Actions ────────────────────────────────────────────────────────────────
 
@@ -272,10 +286,16 @@ const triggerNames = computed(() =>
       </template>
 
     </CanvasPanel>
+
+    <div v-if="run" id="run-logs" class="logs-anchor">
+      <WizardRunLogsPanel :run="run" @loaded="onLogsLoaded" />
+    </div>
   </div>
 </template>
 
 <style scoped>
+.logs-anchor { grid-column: span 2; display: grid; grid-template-columns: repeat(2, 1fr); scroll-margin-top: 12px; }
+
 .page-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

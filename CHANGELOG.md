@@ -7,6 +7,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.50] — 2026-10-20
+
+### Added
+- Wizard run Logs panel: **Build** section for git wizards — the fusion-forge build of the run's `waitBuild` step (its `buildId` is published while the step still waits), live inline log while PENDING/BUILDING, Logs dialog afterwards (`GET /appbuilds/{id}/logs`; available only while the build pod exists).
+
+## [0.10.49] — 2026-10-20
+
+### Added
+- **Wizard run logs** (Simple and Expert mode): Logs panel on the wizard run page, derived from the run's step outputs — WeaveApp services show a live log inline, WeaveApp jobs list their executions with a Logs dialog each (`GET /monitor/v1/apps/{name}/logs`, `?execution=`), trigger-based wizards (batch, batchcron, older runs) list the latest Weave runs of their triggers with step logs. "Setup log" toggle shows the code-loader init container. Logs icon next to each run on the Wizard Runs list and Home opens the page scrolled to the panel (`?logs=1`).
+- `weaveMonitorApi`: `getApp()`, `getAppLogs()`, WeaveApp types.
+
+### Changed
+- Log viewing extracted into shared `LogViewer.vue` / `LogDialog.vue`; `WeaveRunDetailPage` uses them instead of its inline dialog.
+
 ## [0.10.48] — 2026-10-20
 
 ### Changed

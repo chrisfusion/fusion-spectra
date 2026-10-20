@@ -153,6 +153,10 @@ function confirmDelete(name: string) {
             <td>{{ new Date(r.createdAt).toLocaleString() }}</td>
             <td class="runs-table__actions" @click.stop>
               <button
+                class="icon-btn" title="Logs"
+                @click="router.push({ path: `/wizards/runs/${encodeURIComponent(r.name)}`, query: { logs: '1' } })"
+              ><q-icon name="mdi-text-box-outline" size="15px" /></button>
+              <button
                 v-if="r.status.phase === 'Failed' && can('wizard:runs:retry')"
                 class="icon-btn" title="Retry" :disabled="actingOn.has(r.name)"
                 @click="retry(r.name)"

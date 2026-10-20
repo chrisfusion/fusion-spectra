@@ -142,12 +142,69 @@ export interface RunDetail {
   events: K8sEvent[]
 }
 
+// What the shared LogViewer needs — both LogResponse and AppLogResponse satisfy it.
+export interface LogSnapshot {
+  lines:   string[]
+  podName: string
+}
+
 export interface LogResponse {
   runName:  string
   stepName: string
   podName:  string
   lines:    string[]
 }
+
+// ─── WeaveApp (single-resource service/job) ──────────────────────────────────
+
+export type AppPhase          = 'Pending' | 'Ready' | 'Running' | 'Invalid'
+export type AppExecutionPhase = 'Running' | 'Succeeded' | 'Failed'
+
+export interface WeaveAppExecution {
+  entrypoint:      string
+  jobName:         string
+  phase:           AppExecutionPhase
+  startTime?:      string | null
+  completionTime?: string | null
+  message?:        string
+}
+
+export interface WeaveApp {
+  metadata: { name: string; creationTimestamp?: string; labels?: Record<string, string> }
+  spec:     { type: 'service' | 'job'; image: string }
+  status?: {
+    phase?:             AppPhase
+    validationMessage?: string
+    deploymentName?:    string
+    executions?:        WeaveAppExecution[]   // newest first; outlives the Job's TTL
+  }
+}
+
+export interface AppLogResponse {
+  appName:     string
+  type:        string
+  entrypoint?: string
+  execution?:  string
+  podName:     string
+  container:   string
+  lines:       string[]
+}
+
+export function getApp(name: string): Promise<WeaveApp> {
+  return bffGet<WeaveApp>(`${CRUD_BASE}/apps/${encodeURIComponent(name)}`)
+}
+
+// service: the Deployment's pod; job: the given execution (default: newest).
+// setup=true returns the code-loader init container's log instead of the main one.
+export function getAppLogs(name: string, opts: { execution?: string; setup?: boolean } = {}): Promise<AppLogResponse> {
+  const q = new URLSearchParams()
+  if (opts.execution) q.set('execution', opts.execution)
+  if (opts.setup)     q.set('container', 'code-loader')
+  const qs = q.toString()
+  return bffGet<AppLogResponse>(`${BASE}/apps/${encodeURIComponent(name)}/logs${qs ? '?' + qs : ''}`)
+}
+
+// ─── Runs ─────────────────────────────────────────────────────────────────────
 
 export function listRuns(): Promise<RunSummary[]> {
   return bffGet<RunSummary[]>(`${BASE}/runs`)

@@ -84,17 +84,25 @@ function wizardTitle(definition: string): string {
       </div>
 
       <div class="recent-list">
-        <button
+        <div
           v-for="r in recentRuns" :key="r.name"
-          class="recent-item"
+          class="recent-item" role="link" tabindex="0"
           @click="router.push(`/wizards/runs/${encodeURIComponent(r.name)}`)"
+          @keydown.enter="router.push(`/wizards/runs/${encodeURIComponent(r.name)}`)"
         >
           <span class="recent-item__name fs-mono">{{ r.name }}</span>
           <span class="recent-item__wizard">{{ wizardTitle(r.definition) }}</span>
           <WizardPhaseBadge :phase="r.status.phase" />
           <span class="recent-item__meta">{{ r.createdByEmail || r.createdBy || '—' }}</span>
           <span class="recent-item__meta">{{ new Date(r.createdAt).toLocaleString() }}</span>
-        </button>
+          <button
+            class="icon-btn"
+            @click.stop="router.push({ path: `/wizards/runs/${encodeURIComponent(r.name)}`, query: { logs: '1' } })"
+          >
+            <q-icon name="mdi-text-box-outline" size="15px" />
+            <q-tooltip>Logs</q-tooltip>
+          </button>
+        </div>
         <div v-if="!loading && recentRuns.length === 0" class="recent-empty">
           No runs yet — start one with a wizard above.
         </div>
@@ -132,7 +140,7 @@ function wizardTitle(definition: string): string {
 .recent-list { display: flex; flex-direction: column; padding: 0 10px 10px; }
 .recent-item {
   display: grid;
-  grid-template-columns: minmax(160px, 2fr) minmax(130px, 1.5fr) 110px minmax(120px, 1.5fr) 150px;
+  grid-template-columns: minmax(160px, 2fr) minmax(130px, 1.5fr) 110px minmax(120px, 1.5fr) 150px 28px;
   align-items: center;
   gap: 10px;
   padding: 8px 6px;
@@ -152,6 +160,13 @@ function wizardTitle(definition: string): string {
 .recent-item__meta   { color: var(--fs-text-muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .recent-empty { padding: 24px 10px; text-align: center; color: var(--fs-text-muted); font-size: 12.5px; }
 .fs-mono { font-family: var(--fs-font-mono); }
+
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 4px; border: none; background: transparent;
+  color: var(--fs-text-muted); cursor: pointer; transition: color var(--fs-ease), background var(--fs-ease);
+}
+.icon-btn:hover { color: var(--fs-accent); background: var(--fs-bg-active); }
 
 .fs-btn {
   display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px;

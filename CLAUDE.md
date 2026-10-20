@@ -141,6 +141,8 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - `/dashboard` → `HomePage.vue` picks `DashboardPage` (expert) or `SimpleDashboardPage` (wizard cards + recent runs)
 - Links from shared pages into Weave/Forge/Index internals (e.g. WizardRunDetailPage's chain buttons) must be gated on `uiMode.expert`, otherwise a simple user lands on a redirect
 - `ui:expert` is UI-only (no `route_permissions` rule); the BFF `user` role (group `platform-user`) has no forge/index/weave writes — wizard provisioning runs under fusion-wizard's SA. With `group_source: db` the yaml `group_roles` mapping is ignored at runtime — create the `platform-user → user` assignment on the Role Assignments page
+- Wizard run logs: `WizardRunLogsPanel.vue` maps step outputs → log sources (`waitBuild.outputs.buildId` → forge `getAppBuild`/`getAppBuildLogs`, set while the step still waits; `app` → WeaveApp via `getApp`/`getAppLogs`; `trigger`/`batchTrigger` → Weave runs filtered client-side on label `fusion-platform.io/trigger`, weave's list API has no label selector). Needs `weave:monitoring:read` (logs live under `/api/weave/monitor/v1/*`) and `forge:builds:read`. Every wizard except `batch-git-job`/`batchcron-git-job` is WeaveApp-based since fusion-wizard `a9d0ac8`; runs created before that still have the chain/trigger shape
+- Any log display: use `LogViewer.vue` (inline) / `LogDialog.vue` (dialog) with a fetch function — keep the fetcher reference stable (it reloads when the prop changes)
 - Wizard runs: everyone sees all runs (no multi-tenancy yet); "Only mine" filters by `createdBy` = `auth.user.sub` (runs created before fusion-wizard stamped the owner show "—" and never match)
 
 ## Activity rail — utility zone
