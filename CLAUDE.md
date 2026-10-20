@@ -62,6 +62,7 @@ No footer slot — add pagination below the table inside the default slot.
 - Admin icon in ActivityRail is hidden via `v-if="isAdmin"` — no admin entry renders for non-admin users
 - Admin routes (`/admin/*`) have `meta.adminOnly: true`; the router guard redirects to `/data` if user lacks `admin` role
 - Permission strings mirror the BFF `rbac.yaml` (e.g. `index:artifacts:read`, `forge:builds:create`, `admin:roles:manage`)
+- A new BFF role must also be added to the hardcoded `ROLES` list in `src/pages/admin/RoleAssignmentsPage.vue`, or it can't be assigned in the UI
 
 ## API clients
 - `src/api/bffClient.ts` — base fetch with `credentials:'include'`; 401 auto-redirects to BFF login
@@ -133,6 +134,9 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - Headed run to watch the browser (verified 2026-10-06): same throwaway `.mjs` + `playwright-core` setup, but `headless: false`, `slowMo: 400`, and run with `DISPLAY=:1 node script.mjs`. The mock-OIDC `platform-admin` group is enough for every weave permission incl. `weave:runs:image`.
 - Image-override E2E fixture: chain `webservice-chain` (Deploy step `service` on `nginx-server-template`, Job step `smoketest`); flux allows `nginx:`/`busybox:` prefixes only. Delete the run/trigger you create afterwards.
 - Mock OIDC login form (`http://bff.fusion.local/mock-oidc/...`, served by fusion-bff itself, not a separate host) fields: `input[name="sub"]`, `input[name="email"]`, `input[name="name"]`, `select[name="groups"]` (multi-select — `platform-admin`/`team-data`/`team-ml`/`platform-user`/`platform-viewer`; `platform-user` = Simple-mode common user), submit `button[type="submit"]`
+- Common-user E2E: log in with group `platform-user`; start wizard runs via `page.evaluate(() => fetch('http://bff.fusion.local/api/wizard/api/v1/runs', { method: 'POST', credentials: 'include', … }))` (same body as the form; objectList = array of `{key, …}` objects) to skip the `objectRows` UI
+- Simulate a short-lived backend state (e.g. a build still BUILDING) with `page.route(re, async r => { const res = await r.fetch(); r.fulfill({ response: res, json: { ...await res.json(), status: 'BUILDING' } }) })` — real data, one field rewritten
+- Log fixtures: `busybox:` jobs print nothing (empty log is expected); `nginx:1.27` via Image → Service gives real log lines; git build fixture `testcases_v2/app-builds/hello-world` is unused by any watcher (safe to roll back), but builds in ~4s — too fast to catch the live BUILDING view
 
 ## Simple mode / Expert mode
 - Two audiences: experts (full UI) and common users (wizards + runs only). `src/stores/uiMode.ts`: `canExpert` = `ui:expert` permission, `expert` = canExpert && stored preference (`fs-ui-mode` in localStorage). Users without `ui:expert` are always Simple; experts toggle via the top-bar Simple/Expert button
@@ -177,11 +181,13 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 
 ## fusion-wizard deployment (minikube)
 - `eval $(minikube docker-env) && docker build -t fusion-wizard:X.Y.Z ../fusion-wizard`, then `helm upgrade fusion-wizard deployment/fusion-wizard -n fusion --reuse-values --set image.tag=X.Y.Z` (from `../fusion-wizard`); enabling a new definition also needs `--set definitions.<x>.enabled=true` explicitly (reuse-values misses new chart defaults). Verify with `kubectl get wizarddefinitions -n fusion`.
+- Definition-only chart change: `helm upgrade fusion-wizard deployment/fusion-wizard -n fusion --reuse-values`, no image build. Check first: `diff <(helm get manifest fusion-wizard -n fusion) <(helm template fusion-wizard deployment/fusion-wizard -n fusion -f <(helm get values fusion-wizard -n fusion -o yaml))`
 - Clean up wizard E2E runs with `kubectl patch wizardrun <name> -n fusion --type=merge -p '{"spec":{"desiredState":"RolledBack"}}'` — never delete the weave objects by hand (leaves the ledger inconsistent).
 
 ## fusion-flux deployment (minikube)
 - Operator and API share one image: `eval $(minikube docker-env) && docker build -t fusion-weave-operator:X.Y.Z ../fusion-flux`, then `kubectl set image deployment/fusion-weave-operator manager=… -n fusion` and `deployment/fusion-weave-api api-server=… -n fusion`. Spectra features that need new flux endpoints (e.g. `POST /runs/{name}/image`, `GET /image-overrides/options`) 404 until both are updated.
 - Weave image-override UI specifics live in `src/pages/pipelines/CLAUDE.md`.
+- Probe weave endpoints through the BFF from the test browser (`fetch('http://bff.fusion.local/api/weave/...')`): `kubectl get --raw /api/v1/namespaces/fusion/services/fusion-weave-api:8082/proxy/...` reaches the CRUD API but 404s on `/monitor/v1/*`, and a `kubectl run busybox` probe pod hung
 
 ## fusion-bff deployment (minikube)
 - Build: `cd /path/to/fusion-bff && eval $(minikube docker-env) && docker build -t fusion-bff:X.Y.Z .`
