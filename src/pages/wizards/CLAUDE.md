@@ -14,7 +14,7 @@ To add a new wizard of this kind:
    the landing page, the Simple-mode dashboard and the Wizards sidebar all render from it; no new
    route needed, the generic one is parametric
 3. Only add an entry to `src/data/wizardDisplayMeta.ts` when the auto-generated label/widget
-   genuinely needs help (friendlier label, a `select`/`cron`/`tags`/`textarea`/`objectRows` widget
+   genuinely needs help (friendlier label, a `patternMessage` instead of the raw regex error, a `select`/`cron`/`tags`/`textarea`/`objectRows` widget
    instead of plain text, a field that should only show conditionally via `showIf`, or a short-title
    override in `wizardTitleOverrides` for a definition name that doesn't title-case naturally) — it's
    optional, not required

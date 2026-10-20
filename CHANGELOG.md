@@ -7,6 +7,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.51] — 2026-10-20
+
+### Changed
+- Wizard forms: optional `patternMessage` in `wizardDisplayMeta.ts` replaces the raw "Must match pattern: <regex>" error. Ingress Name (Image → Service, Git → Python Service; shared `ingressNameField`) now explains it takes only the name part — fusion-wizard 0.1.1 rejects a full hostname at run creation.
+
 ## [0.10.50] — 2026-10-20
 
 ### Added

@@ -63,6 +63,10 @@ function resetFields() {
   }
 }
 
+function patternError(p: wizardApi.WizardParameter): string {
+  return metaFor(p.name).patternMessage ?? `Must match pattern: ${p.pattern}`
+}
+
 function addRow(p: wizardApi.WizardParameter) {
   const val = (newRowKey[p.name] ?? '').trim()
   newRowKeyError[p.name] = null
@@ -70,7 +74,7 @@ function addRow(p: wizardApi.WizardParameter) {
   if (p.pattern) {
     try {
       if (!new RegExp(p.pattern).test(val)) {
-        newRowKeyError[p.name] = `Must match pattern: ${p.pattern}`
+        newRowKeyError[p.name] = patternError(p)
         return
       }
     } catch { /* a bad pattern on the definition itself isn't this form's problem */ }
@@ -215,7 +219,7 @@ function validateSetup(): boolean {
     if (p.pattern && typeof v === 'string' && v.trim() !== '') {
       try {
         if (!new RegExp(p.pattern).test(v.trim())) {
-          fieldErrors[p.name] = `Must match pattern: ${p.pattern}`
+          fieldErrors[p.name] = patternError(p)
           ok = false
         }
       } catch { /* a bad pattern on the definition itself isn't this form's problem */ }

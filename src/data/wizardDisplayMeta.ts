@@ -33,6 +33,8 @@ export interface WizardFieldDisplayMeta {
   showIf?:      { field: string, equals?: string, notEquals?: string }
   // Collapsed under an "Advanced options" toggle until the user opens it.
   advanced?:    boolean
+  // Shown instead of the raw "Must match pattern: <regex>" when the definition's pattern fails.
+  patternMessage?: string
   // widget: 'externalAuthName' only — the sibling parameter holding the mode ('serviceAccount' | 'oidc');
   // the name picker offers weave's allowlisted names for that mode.
   modeField?:   string
@@ -49,6 +51,14 @@ export const wizardTitleOverrides: Record<string, string> = {
   'image-service':     'Image → Service',
   'image-job':         'Image → Job',
   'image-cron-job':    'Image → Cron Job',
+}
+
+// Shared by the service definitions: weave appends its cluster domain, so this is one DNS label only.
+const ingressNameField: WizardFieldDisplayMeta = {
+  label:          'Ingress Name',
+  placeholder:    'my-dashboard',
+  help:           'DNS label to expose the service at <name>.<cluster domain> (optional, lowercase letters, digits, hyphens)',
+  patternMessage: 'Only the name part — lowercase letters, digits and hyphens, no dots. The cluster domain is added automatically.',
 }
 
 // Shared by the three image-based definitions (a container image instead of a git repo). Allowed
@@ -231,11 +241,7 @@ export const wizardDisplayMeta: Record<string, Record<string, WizardFieldDisplay
       placeholder: '8501',
       help: "Port the app listens on (Streamlit's default is 8501)",
     },
-    ingressName: {
-      label: 'Ingress Name',
-      placeholder: 'my-dashboard',
-      help: 'DNS label to expose the service at <name>.<cluster domain> (optional, lowercase letters, digits, hyphens)',
-    },
+    ingressName: ingressNameField,
   },
   'image-service': {
     ...imageFields,
@@ -249,11 +255,7 @@ export const wizardDisplayMeta: Record<string, Record<string, WizardFieldDisplay
       placeholder: '8080',
       help: 'Port the container listens on',
     },
-    ingressName: {
-      label: 'Ingress Name',
-      placeholder: 'my-dashboard',
-      help: 'DNS label to expose the service at <name>.<cluster domain> (optional, lowercase letters, digits, hyphens)',
-    },
+    ingressName: ingressNameField,
   },
   'image-job': {
     ...imageFields,
