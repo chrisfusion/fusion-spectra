@@ -86,7 +86,7 @@ src/
     │   ├── VenvCreatePage.vue          2-step wizard
     │   └── VenvDetailPage.vue          metadata + live log panel, auto-polls while building
     └── admin/
-        ├── RoleAssignmentsPage.vue     group → role CRUD backed by BFF DB
+        ├── RoleAssignmentsPage.vue     group → role and user (sub) → role CRUD backed by BFF DB
         ├── ResourcePermissionsPage.vue resource-scoped permission grants
         └── ArtifactTypesPage.vue       artifact type taxonomy CRUD
 ```

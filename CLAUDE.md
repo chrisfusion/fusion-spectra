@@ -62,7 +62,7 @@ No footer slot — add pagination below the table inside the default slot.
 - Admin icon in ActivityRail is hidden via `v-if="isAdmin"` — no admin entry renders for non-admin users
 - Admin routes (`/admin/*`) have `meta.adminOnly: true`; the router guard redirects to `/data` if user lacks `admin` role
 - Permission strings mirror the BFF `rbac.yaml` (e.g. `index:artifacts:read`, `forge:builds:create`, `admin:roles:manage`)
-- A new BFF role must also be added to the hardcoded `ROLES` list in `src/pages/admin/RoleAssignmentsPage.vue`, or it can't be assigned in the UI
+- A new BFF role must also be added to the hardcoded `ROLES` list in `src/pages/admin/RoleAssignmentsPage.vue`, or it can't be assigned in the UI (shared by the group and user (sub) panels)
 
 ## API clients
 - `src/api/bffClient.ts` — base fetch with `credentials:'include'`; 401 auto-redirects to BFF login

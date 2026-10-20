@@ -4,6 +4,7 @@
   - Placeholder: All Users, Platform Services, Configuration, Integrations, Audit Log
 
 ## Admin sub-pages
+- `src/pages/admin/RoleAssignmentsPage.vue` — two `RoleAssignmentPanel.vue` instances at `/admin/roles`: group → role (`/bff/admin/group-roles`) and user (OIDC sub) → role (`/bff/admin/user-roles`, fusion-bff ≥ 0.14.0); the page maps each API row to the panel's `{id, subject, role_name, …}` shape
 - `src/pages/admin/ForgeCleanupPage.vue` — two-panel forge maintenance page at `/admin/forge-cleanup`; top panel: bulk-delete terminal (FAILED/SUCCESS) builds by type and age (`forge:builds:delete`); bottom panel: zombie cleanup — removes stuck PENDING/BUILDING builds whose CIBuild CR is gone (`forge:admin:manage`, admin-only); both panels use the filter-and-fire pattern (no preview table); result bar shows `deleted.length` count + per-item failure list; `BulkDeleteBuildsResult.deleted` is an array of IDs, not a count
 - `src/pages/admin/IndexCleanupPage.vue` — three-panel index maintenance at `/admin/index-cleanup` (empty artifacts, versions without files, artifacts without files); preview-before-delete pattern with `olderThan` filter, paginated table, and "Delete All" button; `$q.dialog` confirm; permission `index:admin:manage`
 - `src/pages/admin/ArtifactTypesPage.vue` — Artifact Types CRUD; inline create row, inline edit, delete with `$q.dialog`; backed by `indexApi` types endpoints
@@ -13,6 +14,7 @@
 ## BFF admin API
 - `src/api/bffAdminApi.ts` — typed admin API client
   - `listResourcePermissions()` / `createResourcePermission()` / `deleteResourcePermission()` → `/bff/admin/resource-permissions`
+  - `listUserRoles()` / `createUserRole(sub, role)` / `deleteUserRole()` → `/bff/admin/user-roles`
   - `getRBACConfig()` → `/bff/admin/rbac-config` returns `{roles, groups, permissions}` for dropdown population
   - `listServiceStatusOverrides`, `upsertServiceStatusOverride`, `deleteServiceStatusOverride` → `/bff/admin/service-status`
 

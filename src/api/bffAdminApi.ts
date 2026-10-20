@@ -9,6 +9,14 @@ export interface GroupRoleAssignment {
   created_at: string
 }
 
+export interface UserRoleAssignment {
+  id: number
+  user_sub: string
+  role_name: string
+  created_by: string
+  created_at: string
+}
+
 export interface ResourcePermission {
   id:            number
   subject_type:  'user' | 'group' | 'role'
@@ -48,6 +56,21 @@ export const bffAdminApi = {
 
   async deleteGroupRole(id: number): Promise<void> {
     await bffFetch(`/bff/admin/group-roles/${id}`, { method: 'DELETE' })
+  },
+
+  listUserRoles(): Promise<UserRoleAssignment[]> {
+    return bffGet<UserRoleAssignment[]>('/bff/admin/user-roles')
+  },
+
+  createUserRole(sub: string, role: string): Promise<UserRoleAssignment> {
+    return bffFetch('/bff/admin/user-roles', {
+      method: 'POST',
+      body: JSON.stringify({ sub, role }),
+    }).then(r => r.json() as Promise<UserRoleAssignment>)
+  },
+
+  async deleteUserRole(id: number): Promise<void> {
+    await bffFetch(`/bff/admin/user-roles/${id}`, { method: 'DELETE' })
   },
 
   listResourcePermissions(): Promise<ResourcePermission[]> {

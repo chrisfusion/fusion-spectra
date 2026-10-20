@@ -7,6 +7,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.52] — 2026-10-20
+
+### Added
+- Admin → Role Assignments: second panel **User Role Assignments** to assign roles directly to an OIDC `sub` (fusion-bff 0.14.0 `/bff/admin/user-roles`), for the few users no OIDC group covers; added on top of their group roles, effective at their next login.
+
+### Changed
+- Group and user role tables share the new `RoleAssignmentPanel.vue`; the remove-confirmation dialog now HTML-escapes the subject and role.
+
 ## [0.10.51] — 2026-10-20
 
 ### Changed
