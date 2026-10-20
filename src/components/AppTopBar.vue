@@ -3,12 +3,19 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore, THEMES } from '@/stores/theme'
+import { useUiModeStore } from '@/stores/uiMode'
 import { useHelpDrawer } from '@/composables/useHelpDrawer'
 import { useGitlabIssue, type IssueType } from '@/composables/useGitlabIssue'
 
 const router          = useRouter()
 const auth            = useAuthStore()
 const themeStore      = useThemeStore()
+const uiMode          = useUiModeStore()
+
+function toggleUiMode() {
+  uiMode.set(uiMode.expert ? 'simple' : 'expert')
+  router.push('/dashboard')
+}
 const helpDrawer      = useHelpDrawer()
 const gitlabIssue     = useGitlabIssue()
 
@@ -111,6 +118,15 @@ async function handleLogout() {
         <q-icon name="mdi-bell-outline" size="18px" />
         <span class="topbar__notif-dot" />
         <q-tooltip anchor="bottom middle" self="top middle" :offset="[0, 6]">Notifications</q-tooltip>
+      </button>
+
+      <!-- Simple / Expert mode (only users with ui:expert can switch) -->
+      <button v-if="uiMode.canExpert" class="topbar__mode-btn" @click="toggleUiMode">
+        <q-icon :name="uiMode.expert ? 'mdi-tune-variant' : 'mdi-creation'" size="15px" />
+        <span>{{ uiMode.expert ? 'Expert' : 'Simple' }}</span>
+        <q-tooltip anchor="bottom middle" self="top middle" :offset="[0, 6]">
+          {{ uiMode.expert ? 'Switch to Simple mode (wizards and runs only)' : 'Switch to Expert mode (full UI)' }}
+        </q-tooltip>
       </button>
 
       <!-- Theme picker -->
@@ -318,6 +334,30 @@ async function handleLogout() {
 .topbar__icon-btn--active {
   background: var(--fs-bg-active);
   color: var(--fs-accent);
+}
+
+.topbar__mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  margin: 0 4px;
+  background: none;
+  border: 1px solid var(--fs-border);
+  border-radius: 14px;
+  color: var(--fs-text-secondary);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--fs-ease), color var(--fs-ease), border-color var(--fs-ease);
+}
+
+.topbar__mode-btn:hover {
+  background: var(--fs-bg-hover);
+  color: var(--fs-text-primary);
+  border-color: var(--fs-accent);
 }
 
 .topbar__notif-dot {

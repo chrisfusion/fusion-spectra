@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { Context, ContextId } from '@/data/navigation'
 import { usePermission } from '@/composables/usePermission'
 
@@ -14,9 +15,10 @@ const emit = defineEmits<{
 
 const { isAdmin } = usePermission()
 
-const regularContexts = props.contexts.filter(c => !c.adminOnly && !c.bottomUtil)
-const utilContexts    = props.contexts.filter(c =>  c.bottomUtil)
-const adminContexts   = props.contexts.filter(c =>  c.adminOnly)
+// computed: the context list changes when the UI mode is switched
+const regularContexts = computed(() => props.contexts.filter(c => !c.adminOnly && !c.bottomUtil))
+const utilContexts    = computed(() => props.contexts.filter(c =>  c.bottomUtil))
+const adminContexts   = computed(() => props.contexts.filter(c =>  c.adminOnly))
 </script>
 
 <template>

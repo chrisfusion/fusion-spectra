@@ -1,7 +1,13 @@
+import { WIZARD_CARDS } from '@/data/wizardCards'
+
 export type ContextId = 'home' | 'wizards' | 'data' | 'pipelines' | 'monitoring' | 'forge' | 'fusion-index' | 'changelog' | 'help' | 'admin'
+
+// 'expert' = shown only in Expert mode (ui:expert permission); unset = shown in both modes
+export type Audience = 'expert'
 
 export interface NavLeaf {
   id: string
+  audience?: Audience
   label: string
   icon: string
   route: string
@@ -12,6 +18,7 @@ export interface NavLeaf {
 
 export interface NavGroup {
   id: string
+  audience?: Audience
   label: string
   icon: string
   section?: string
@@ -25,6 +32,7 @@ export interface Context {
   rootPath: string
   adminOnly?: boolean
   bottomUtil?: boolean
+  audience?: Audience
   groups: NavGroup[]
 }
 
@@ -47,15 +55,9 @@ export const contexts: Context[] = [
         id: 'wizards-available',
         label: 'Available',
         icon: 'mdi-view-grid-outline',
-        children: [
-          { id: 'wizard-git-python-job', label: 'Git → Python Job', icon: 'mdi-language-python', route: '/wizards/run/python-git-job/create', tooltip: 'Build a job from a git repo with multiple entrypoint scripts' },
-          { id: 'wizard-git-batch-job', label: 'Git → Batch Job', icon: 'mdi-tray-full', route: '/wizards/run/batch-git-job/create', tooltip: 'Build and start a single batch job from a git repo, branch, and subfolder' },
-          { id: 'wizard-git-python-service', label: 'Git → Python Service', icon: 'mdi-application-cog-outline', route: '/wizards/run/python-git-service/create', tooltip: 'Deploy a long-running Streamlit/Python app from a git repo, with an optional ingress URL' },
-          { id: 'wizard-git-batchcron-job', label: 'Git → BatchCron Job', icon: 'mdi-calendar-multiple', route: '/wizards/run/batchcron-git-job/create', tooltip: 'Build a job and wire up a BatchCron trigger from a pasted list of many cron-scheduled entries' },
-          { id: 'wizard-image-service', label: 'Image → Service', icon: 'mdi-docker', route: '/wizards/run/image-service/create', tooltip: 'Deploy a long-running service from a container image — many services share one template and chain' },
-          { id: 'wizard-image-job', label: 'Image → Job', icon: 'mdi-play-circle-outline', route: '/wizards/run/image-job/create', tooltip: 'Run a one-shot job from a container image right away' },
-          { id: 'wizard-image-cron-job', label: 'Image → Cron Job', icon: 'mdi-clock-outline', route: '/wizards/run/image-cron-job/create', tooltip: 'Run a container image on a cron schedule' },
-        ]
+        children: WIZARD_CARDS.map(c => ({
+          id: `wizard-${c.id}`, label: c.title, icon: c.icon, route: c.route, tooltip: c.tooltip, audience: c.audience,
+        }))
       },
       {
         id: 'wizards-runs',
@@ -70,6 +72,7 @@ export const contexts: Context[] = [
 
   {
     id: 'data',
+    audience: 'expert',
     label: 'Data',
     icon: 'mdi-database-outline',
     rootPath: '/data',
@@ -109,6 +112,7 @@ export const contexts: Context[] = [
 
   {
     id: 'pipelines',
+    audience: 'expert',
     label: 'Weave',
     icon: 'mdi-pipe',
     rootPath: '/pipelines',
@@ -167,6 +171,7 @@ export const contexts: Context[] = [
 
   {
     id: 'monitoring',
+    audience: 'expert',
     label: 'Monitoring',
     icon: 'mdi-monitor-dashboard',
     rootPath: '/monitoring',
@@ -206,6 +211,7 @@ export const contexts: Context[] = [
 
   {
     id: 'forge',
+    audience: 'expert',
     label: 'Forge',
     icon: 'mdi-hammer-wrench',
     rootPath: '/forge',
@@ -235,6 +241,7 @@ export const contexts: Context[] = [
 
   {
     id: 'fusion-index',
+    audience: 'expert',
     label: 'Fusion Index',
     icon: 'mdi-package-variant-closed',
     rootPath: '/fusion-index',
@@ -280,6 +287,7 @@ export const contexts: Context[] = [
 
   {
     id: 'admin',
+    audience: 'expert',
     label: 'Admin',
     icon: 'mdi-shield-crown-outline',
     rootPath: '/admin',
@@ -327,3 +335,23 @@ export const contexts: Context[] = [
     ]
   }
 ]
+
+export function visible(item: { audience?: Audience }, expert: boolean): boolean {
+  return expert || item.audience !== 'expert'
+}
+
+// Navigation tree for the current UI mode — the one place audience filtering happens.
+export function contextsForMode(expert: boolean): Context[] {
+  return contexts
+    .filter(c => visible(c, expert))
+    .map(c => ({
+      ...c,
+      groups: c.groups
+        .filter(g => visible(g, expert))
+        .map(g => ({ ...g, children: g.children.filter(l => visible(l, expert)) })),
+    }))
+}
+
+export function isExpertOnlyContext(id: ContextId): boolean {
+  return contexts.find(c => c.id === id)?.audience === 'expert'
+}

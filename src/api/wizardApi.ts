@@ -41,6 +41,12 @@ export interface WizardDefinition {
 }
 
 export type RunPhase = 'Pending' | 'Running' | 'Ready' | 'Failed' | 'RollingBack' | 'RolledBack' | 'RollbackFailed'
+
+export const RUN_PHASES: RunPhase[] = ['Pending', 'Running', 'Ready', 'Failed', 'RollingBack', 'RolledBack', 'RollbackFailed']
+export const RUN_PHASE_LABEL: Record<RunPhase, string> = {
+  Pending: 'Pending', Running: 'Running', Ready: 'Ready', Failed: 'Failed',
+  RollingBack: 'Rolling Back', RolledBack: 'Rolled Back', RollbackFailed: 'Rollback Failed',
+}
 export type StepPhase = 'Pending' | 'Running' | 'Succeeded' | 'Failed' | 'RolledBack' | 'RollbackFailed'
 export type RunDesiredState = 'Applied' | 'RolledBack'
 

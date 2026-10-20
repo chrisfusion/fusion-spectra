@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { contexts, type ContextId } from '@/data/navigation'
+import { contextsForMode, type ContextId } from '@/data/navigation'
+import { useUiModeStore } from '@/stores/uiMode'
 import AppTopBar from '@/components/AppTopBar.vue'
 import ActivityRail from '@/components/ActivityRail.vue'
 import AppSidebar from '@/components/AppSidebar.vue'
@@ -14,8 +15,11 @@ const router = useRouter()
 const activeContextId = ref<ContextId>('home')
 const sidebarOpen     = ref(true)
 const helpDrawer      = provideHelpDrawer()
+const uiMode          = useUiModeStore()
 
-const activeContext = computed(() => contexts.find(c => c.id === activeContextId.value)!)
+const contexts = computed(() => contextsForMode(uiMode.expert))
+
+const activeContext = computed(() => contexts.value.find(c => c.id === activeContextId.value) ?? contexts.value[0])
 
 // Sync context from route meta
 watch(() => route.meta.context, (ctx) => {
@@ -23,7 +27,7 @@ watch(() => route.meta.context, (ctx) => {
 }, { immediate: true })
 
 function onContextSelect(id: ContextId) {
-  const ctx = contexts.find(c => c.id === id)
+  const ctx = contexts.value.find(c => c.id === id)
   if (id === activeContextId.value) {
     if (ctx?.groups.length) sidebarOpen.value = !sidebarOpen.value
   } else {

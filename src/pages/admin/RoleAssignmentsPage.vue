@@ -9,7 +9,7 @@ import { usePermission } from '@/composables/usePermission'
 const $q = useQuasar()
 const { can } = usePermission()
 
-const ROLES = ['admin', 'engineer', 'viewer']
+const ROLES = ['admin', 'engineer', 'user', 'viewer']
 
 const assignments  = ref<GroupRoleAssignment[]>([])
 const loading      = ref(true)

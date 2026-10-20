@@ -132,7 +132,16 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - E2E wizard runs use gitea `fusion-testcases` (`http://gitea.fusion.local/gitea_admin/fusion-testcases.git`, `testcases_v2/app-builds/*`); `streamlit-showcase` is the only Streamlit app and is shared with the showroom watcher — don't roll back/delete such a run (fusion-wizard rollback can delete the shared index artifact)
 - Headed run to watch the browser (verified 2026-10-06): same throwaway `.mjs` + `playwright-core` setup, but `headless: false`, `slowMo: 400`, and run with `DISPLAY=:1 node script.mjs`. The mock-OIDC `platform-admin` group is enough for every weave permission incl. `weave:runs:image`.
 - Image-override E2E fixture: chain `webservice-chain` (Deploy step `service` on `nginx-server-template`, Job step `smoketest`); flux allows `nginx:`/`busybox:` prefixes only. Delete the run/trigger you create afterwards.
-- Mock OIDC login form (`http://bff.fusion.local/mock-oidc/...`, served by fusion-bff itself, not a separate host) fields: `input[name="sub"]`, `input[name="email"]`, `input[name="name"]`, `select[name="groups"]` (multi-select — `platform-admin`/`team-data`/`team-ml`/`platform-viewer`), submit `button[type="submit"]`
+- Mock OIDC login form (`http://bff.fusion.local/mock-oidc/...`, served by fusion-bff itself, not a separate host) fields: `input[name="sub"]`, `input[name="email"]`, `input[name="name"]`, `select[name="groups"]` (multi-select — `platform-admin`/`team-data`/`team-ml`/`platform-user`/`platform-viewer`; `platform-user` = Simple-mode common user), submit `button[type="submit"]`
+
+## Simple mode / Expert mode
+- Two audiences: experts (full UI) and common users (wizards + runs only). `src/stores/uiMode.ts`: `canExpert` = `ui:expert` permission, `expert` = canExpert && stored preference (`fs-ui-mode` in localStorage). Users without `ui:expert` are always Simple; experts toggle via the top-bar Simple/Expert button
+- Mark nav entries `audience: 'expert'` (Context, NavGroup, NavLeaf, or a `WizardCard` in `wizardCards.ts` — e.g. Git → Batch Job) in `navigation.ts`; `contextsForMode(expert)` is the ONLY place filtering happens (MainLayout passes the result to ActivityRail/AppSidebar) — don't add `v-if` mode checks in the rail/sidebar
+- Router guard redirects any route whose `meta.context` is an expert-only context to `/dashboard` — a new route in an expert context needs no extra meta
+- `/dashboard` → `HomePage.vue` picks `DashboardPage` (expert) or `SimpleDashboardPage` (wizard cards + recent runs)
+- Links from shared pages into Weave/Forge/Index internals (e.g. WizardRunDetailPage's chain buttons) must be gated on `uiMode.expert`, otherwise a simple user lands on a redirect
+- `ui:expert` is UI-only (no `route_permissions` rule); the BFF `user` role (group `platform-user`) has no forge/index/weave writes — wizard provisioning runs under fusion-wizard's SA. With `group_source: db` the yaml `group_roles` mapping is ignored at runtime — create the `platform-user → user` assignment on the Role Assignments page
+- Wizard runs: everyone sees all runs (no multi-tenancy yet); "Only mine" filters by `createdBy` = `auth.user.sub` (runs created before fusion-wizard stamped the owner show "—" and never match)
 
 ## Activity rail — utility zone
 - `Context.bottomUtil?: boolean` — renders between separator and admin; always visible (no `isAdmin` guard); use for standalone nav buttons with no sidebar

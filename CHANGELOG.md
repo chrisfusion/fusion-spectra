@@ -7,6 +7,25 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.48] — 2026-10-20
+
+### Changed
+- Simple mode: the **Git → Batch Job** wizard is hidden for common users (card, Home dashboard and sidebar); experts still see it. `WizardCard.audience` reuses the navigation `audience` filter.
+
+## [0.10.47] — 2026-10-20
+
+### Added
+- **Simple mode / Expert mode**: users without the new `ui:expert` permission get a focused UI — Home, Wizards, Help, Changelog only; Data, Weave, Monitoring, Forge, Fusion Index and Admin are hidden and their routes redirect to `/dashboard`. Experts keep the full UI and get a Simple/Expert switch in the top bar (persisted in localStorage). `src/stores/uiMode.ts`, `audience: 'expert'` on `navigation.ts` entries, `contextsForMode()` filter.
+- Simplified Home dashboard for Simple mode (`SimpleDashboardPage.vue`): wizard cards + recent runs with in-progress/ready/failed counts; `/dashboard` switches between it and the full dashboard via `HomePage.vue`.
+- Wizard Runs: "Only mine" toggle (filters by `createdBy` server-side); all runs stay visible by default until multi-tenancy lands.
+- `user` role in the Role Assignments page; help tutorial "Getting started: wizards and your runs".
+
+### Changed
+- Wizard cards and the Wizards sidebar leaves come from one list (`src/data/wizardCards.ts`, `WizardCardGrid.vue`); all cards are gated on `wizard:runs:create` instead of per-weave write permissions (provisioning runs under fusion-wizard's own SA).
+- Wizard run detail: "View Chain / Service Blueprint / Trigger" buttons only in Expert mode.
+- Shared `WizardPhaseBadge.vue` + `RUN_PHASES`/`RUN_PHASE_LABEL` in `wizardApi.ts` replace per-page copies.
+- Non-admins hitting an `/admin` route are redirected to `/dashboard` instead of `/data`.
+
 ## [0.10.46] — 2026-10-06
 
 ### Added

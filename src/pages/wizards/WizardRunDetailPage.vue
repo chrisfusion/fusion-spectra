@@ -3,8 +3,10 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import CanvasPanel from '@/components/CanvasPanel.vue'
+import WizardPhaseBadge from '@/components/WizardPhaseBadge.vue'
 import * as wizardApi from '@/api/wizardApi'
 import { usePermission } from '@/composables/usePermission'
+import { useUiModeStore } from '@/stores/uiMode'
 import { getServiceUrlPattern } from '@/config/runtime'
 
 // The one place that polls and renders a WizardRun's progress — used both right after creation
@@ -16,6 +18,7 @@ const route  = useRoute()
 const router = useRouter()
 const $q     = useQuasar()
 const { can } = usePermission()
+const uiMode  = useUiModeStore()
 const runName = route.params.name as string
 
 type ProgressStatus = 'pending' | 'running' | 'done' | 'error' | 'rolledback'
@@ -157,10 +160,6 @@ const STATUS_ICON: Record<ProgressStatus, string> = {
   rolledback: 'mdi-undo-variant',
 }
 
-const PHASE_LABEL: Record<string, string> = {
-  Pending: 'Pending', Running: 'Running', Ready: 'Ready', Failed: 'Failed',
-  RollingBack: 'Rolling Back', RolledBack: 'Rolled Back', RollbackFailed: 'Rollback Failed',
-}
 
 const chainName = computed(() => run.value?.status.steps?.find(s => s.type === 'chain')?.outputs?.name)
 const serviceTemplateName = computed(() => run.value?.status.steps?.find(s => s.type === 'serviceTemplate')?.outputs?.name)
@@ -207,9 +206,7 @@ const triggerNames = computed(() =>
           </div>
           <div class="run-meta__row">
             <span class="run-meta__label">Phase</span>
-            <span class="phase-badge" :class="`phase-badge--${run.status.phase?.toLowerCase()}`">
-              {{ run.status.phase ? PHASE_LABEL[run.status.phase] ?? run.status.phase : 'Unknown' }}
-            </span>
+            <WizardPhaseBadge :phase="run.status.phase" />
           </div>
           <div v-if="run.createdBy" class="run-meta__row">
             <span class="run-meta__label">Created By</span>
@@ -248,15 +245,18 @@ const triggerNames = computed(() =>
         </div>
 
         <div class="run-actions">
-          <button v-if="chainName" class="fs-btn fs-btn--ghost" @click="router.push(`/pipelines/weave/chains/${encodeURIComponent(chainName)}`)">
-            <q-icon name="mdi-link-chain" size="14px" /> View Chain
-          </button>
-          <button v-if="serviceTemplateName" class="fs-btn fs-btn--ghost" @click="router.push('/pipelines/weave/servicetemplates')">
-            <q-icon name="mdi-application-cog-outline" size="14px" /> View Service Blueprint
-          </button>
-          <button v-for="t in triggerNames" :key="t" class="fs-btn fs-btn--ghost" @click="router.push('/pipelines/weave/triggers')">
-            <q-icon name="mdi-lightning-bolt-outline" size="14px" /> View Trigger — {{ t }}
-          </button>
+          <!-- Weave internals are expert-only; Simple mode hides chains/blueprints/triggers -->
+          <template v-if="uiMode.expert">
+            <button v-if="chainName" class="fs-btn fs-btn--ghost" @click="router.push(`/pipelines/weave/chains/${encodeURIComponent(chainName)}`)">
+              <q-icon name="mdi-link-chain" size="14px" /> View Chain
+            </button>
+            <button v-if="serviceTemplateName" class="fs-btn fs-btn--ghost" @click="router.push('/pipelines/weave/servicetemplates')">
+              <q-icon name="mdi-application-cog-outline" size="14px" /> View Service Blueprint
+            </button>
+            <button v-for="t in triggerNames" :key="t" class="fs-btn fs-btn--ghost" @click="router.push('/pipelines/weave/triggers')">
+              <q-icon name="mdi-lightning-bolt-outline" size="14px" /> View Trigger — {{ t }}
+            </button>
+          </template>
           <div class="run-actions__spacer" />
           <button v-if="run.status.phase === 'Failed' && can('wizard:runs:retry')" class="fs-btn fs-btn--primary" :disabled="acting" @click="retry">
             <q-icon name="mdi-refresh" size="14px" /> Retry
@@ -309,17 +309,6 @@ const triggerNames = computed(() =>
   text-transform: uppercase; color: var(--fs-text-muted);
 }
 
-.phase-badge {
-  display: inline-flex; align-items: center; gap: 4px; width: fit-content;
-  padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;
-}
-.phase-badge--pending        { color: var(--fs-text-muted); background: color-mix(in srgb, var(--fs-text-muted) 10%, transparent); }
-.phase-badge--running        { color: var(--fs-accent);     background: color-mix(in srgb, var(--fs-accent) 10%, transparent); }
-.phase-badge--ready          { color: var(--fs-pos, #4caf50); background: color-mix(in srgb, var(--fs-pos, #4caf50) 10%, transparent); }
-.phase-badge--failed         { color: var(--fs-neg, #e57373); background: color-mix(in srgb, var(--fs-neg, #e57373) 10%, transparent); }
-.phase-badge--rollingback    { color: var(--fs-warn, #ffa726); background: color-mix(in srgb, var(--fs-warn, #ffa726) 10%, transparent); }
-.phase-badge--rolledback     { color: var(--fs-text-muted); background: color-mix(in srgb, var(--fs-text-muted) 10%, transparent); }
-.phase-badge--rollbackfailed { color: var(--fs-neg, #e57373); background: color-mix(in srgb, var(--fs-neg, #e57373) 10%, transparent); }
 
 /* Progress checklist */
 .progress-list { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; }

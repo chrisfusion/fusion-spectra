@@ -10,8 +10,9 @@ To add a new wizard of this kind:
 1. Create the `WizardDefinition` in `fusion-wizard/deployment/fusion-wizard/templates/definitions/`
    (toggle in `values.yaml`, matching `stepstest.*` reference fixture + chart contract test — see
    that repo's `CLAUDE.md` for the step catalogue and gotchas)
-2. Point a `WizardsLandingPage.vue` card / `navigation.ts` leaf at
-   `/wizards/run/<definition-name>/create` — no new route needed, the generic one is parametric
+2. Add one entry to `src/data/wizardCards.ts` pointing at `/wizards/run/<definition-name>/create` —
+   the landing page, the Simple-mode dashboard and the Wizards sidebar all render from it; no new
+   route needed, the generic one is parametric
 3. Only add an entry to `src/data/wizardDisplayMeta.ts` when the auto-generated label/widget
    genuinely needs help (friendlier label, a `select`/`cron`/`tags`/`textarea`/`objectRows` widget
    instead of plain text, a field that should only show conditionally via `showIf`, or a short-title

@@ -3,29 +3,31 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import CanvasPanel from '@/components/CanvasPanel.vue'
+import WizardPhaseBadge from '@/components/WizardPhaseBadge.vue'
 import * as wizardApi from '@/api/wizardApi'
 import { usePermission } from '@/composables/usePermission'
 import { useRunsPolling } from '@/composables/useRunsPolling'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const $q     = useQuasar()
 const { can } = usePermission()
+const auth    = useAuthStore()
 
 const runs      = ref<wizardApi.WizardRun[]>([])
 const loading   = ref(true)
 const loadError = ref<string | null>(null)
 const actingOn  = ref<Set<string>>(new Set())
+// No multi-tenancy yet: everyone sees every run; "Only mine" narrows to the creator server-side.
+const onlyMine  = ref(false)
 
-const PHASES: wizardApi.RunPhase[] = ['Pending', 'Running', 'Ready', 'Failed', 'RollingBack', 'RolledBack', 'RollbackFailed']
-const PHASE_LABEL: Record<string, string> = {
-  Pending: 'Pending', Running: 'Running', Ready: 'Ready', Failed: 'Failed',
-  RollingBack: 'Rolling Back', RolledBack: 'Rolled Back', RollbackFailed: 'Rollback Failed',
-}
+const PHASES      = wizardApi.RUN_PHASES
+const PHASE_LABEL = wizardApi.RUN_PHASE_LABEL
 
 async function loadRuns() {
   loadError.value = null
   try {
-    const page = await wizardApi.listRuns({ limit: 200 })
+    const page = await wizardApi.listRuns({ limit: 200, createdBy: onlyMine.value ? auth.user?.sub : undefined })
     runs.value = page.items
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : 'Failed to load wizard runs'
@@ -124,6 +126,10 @@ function confirmDelete(name: string) {
           <option value="">All phases</option>
           <option v-for="p in PHASES" :key="p" :value="p">{{ PHASE_LABEL[p] }}</option>
         </select>
+        <label class="mine-toggle">
+          <input v-model="onlyMine" type="checkbox" @change="loadRuns" />
+          Only mine
+        </label>
       </div>
 
       <table class="runs-table">
@@ -141,9 +147,7 @@ function confirmDelete(name: string) {
             <td class="fs-mono">{{ r.name }}</td>
             <td>{{ r.definition }}</td>
             <td>
-              <span class="phase-badge" :class="`phase-badge--${r.status.phase?.toLowerCase()}`">
-                {{ r.status.phase ? PHASE_LABEL[r.status.phase] ?? r.status.phase : 'Unknown' }}
-              </span>
+              <WizardPhaseBadge :phase="r.status.phase" />
             </td>
             <td>{{ r.createdByEmail || r.createdBy || '—' }}</td>
             <td>{{ new Date(r.createdAt).toLocaleString() }}</td>
@@ -218,6 +222,7 @@ function confirmDelete(name: string) {
   outline: none;
 }
 .fs-select { cursor: pointer; min-width: 160px; }
+.mine-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--fs-text-secondary); cursor: pointer; }
 
 .runs-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .runs-table thead th {
@@ -240,17 +245,6 @@ function confirmDelete(name: string) {
 .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .icon-btn--danger:hover:not(:disabled) { color: var(--fs-neg, #e57373); }
 
-.phase-badge {
-  display: inline-flex; align-items: center; gap: 4px; width: fit-content;
-  padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;
-}
-.phase-badge--pending        { color: var(--fs-text-muted); background: color-mix(in srgb, var(--fs-text-muted) 10%, transparent); }
-.phase-badge--running        { color: var(--fs-accent);     background: color-mix(in srgb, var(--fs-accent) 10%, transparent); }
-.phase-badge--ready          { color: var(--fs-pos, #4caf50); background: color-mix(in srgb, var(--fs-pos, #4caf50) 10%, transparent); }
-.phase-badge--failed         { color: var(--fs-neg, #e57373); background: color-mix(in srgb, var(--fs-neg, #e57373) 10%, transparent); }
-.phase-badge--rollingback    { color: var(--fs-warn, #ffa726); background: color-mix(in srgb, var(--fs-warn, #ffa726) 10%, transparent); }
-.phase-badge--rolledback     { color: var(--fs-text-muted); background: color-mix(in srgb, var(--fs-text-muted) 10%, transparent); }
-.phase-badge--rollbackfailed { color: var(--fs-neg, #e57373); background: color-mix(in srgb, var(--fs-neg, #e57373) 10%, transparent); }
 
 .fs-btn {
   display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px;

@@ -1,6 +1,8 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import MainLayout from '@/layouts/MainLayout.vue'
 import { useAuthStore } from '@/stores/auth'
+import { useUiModeStore } from '@/stores/uiMode'
+import { isExpertOnlyContext, type ContextId } from '@/data/navigation'
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -10,7 +12,7 @@ const router = createRouter({
       component: MainLayout,
       redirect: '/dashboard',
       children: [
-        { path: '/dashboard', component: () => import('@/pages/DashboardPage.vue'), meta: { context: 'home' } },
+        { path: '/dashboard', component: () => import('@/pages/HomePage.vue'), meta: { context: 'home' } },
         { path: '/wizards',                       component: () => import('@/pages/wizards/WizardsLandingPage.vue'),      meta: { context: 'wizards' } },
         { path: '/wizards/runs',                  component: () => import('@/pages/wizards/WizardRunsPage.vue'),      meta: { context: 'wizards' } },
         { path: '/wizards/runs/:name',            component: () => import('@/pages/wizards/WizardRunDetailPage.vue'), meta: { context: 'wizards' } },
@@ -119,7 +121,12 @@ router.beforeEach(async (to) => {
     return false
   }
   if (to.meta.adminOnly && !auth.user?.roles.includes('admin')) {
-    return '/data'
+    return '/dashboard'
+  }
+  // Simple mode: expert contexts (Weave, Forge, Index, …) are unreachable, also via deep links
+  const ctx = to.meta.context as ContextId | undefined
+  if (ctx && isExpertOnlyContext(ctx) && !useUiModeStore().expert) {
+    return '/dashboard'
   }
 })
 
