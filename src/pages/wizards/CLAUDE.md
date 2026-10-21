@@ -35,9 +35,10 @@ via `externalAuthFields()` in `wizardDisplayMeta.ts`; the service definition del
 
 **Image wizards** (`image-service`, `image-job`, `image-cron-job`): same generic page, no per-wizard code. They share
 `imageFields` in `wizardDisplayMeta.ts` and the `image` widget (client-side tag/digest check via `utils/imagePolicy.ts`,
-allowed-prefix hint from weave's `GET /image-overrides/options`; the prefix allowlist itself is weave's). `baseName`
-names the shared template + chain (n images = 1 template + 1 chain + n runs/triggers). The created run/trigger's step is
-named `run` (so the Deployment is `<serviceName>-run`). Needs the weave instance's `imageOverrides.allowedPrefixes`
+allowed-prefix hint from weave's `GET /image-overrides/options`; the prefix allowlist itself is weave's). Since
+fusion-wizard `a9d0ac8` each run creates one WeaveApp (single `app` step, named after `serviceName`/`jobName`, which is
+also the Deployment name) — no `baseName`, no `imagePullPolicy`, nothing shared between runs; rollback deletes the app.
+Experts see/edit the app on Weave → Apps (`/pipelines/weave/apps/:name`, "View App" on the run detail page). Needs the weave instance's `imageOverrides.allowedPrefixes`
 (minikube: `nginx:,busybox:`) and `definitions.imageService/imageJob/imageCronJob.enabled=true` on fusion-wizard.
 
 **Cron**: weave needs 6-field cron, seconds first; `CronPicker` emits that. A 5-field schedule creates a trigger weave never

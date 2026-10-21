@@ -125,6 +125,7 @@ export const contexts: Context[] = [
         children: [
           { id: 'jobs-history',  label: 'Run Overview', icon: 'mdi-view-dashboard-outline', route: '/pipelines/runs',           tooltip: 'Run overview and history' },
           { id: 'svc-list',      label: 'GitOps Runs',  icon: 'mdi-source-branch-sync',     route: '/pipelines/services',       tooltip: 'GitOps-controlled service runs' },
+          { id: 'apps-list',     label: 'Apps',         icon: 'mdi-application-outline',    route: '/pipelines/weave/apps',     tooltip: 'Single-resource services and jobs (WeaveApps) — what the Image and Git → Python wizards create' },
           { id: 'triggers-list', label: 'Triggers',     icon: 'mdi-lightning-bolt-outline', route: '/pipelines/weave/triggers', tooltip: 'Event-based run triggers' },
         ]
       },

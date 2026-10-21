@@ -22,7 +22,7 @@ export const WIZARD_CARDS: WizardCard[] = [
     icon:    'mdi-language-python',
     route:   '/wizards/run/python-git-job/create',
     tooltip: 'Build a job from a git repo with multiple entrypoint scripts',
-    desc:    'Point at a git repo with several Python scripts — get a GitOps-built artifact, a run blueprint, and one trigger per entrypoint, wired up automatically.',
+    desc:    'Point at a git repo with several Python scripts — get a GitOps-built artifact and one Weave app with an entrypoint per script, each run on demand or on its own schedule.',
   },
   {
     id:      'git-batch-job',
@@ -39,7 +39,7 @@ export const WIZARD_CARDS: WizardCard[] = [
     icon:    'mdi-application-cog-outline',
     route:   '/wizards/run/python-git-service/create',
     tooltip: 'Deploy a long-running Streamlit/Python app from a git repo, with an optional ingress URL',
-    desc:    'Point at a git repo with a Streamlit (or other Python web) app — get a GitOps-built artifact, a long-running deployment, and its URL, kept current when the tag moves.',
+    desc:    'Point at a git repo with a Streamlit (or other Python web) app — get a GitOps-built artifact and a long-running Weave app with its URL, kept current when the tag moves.',
   },
   {
     id:      'git-batchcron-job',
@@ -54,8 +54,8 @@ export const WIZARD_CARDS: WizardCard[] = [
     title:   'Image → Service',
     icon:    'mdi-docker',
     route:   '/wizards/run/image-service/create',
-    tooltip: 'Deploy a long-running service from a container image — many services share one template and chain',
-    desc:    'Deploy a long-running service from a container image — many services with the same base name share one template and chain, each with its own run and optional URL.',
+    tooltip: 'Deploy a long-running service from a container image, with an optional URL',
+    desc:    'Deploy a long-running service from a container image — one Weave app with its own Deployment, Service and optional URL; nothing is shared, a rollback removes it all.',
   },
   {
     id:      'image-job',
@@ -63,7 +63,7 @@ export const WIZARD_CARDS: WizardCard[] = [
     icon:    'mdi-play-circle-outline',
     route:   '/wizards/run/image-job/create',
     tooltip: 'Run a one-shot job from a container image right away',
-    desc:    'Run a one-shot job from a container image — it starts right away, sharing a template and chain with other jobs of the same base name.',
+    desc:    'Run a one-shot job from a container image — one Weave app whose job starts right away; nothing is shared, a rollback removes it all.',
   },
   {
     id:      'image-cron-job',
@@ -71,6 +71,6 @@ export const WIZARD_CARDS: WizardCard[] = [
     icon:    'mdi-clock-outline',
     route:   '/wizards/run/image-cron-job/create',
     tooltip: 'Run a container image on a cron schedule',
-    desc:    'Run a container image on a cron schedule — one trigger per job on a shared template and chain.',
+    desc:    'Run a container image on a cron schedule — one Weave app that launches a job on every tick; nothing is shared, a rollback removes it all.',
   },
 ]

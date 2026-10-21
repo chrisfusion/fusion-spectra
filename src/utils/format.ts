@@ -15,3 +15,8 @@ export function formatSize(bytes: number | null | undefined): string {
   if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(1)} MB`
   return `${(bytes / 1073741824).toFixed(2)} GB`
 }
+
+// For q-dialog messages with html: true — user- or URL-supplied text must not become markup.
+export function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
+}

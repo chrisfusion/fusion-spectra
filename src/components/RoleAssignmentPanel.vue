@@ -3,6 +3,7 @@ import { ref, onMounted, nextTick } from 'vue'
 import { useQuasar } from 'quasar'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import { usePermission } from '@/composables/usePermission'
+import { escapeHtml } from '@/utils/format'
 
 // One role assignment, normalised so the same table serves group → role and
 // user (OIDC sub) → role assignments.
@@ -113,10 +114,6 @@ function confirmDelete(a: RoleAssignmentRow) {
       deleting.value = new Set([...deleting.value].filter(id => id !== a.id))
     }
   })
-}
-
-function escapeHtml(s: string) {
-  return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 }
 
 function formatDate(iso: string) {

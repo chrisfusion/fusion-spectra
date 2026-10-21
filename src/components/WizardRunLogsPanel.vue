@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import LogViewer from '@/components/LogViewer.vue'
 import LogDialog from '@/components/LogDialog.vue'
+import WeaveAppLogs from '@/components/WeaveAppLogs.vue'
 import * as monitorApi from '@/api/weaveMonitorApi'
 import * as forgeApi from '@/api/forgeApi'
 import type { WizardRun } from '@/api/wizardApi'
@@ -76,17 +77,9 @@ const jobApps     = computed(() => apps.value.filter(a => a.spec.type === 'job')
 const isEmpty     = computed(() => !build.value && !buildMissing.value && !apps.value.length && !weaveRuns.value.length && !missingApps.value.length)
 const building    = computed(() => build.value?.status === 'PENDING' || build.value?.status === 'BUILDING')
 
-// Stable fetcher per service app — LogViewer reloads whenever its fetchLogs prop changes.
-const serviceFetchers = new Map<string, (o: { setup: boolean }) => Promise<LogSnapshot>>()
-function serviceFetcher(name: string) {
-  if (!serviceFetchers.has(name)) {
-    serviceFetchers.set(name, ({ setup }) => monitorApi.getAppLogs(name, { setup }))
-  }
-  return serviceFetchers.get(name)!
-}
-
 // Forge returns plain text, only while the build pod still exists (404 otherwise, 204 = empty).
-// Cached per build id like serviceFetcher — every poll replaces the build object.
+// Cached per build id — LogViewer reloads whenever its fetchLogs prop changes, and every poll
+// replaces the build object.
 const buildFetchers = new Map<number, () => Promise<LogSnapshot>>()
 function buildFetcher(id: number) {
   if (!buildFetchers.has(id)) {
@@ -98,19 +91,12 @@ function buildFetcher(id: number) {
   return buildFetchers.get(id)!
 }
 
-// ─── Log dialog (build, job executions, Weave run steps) ─────────────────────
+// ─── Log dialog (build, Weave run steps; job executions live in WeaveAppLogs) ─
 
 const dialogOpen  = ref(false)
 const dialogTitle = ref('')
 const dialogSetup = ref(false)
 const dialogFetch = ref<(o: { setup: boolean }) => Promise<LogSnapshot>>(() => Promise.resolve({ lines: [], podName: '' }))
-
-function openExecutionLogs(app: string, exec: monitorApi.WeaveAppExecution) {
-  dialogTitle.value = `${exec.entrypoint} · ${formatDate(exec.startTime)}`
-  dialogSetup.value = true
-  dialogFetch.value = ({ setup }) => monitorApi.getAppLogs(app, { execution: exec.jobName, setup })
-  dialogOpen.value  = true
-}
 
 function openBuildLogs(b: forgeApi.AppBuild) {
   dialogTitle.value = `build #${b.id} · ${b.name} ${b.version}`
@@ -168,10 +154,7 @@ function duration(start?: string | null, end?: string | null): string {
         <span class="fs-mono">{{ app.metadata.name }}</span>
         <span class="state-badge" :class="`state-badge--${app.status?.phase?.toLowerCase()}`">{{ app.status?.phase ?? 'Pending' }}</span>
       </div>
-      <p v-if="app.status?.validationMessage" class="logs-note logs-note--error">{{ app.status.validationMessage }}</p>
-      <div class="logs-inline">
-        <LogViewer :title="app.metadata.name" :fetch-logs="serviceFetcher(app.metadata.name)" :setup-toggle="true" />
-      </div>
+      <WeaveAppLogs :app="app" />
     </section>
 
     <!-- Jobs: one log per execution -->
@@ -182,30 +165,7 @@ function duration(start?: string | null, end?: string | null): string {
         <span class="fs-mono">{{ app.metadata.name }}</span>
         <span class="state-badge" :class="`state-badge--${app.status?.phase?.toLowerCase()}`">{{ app.status?.phase ?? 'Pending' }}</span>
       </div>
-      <p v-if="app.status?.validationMessage" class="logs-note logs-note--error">{{ app.status.validationMessage }}</p>
-      <table class="logs-table">
-        <thead>
-          <tr><th>Entrypoint</th><th>Status</th><th>Started</th><th>Duration</th><th>Message</th><th></th></tr>
-        </thead>
-        <tbody>
-          <tr v-for="ex in app.status?.executions ?? []" :key="ex.jobName">
-            <td class="fs-mono">{{ ex.entrypoint }}</td>
-            <td><span class="state-badge" :class="`state-badge--${ex.phase.toLowerCase()}`">{{ ex.phase }}</span></td>
-            <td>{{ formatDate(ex.startTime) }}</td>
-            <td class="fs-mono">{{ duration(ex.startTime, ex.completionTime) }}</td>
-            <td class="logs-table__msg" :title="ex.message">{{ ex.message || '—' }}</td>
-            <td class="logs-table__actions">
-              <button class="fs-btn fs-btn--ghost fs-btn--sm" @click="openExecutionLogs(app.metadata.name, ex)">
-                <q-icon name="mdi-text-box-outline" size="13px" /> Logs
-              </button>
-            </td>
-          </tr>
-          <tr v-if="!(app.status?.executions ?? []).length">
-            <td colspan="6" class="logs-table__empty">No executions yet — scheduled entrypoints show up here once they fire.</td>
-          </tr>
-        </tbody>
-      </table>
-      <p class="logs-note">Logs of finished executions are kept for 24 hours; the result stays listed.</p>
+      <WeaveAppLogs :app="app" />
     </section>
 
     <!-- Trigger-based wizards (batch, batchcron, older runs): the Weave runs they created -->
@@ -283,12 +243,9 @@ function duration(start?: string | null, end?: string | null): string {
   border-bottom: 1px solid var(--fs-border);
 }
 .logs-table td { padding: 6px 8px; border-bottom: 1px solid var(--fs-border); color: var(--fs-text-primary); }
-.logs-table__msg { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fs-text-muted); }
 .logs-table__actions { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
-.logs-table__empty { text-align: center; color: var(--fs-text-muted); padding: 16px 8px; }
 
 .logs-note { margin: 6px 2px 8px; font-size: 11.5px; color: var(--fs-text-muted); }
-.logs-note--error { color: var(--fs-neg, #e57373); }
 .logs-empty { padding: 24px 10px; text-align: center; font-size: 12.5px; color: var(--fs-text-muted); }
 
 .state-badge {

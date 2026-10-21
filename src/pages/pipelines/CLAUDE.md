@@ -26,6 +26,14 @@
 - Run with active deploy step stays `Running` forever until stopped — `isTerminal` must exclude `Deployed`; poll until `status.steps[serve].phase === 'Deployed'` to confirm service is live
 - Run name for service instances: derive from artifact name (lowercase, replace non-DNS chars with `-`, strip leading/trailing `-`) + 4-char random suffix
 
+## Weave Apps (WeaveApp)
+- Pages: `WeaveAppListPage` (`/pipelines/weave/apps`), `WeaveAppDetailPage` (`/pipelines/weave/apps/:name`); per-app logs via the shared `WeaveAppLogs.vue` (also used by `WizardRunLogsPanel`)
+- Change image = `setAppImage()`: fresh GET + PUT of the whole object (resourceVersion, unmodelled spec fields) so weave checks the allowlist with a 400; PATCH would skip that and only fail later as phase `Invalid`. Not offered for `codeSource` apps (image = runner; version follows the tag)
+- Changing a wizard-created app drifts from the fusion-wizard ledger (a retry may restore the old image) — accepted on purpose for now
+- Run now = PATCH annotation `fusion-platform.io/fire: <entrypoint>` (operator consumes it; skipped while that entrypoint's previous execution still runs). Job apps without an entrypoints list have one entrypoint `main`
+- App image rule = flux `ValidateApp`: empty allowlist = no policy → use `validateAppImage`, not `validateImage` (that one is for overrides, where empty = disabled)
+- The app has no label pointing at its wizard run — the detail page finds it by scanning wizard runs for an `app` step whose `outputs.name` matches
+
 ## Weave API — CRUD & edit patterns
 - Full CRUD on all four resource types: jobtemplates, servicetemplates, chains, triggers, runs all have `GET / POST / GET :name / PUT :name / PATCH :name / DELETE :name` via `registerCRUD()` — no BFF changes needed for any of these
 - `weaveMonitorApi.ts` imports only `bffGet`/`bffDelete` by default — add `bffPatch` or `bffPost` to the import line when adding write operations (same as `bffPut` gotcha in `weaveApi.ts`)

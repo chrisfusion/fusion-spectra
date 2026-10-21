@@ -20,3 +20,11 @@ export function validateImage(image: string, allowedPrefixes: string[] | null): 
   if (tail.slice(colon + 1) === 'latest') return 'The "latest" tag is not allowed'
   return null
 }
+
+// Mirror of flux's ValidateApp: a WeaveApp's image is a normal part of the workload, so an empty
+// allowlist means "no policy configured" and everything passes (unlike an override, where it means
+// overrides are disabled). Once prefixes are configured the override rules apply.
+export function validateAppImage(image: string, allowedPrefixes: string[] | null): string | null {
+  if (allowedPrefixes !== null && allowedPrefixes.length === 0) return image.trim() ? null : 'Image is required'
+  return validateImage(image, allowedPrefixes)
+}

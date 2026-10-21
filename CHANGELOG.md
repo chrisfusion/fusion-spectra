@@ -7,6 +7,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.53] — 2026-10-21
+
+### Added
+- Weave → Runs → Monitoring → **Apps**: list (type/owner filter) and detail page for WeaveApps — phase, image or code source, service endpoint/URL, job entrypoints, live service log / per-execution job logs, link to the creating wizard run.
+- App detail: **Change image** for image apps (PUT to weave `/apps/{name}`, validated against the allowlist; a wizard-created app drifts from its wizard run) and **Run now** per job entrypoint (`fusion-platform.io/fire` annotation); both need `weave:apps:write`.
+- Wizard run detail: **View App** button (expert mode) for runs with an `app` step.
+
+### Changed
+- Image → Service/Job/Cron Job and Git → Python Job/Service: card descriptions, field help and the help article describe the WeaveApp model (one app per run, nothing shared, rollback removes it) instead of the old shared template + chain.
+- Wizard run detail: progress list labels the `app` step "Weave app" instead of the raw step name.
+- `WeaveAppLogs.vue` extracted from the wizard run Logs panel — shared by it and the app detail page.
+
+### Fixed
+- Image wizards: the client-side image check follows weave's WeaveApp rule — an empty prefix allowlist means no policy, not "overrides disabled".
+
+### Removed
+- Dead wizard field metadata for parameters fusion-wizard dropped with WeaveApp: `baseName` and `imagePullPolicy` (image wizards), `externalAuthOverride*` (Git → Python Job).
+
 ## [0.10.52] — 2026-10-20
 
 ### Added

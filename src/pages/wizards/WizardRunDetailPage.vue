@@ -143,6 +143,7 @@ const STEP_TYPE_LABEL: Record<string, string> = {
   chain:       'Run blueprint (chain)',
   trigger:     'Trigger',
   batchTrigger: 'BatchCron trigger',
+  app:         'Weave app',
 }
 function stepLabel(name: string, type?: string, item?: string): string {
   const base = (type && STEP_TYPE_LABEL[type]) || name
@@ -177,6 +178,7 @@ const STATUS_ICON: Record<ProgressStatus, string> = {
 
 const chainName = computed(() => run.value?.status.steps?.find(s => s.type === 'chain')?.outputs?.name)
 const serviceTemplateName = computed(() => run.value?.status.steps?.find(s => s.type === 'serviceTemplate')?.outputs?.name)
+const appName = computed(() => run.value?.status.steps?.find(s => s.type === 'app')?.outputs?.name)
 
 // A service run is reachable once the wizard has finished, at <ingressName> filled into the configured
 // pattern. Weave appends its cluster host suffix itself, so this is config, not something the run reports.
@@ -259,8 +261,11 @@ const triggerNames = computed(() =>
         </div>
 
         <div class="run-actions">
-          <!-- Weave internals are expert-only; Simple mode hides chains/blueprints/triggers -->
+          <!-- Weave internals are expert-only; Simple mode hides apps/chains/blueprints/triggers -->
           <template v-if="uiMode.expert">
+            <button v-if="appName" class="fs-btn fs-btn--ghost" @click="router.push(`/pipelines/weave/apps/${encodeURIComponent(appName)}`)">
+              <q-icon name="mdi-application-outline" size="14px" /> View App
+            </button>
             <button v-if="chainName" class="fs-btn fs-btn--ghost" @click="router.push(`/pipelines/weave/chains/${encodeURIComponent(chainName)}`)">
               <q-icon name="mdi-link-chain" size="14px" /> View Chain
             </button>

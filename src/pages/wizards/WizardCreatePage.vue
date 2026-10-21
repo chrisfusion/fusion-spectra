@@ -6,7 +6,7 @@ import CronPicker from '@/components/CronPicker.vue'
 import TagChipInput from '@/components/TagChipInput.vue'
 import * as wizardApi from '@/api/wizardApi'
 import * as weaveApi from '@/api/weaveApi'
-import { validateImage } from '@/utils/imagePolicy'
+import { validateAppImage } from '@/utils/imagePolicy'
 import { useImageOverrideOptions } from '@/composables/useImageOverrideOptions'
 import { wizardDisplayMeta, wizardTitleOverrides } from '@/data/wizardDisplayMeta'
 import type { WizardFieldDisplayMeta } from '@/data/wizardDisplayMeta'
@@ -213,7 +213,8 @@ function validateSetup(): boolean {
       continue
     }
     if (widgetFor(p) === 'image' && typeof v === 'string' && v.trim() !== '') {
-      const imgErr = validateImage(v, allowedPrefixes.value)
+      // every image wizard creates a WeaveApp, so the app rule applies (empty allowlist = no policy)
+      const imgErr = validateAppImage(v, allowedPrefixes.value)
       if (imgErr) { fieldErrors[p.name] = imgErr; ok = false; continue }
     }
     if (p.pattern && typeof v === 'string' && v.trim() !== '') {

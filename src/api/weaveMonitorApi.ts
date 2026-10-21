@@ -1,4 +1,4 @@
-import { bffGet, bffPost, bffDelete, bffPatch } from './bffClient'
+import { bffGet, bffPost, bffPut, bffDelete, bffPatch } from './bffClient'
 import type { ImageOverride } from './weaveApi'
 
 export type { ImageOverride }
@@ -169,9 +169,24 @@ export interface WeaveAppExecution {
   message?:        string
 }
 
+export interface WeaveAppEntrypoint {
+  name:      string
+  schedule?: string   // empty = on demand only
+}
+
 export interface WeaveApp {
-  metadata: { name: string; creationTimestamp?: string; labels?: Record<string, string> }
-  spec:     { type: 'service' | 'job'; image: string }
+  metadata: {
+    name: string; creationTimestamp?: string; resourceVersion?: string
+    labels?: Record<string, string>; annotations?: Record<string, string>
+  }
+  spec: {
+    type:             'service' | 'job'
+    image:            string
+    codeSource?:      { artifactName: string; tag: string }
+    service?:         { ports?: { port: number; name?: string }[]; ingressName?: string }
+    entrypoints?:     WeaveAppEntrypoint[]
+    externalAuthRef?: { mode: 'serviceAccount' | 'oidc'; name: string }
+  }
   status?: {
     phase?:             AppPhase
     validationMessage?: string
@@ -192,6 +207,24 @@ export interface AppLogResponse {
 
 export function getApp(name: string): Promise<WeaveApp> {
   return bffGet<WeaveApp>(`${CRUD_BASE}/apps/${encodeURIComponent(name)}`)
+}
+
+export async function listApps(): Promise<WeaveApp[]> {
+  return (await bffGet<{ items: WeaveApp[] }>(`${CRUD_BASE}/apps`)).items ?? []
+}
+
+// PUT (not PATCH) so weave checks the image against its allowlist and answers 400 right away; the
+// fresh GET carries the resourceVersion PUT needs and every spec field this client doesn't model.
+export async function setAppImage(name: string, image: string): Promise<WeaveApp> {
+  const app = await getApp(name)
+  return bffPut<WeaveApp>(`${CRUD_BASE}/apps/${encodeURIComponent(name)}`, { ...app, spec: { ...app.spec, image } })
+}
+
+// Launches one entrypoint of a job app once — the operator consumes the annotation (and skips the
+// fire while that entrypoint's previous execution is still running).
+export function fireAppEntrypoint(name: string, entrypoint: string): Promise<WeaveApp> {
+  return bffPatch<WeaveApp>(`${CRUD_BASE}/apps/${encodeURIComponent(name)}`,
+    { metadata: { annotations: { 'fusion-platform.io/fire': entrypoint } } })
 }
 
 // service: the Deployment's pod; job: the given execution (default: newest).
