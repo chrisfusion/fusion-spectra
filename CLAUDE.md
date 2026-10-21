@@ -72,7 +72,7 @@ No footer slot — add pagination below the table inside the default slot.
   - `forgeApi.AppBuild`/`VenvBuild.name` is fusion-forge's own build name, NOT the fusion-index artifact name — fusion-index stores app-builds as `app.<name>` and venv-builds as `venv.<name>` (see `fusion-forge/CLAUDE.md`). Anywhere you build a `codeSource.artifactName` from a build object, apply that prefix.
 
 ## Shared utilities & components
-- `src/utils/format.ts` — `formatSize(bytes)`: human-readable file size (B / KB / MB / GB)
+- `src/utils/format.ts` — `formatSize(bytes)`: human-readable file size (B / KB / MB / GB); `escapeHtml(s)` for any user/URL text in a `$q.dialog({ html: true })` message
 - `src/components/TagChipInput.vue` — v-model `string[]` chip input; Enter/comma adds, Backspace removes last, × removes specific; validation `/^[a-zA-Z0-9-]+$/` max 64 chars; trailing commas stripped
 - `src/components/JsonEditor.vue` — CodeMirror 6 JSON editor; emits `valid` (false on non-empty invalid JSON); `{ } Format` button pretty-prints; `defineExpose({ format })` for programmatic use; theme via `--fs-*` CSS vars
 - `src/components/CronPicker.vue` — v-model on a **6-field, seconds-first** cron-expression string (weave rejects 5-field; presets prepend `0`); presets dropdown (every 5/15/30 min, hourly, daily, weekly, monthly) + "Custom (advanced)" raw-expression fallback + live human-readable summary; defaults to daily 09:00 rather than a blank field
@@ -138,6 +138,8 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - Common-user E2E: log in with group `platform-user`; start wizard runs via `page.evaluate(() => fetch('http://bff.fusion.local/api/wizard/api/v1/runs', { method: 'POST', credentials: 'include', … }))` (same body as the form; objectList = array of `{key, …}` objects) to skip the `objectRows` UI
 - Simulate a short-lived backend state (e.g. a build still BUILDING) with `page.route(re, async r => { const res = await r.fetch(); r.fulfill({ response: res, json: { ...await res.json(), status: 'BUILDING' } }) })` — real data, one field rewritten
 - Log fixtures: `busybox:` jobs print nothing (empty log is expected); `nginx:1.27` via Image → Service gives real log lines; git build fixture `testcases_v2/app-builds/hello-world` is unused by any watcher (safe to roll back), but builds in ~4s — too fast to catch the live BUILDING view
+- Job fixtures must exit: an `nginx:` image as a Job/cron app runs forever (Run now stays disabled while it runs) — use `busybox:1.36` for image-job / image-cron-job E2E (Succeeded in ~4s)
+- Fire Quasar notifications from a test: `document.querySelector('#app').__vue_app__.config.globalProperties.$q.notify({ type: 'positive', message: 'x' })`
 
 ## Simple mode / Expert mode
 - Two audiences: experts (full UI) and common users (wizards + runs only). `src/stores/uiMode.ts`: `canExpert` = `ui:expert` permission, `expert` = canExpert && stored preference (`fs-ui-mode` in localStorage). Users without `ui:expert` are always Simple; experts toggle via the top-bar Simple/Expert button
@@ -159,6 +161,7 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - Dockerfile: 3-stage (deps → build → nginx:alpine); `NPM_REGISTRY` build arg for private registry
 - `nginx.conf`: `location /` (SPA fallback) has `no-store, no-cache` — critical so browsers always fetch fresh `index.html` after redeploy; **`location /` must carry the no-cache header** — putting it only on the regex location leaves the root path cacheable and causes blank pages after redeploy
 - nginx runs as non-root (`USER nginx`, uid 101) on **port 8080**; `fsGroup: 101` makes emptyDir mounts writable without an initContainer
+- Git remotes: `origin` (GitHub, tracking) and `gitea` (local Gitea on minikube) — push to `origin` only unless asked
 - Always use semver image tags (never `latest`/`local`): `eval $(minikube docker-env) && docker build -t fusion-spectra:X.Y.Z .`
 - Docker build MUST run inside minikube's daemon (`eval $(minikube docker-env)` first) — otherwise pod gets `ErrImageNeverPull`
 - Rebuilding the **same** tag (iterating on a fix before bumping version) is a silent no-op for `kubectl set image` — Kubernetes only reacts to a changed image string. Use `kubectl rollout restart deployment/fusion-spectra -n fusion` to force pod replacement instead.
