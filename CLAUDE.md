@@ -103,6 +103,7 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - `sassVariables` path in `@quasar/vite-plugin` must be absolute (`resolve(__dirname, ...)`)
 - `build.target: 'esnext'` required when Module Federation is added
 - Import mdi css before quasar css in `main.ts`
+- Pass `iconSet` from `quasar/icon-set/mdi-v7` to `app.use(Quasar, …)` — without it Quasar's built-in icons (Notify type icons, select arrows, close buttons) use Material Icons names, which render as literal text (e.g. "check_circle") because only the mdi font is loaded
 - Do NOT set `config: { dark: true }` in main.ts — let the theme store call `Dark.set()` instead; otherwise light theme still renders dark Quasar components
 - API fields like `types[]` and `tags[]` may be absent from responses even when typed — always guard with `?? []`
 - Vue 3: `ref` inside `v-for` resolves to an **array** — declare as `ref<El[]>([])` and access `[0]`; a `ref<El|null>(null)` silently becomes an array and `.focus()` fails

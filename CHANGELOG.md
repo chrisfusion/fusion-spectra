@@ -7,6 +7,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.54] — 2026-10-21
+
+### Fixed
+- Quasar built-in icons use the mdi-v7 icon set — Notify type icons, select arrows and close buttons rendered as literal Material Icons names (e.g. "check_circle").
+
 ## [0.10.53] — 2026-10-21
 
 ### Added
