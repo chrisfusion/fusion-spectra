@@ -30,9 +30,9 @@
 - Pages: `WeaveAppListPage` (`/pipelines/weave/apps`), `WeaveAppDetailPage` (`/pipelines/weave/apps/:name`); per-app logs via the shared `WeaveAppLogs.vue` (also used by `WizardRunLogsPanel`)
 - Change image = `setAppImage()`: fresh GET + PUT of the whole object (resourceVersion, unmodelled spec fields) so weave checks the allowlist with a 400; PATCH would skip that and only fail later as phase `Invalid`. Not offered for `codeSource` apps (image = runner; version follows the tag)
 - Changing a wizard-created app drifts from the fusion-wizard ledger (a retry may restore the old image) — accepted on purpose for now
-- Run now = PATCH annotation `fusion-platform.io/fire: <entrypoint>` (operator consumes it; skipped while that entrypoint's previous execution still runs). Job apps without an entrypoints list have one entrypoint `main`
+- Run now = `fireAppEntrypoint()` → flux `POST /apps/{name}/fire` `{entrypoint}` (flux ≥0.6.2; BFF `weave:apps:fire`, also held by common users); 409 while that entrypoint's previous execution still runs, 400 for service apps/unknown entrypoints. UI in the shared `WeaveAppEntrypoints.vue` (emits `fired` ~2s after, parent reloads). Flux requires at least one entrypoint per job app; wizard job apps have one, `main`
 - App image rule = flux `ValidateApp`: empty allowlist = no policy → use `validateAppImage`, not `validateImage` (that one is for overrides, where empty = disabled)
-- The app has no label pointing at its wizard run — the detail page finds it by scanning wizard runs for an `app` step whose `outputs.name` matches
+- Wizard-created apps carry label `wizard.fusion-platform.io/run: <runName>` (seen 2026-10-27), but the detail page still finds the run by scanning wizard runs for an `app` step whose `outputs.name` matches — the label would be cheaper
 - Runtime settings = `setAppRuntimeSettings()` (same GET+PUT path as Change image via `updateAppSpec`): `spec.writablePaths` + `spec.service.ingressAnnotations`, edited as JSON, parsed by `parseRuntimeSettings` in `utils/weaveApp.ts`. Annotations only offered when the app has `ingressName`/`ingress` (weave rejects them otherwise) and are additive — a removed key stays on the live Ingress. A fusion-weave binary older than these fields drops them silently on PUT
 
 ## Weave API — CRUD & edit patterns

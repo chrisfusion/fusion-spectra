@@ -7,6 +7,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.56] — 2026-10-27
+
+### Added
+- Wizard run page (Simple mode too): job apps show their entrypoints — schedule in words ("Every day at 03:00") or "On demand", last execution status/time, and **Run now**. Shared `WeaveAppEntrypoints.vue`, also used on the expert app page.
+
+### Changed
+- Run now uses fusion-weave's `POST /apps/{name}/fire` (BFF permission `weave:apps:fire`, granted to the common `user` role) instead of a PATCH that needed `weave:apps:write`; a still-running entrypoint now answers with an error instead of being skipped silently.
+- `describeCron` and the cron field helpers moved from `CronPicker.vue` to `src/utils/cron.ts`.
+
 ## [0.10.55] — 2026-10-27
 
 ### Added

@@ -256,11 +256,11 @@ export function setAppRuntimeSettings(name: string, settings: AppRuntimeSettings
   })
 }
 
-// Launches one entrypoint of a job app once — the operator consumes the annotation (and skips the
-// fire while that entrypoint's previous execution is still running).
+// Launches one entrypoint of a job app once (weave sets the fire annotation the operator consumes).
+// Its own BFF permission weave:apps:fire, so common users can run their wizard jobs without app
+// write access; 409 while that entrypoint's previous execution is still running.
 export function fireAppEntrypoint(name: string, entrypoint: string): Promise<WeaveApp> {
-  return bffPatch<WeaveApp>(`${CRUD_BASE}/apps/${encodeURIComponent(name)}`,
-    { metadata: { annotations: { 'fusion-platform.io/fire': entrypoint } } })
+  return bffPost<WeaveApp>(`${CRUD_BASE}/apps/${encodeURIComponent(name)}/fire`, { entrypoint })
 }
 
 // service: the Deployment's pod; job: the given execution (default: newest).

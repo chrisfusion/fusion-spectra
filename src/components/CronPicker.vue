@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import { WEEKDAY_NAMES, minuteFields, describeCron } from '@/utils/cron'
 
 const props = defineProps<{
   modelValue: string
@@ -11,8 +12,6 @@ const emit = defineEmits<{
 }>()
 
 type PresetId = 'every5' | 'every15' | 'every30' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'custom'
-
-const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 const PRESET_OPTIONS: { id: PresetId; label: string }[] = [
   { id: 'every5',  label: 'Every 5 minutes' },
@@ -32,7 +31,6 @@ const weekday     = ref(1)
 const dayOfMonth  = ref(1)
 const customValue = ref('')
 
-const pad = (n: number) => String(n).padStart(2, '0')
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, Number.isFinite(n) ? n : min))
 
 // Clamp the displayed value on blur (not on every keystroke, so typing "1"
@@ -47,15 +45,6 @@ function clampDay()   { dayOfMonth.value = clamp(dayOfMonth.value, 1, 31) }
 function buildCron(): string {
   const five = buildFiveField()
   return preset.value === 'custom' ? five : `0 ${five}`
-}
-
-// A 6-field expression whose seconds are exactly "0" maps back onto the minute-resolution presets;
-// legacy 5-field values still do too. Anything else (non-zero seconds, odd length) is left to Custom.
-function minuteFields(expr: string): string[] | null {
-  const parts = expr.trim().split(/\s+/)
-  if (parts.length === 5) return parts
-  if (parts.length === 6 && parts[0] === '0') return parts.slice(1)
-  return null
 }
 
 function buildFiveField(): string {
@@ -133,33 +122,6 @@ watch(customValue, () => {
 })
 
 const summary = computed(() => describeCron(props.modelValue))
-
-function describeCron(expr: string): string {
-  const parts = minuteFields(expr)
-  if (!parts) return expr.trim() ? `Custom schedule: ${expr}` : 'No schedule set'
-  const [min, hr, dom, mon, dow] = parts
-  let m: RegExpMatchArray | null
-
-  if ((m = min.match(/^\*\/(\d+)$/)) && hr === '*' && dom === '*' && mon === '*' && dow === '*') {
-    return `Every ${m[1]} minutes`
-  }
-  if (min === '0' && (m = hr.match(/^\*\/(\d+)$/)) && dom === '*' && mon === '*' && dow === '*') {
-    return `Every ${m[1]} hours`
-  }
-  if (/^\d+$/.test(min) && hr === '*' && dom === '*' && mon === '*' && dow === '*') {
-    return `Every hour at minute ${min}`
-  }
-  if (/^\d+$/.test(min) && /^\d+$/.test(hr) && dom === '*' && mon === '*' && dow === '*') {
-    return `Every day at ${pad(+hr)}:${pad(+min)}`
-  }
-  if (/^\d+$/.test(min) && /^\d+$/.test(hr) && dom === '*' && mon === '*' && /^[0-6]$/.test(dow)) {
-    return `Every ${WEEKDAY_NAMES[+dow]} at ${pad(+hr)}:${pad(+min)}`
-  }
-  if (/^\d+$/.test(min) && /^\d+$/.test(hr) && /^\d+$/.test(dom) && mon === '*' && dow === '*') {
-    return `On day ${dom} of every month at ${pad(+hr)}:${pad(+min)}`
-  }
-  return `Custom schedule: ${expr}`
-}
 </script>
 
 <template>

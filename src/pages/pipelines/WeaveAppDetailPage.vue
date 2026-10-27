@@ -5,6 +5,7 @@ import { useQuasar } from 'quasar'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import ManagedByBadge from '@/components/ManagedByBadge.vue'
 import WeaveAppLogs from '@/components/WeaveAppLogs.vue'
+import WeaveAppEntrypoints from '@/components/WeaveAppEntrypoints.vue'
 import JsonEditor from '@/components/JsonEditor.vue'
 import * as monitorApi from '@/api/weaveMonitorApi'
 import * as wizardApi from '@/api/wizardApi'
@@ -18,7 +19,7 @@ import { getServiceUrlPattern } from '@/config/runtime'
 import { escapeHtml } from '@/utils/format'
 
 // One WeaveApp: what it runs, its executions/logs, and the expert actions — Change image
-// (image apps only; PUT straight to weave), Run now (job entrypoints, fire annotation) and
+// (image apps only; PUT straight to weave), Run now (WeaveAppEntrypoints, POST .../fire) and
 // Runtime settings (writablePaths + service ingressAnnotations, edited as JSON).
 // A wizard-created app is changed behind the wizard's back: its ledger still records the old
 // image and a retry of that wizard run may restore it (accepted drift).
@@ -36,7 +37,6 @@ const loading   = ref(false)
 const error     = ref<string | null>(null)
 const wizardRun = ref<string | null>(null)
 const imageBusy = ref(false)
-const firing    = ref<Set<string>>(new Set())
 
 async function loadApp() {
   if (!app.value) loading.value = true
@@ -158,22 +158,6 @@ async function saveSettings() {
   }
 }
 
-async function runNow(entrypoint: string) {
-  firing.value = new Set([...firing.value, entrypoint])
-  try {
-    await monitorApi.fireAppEntrypoint(appName, entrypoint)
-    $q.notify({ type: 'positive', message: `${entrypoint} started — the execution shows up below shortly` })
-    setTimeout(loadApp, 2000)
-  } catch (e) {
-    $q.notify({ type: 'negative', message: e instanceof Error ? e.message : 'Run failed' })
-  } finally {
-    firing.value = new Set([...firing.value].filter(n => n !== entrypoint))
-  }
-}
-
-function isRunning(entrypoint: string): boolean {
-  return (app.value?.status?.executions ?? []).some(e => e.entrypoint === entrypoint && e.phase === 'Running')
-}
 </script>
 
 <template>
@@ -293,33 +277,7 @@ function isRunning(entrypoint: string): boolean {
         </template>
       </dl>
 
-      <table v-else class="tpl-table">
-        <thead>
-          <tr><th>Entrypoint</th><th>Schedule</th><th></th></tr>
-        </thead>
-        <tbody>
-          <tr v-for="ep in app.spec.entrypoints ?? []" :key="ep.name">
-            <td class="col-name fs-mono">{{ ep.name }}</td>
-            <td class="fs-mono" :class="{ 'col-muted': !ep.schedule }">{{ ep.schedule || 'on demand' }}</td>
-            <td class="col-actions">
-              <button
-                v-if="can('weave:apps:write')"
-                class="fs-btn fs-btn--ghost fs-btn--sm"
-                :disabled="firing.has(ep.name) || isRunning(ep.name)"
-                :title="isRunning(ep.name) ? 'An execution of this entrypoint is still running' : ''"
-                @click="runNow(ep.name)"
-              >
-                <q-spinner v-if="firing.has(ep.name)" size="12px" style="margin-right:4px" />
-                <q-icon v-else name="mdi-play" size="13px" style="margin-right:4px" />
-                Run now
-              </button>
-            </td>
-          </tr>
-          <tr v-if="!(app.spec.entrypoints ?? []).length">
-            <td colspan="3" class="empty-row">No entrypoints.</td>
-          </tr>
-        </tbody>
-      </table>
+      <WeaveAppEntrypoints v-else :app="app" @fired="loadApp" />
     </CanvasPanel>
 
     <!-- Logs / executions -->
@@ -443,32 +401,7 @@ function isRunning(entrypoint: string): boolean {
 .link { color: var(--fs-accent); cursor: pointer; text-decoration: none; }
 .link:hover { text-decoration: underline; }
 
-.tpl-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12.5px;
-}
-.tpl-table th {
-  text-align: left;
-  padding: 6px 10px;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--fs-text-muted);
-  border-bottom: 1px solid var(--fs-border);
-}
-.tpl-table td {
-  padding: 9px 10px;
-  border-bottom: 1px solid var(--fs-border);
-  color: var(--fs-text-primary);
-  vertical-align: middle;
-}
-.tpl-table tbody tr:last-child td { border-bottom: none; }
-.col-name    { font-weight: 500; color: var(--fs-accent); }
-.col-actions { text-align: right; white-space: nowrap; }
 .col-muted   { color: var(--fs-text-muted); }
-.empty-row   { text-align: center; color: var(--fs-text-muted); padding: 24px 10px !important; }
 
 .fs-mono { font-family: var(--fs-font-mono); }
 

@@ -4,6 +4,7 @@ import CanvasPanel from '@/components/CanvasPanel.vue'
 import LogViewer from '@/components/LogViewer.vue'
 import LogDialog from '@/components/LogDialog.vue'
 import WeaveAppLogs from '@/components/WeaveAppLogs.vue'
+import WeaveAppEntrypoints from '@/components/WeaveAppEntrypoints.vue'
 import * as monitorApi from '@/api/weaveMonitorApi'
 import * as forgeApi from '@/api/forgeApi'
 import type { WizardRun } from '@/api/wizardApi'
@@ -13,7 +14,7 @@ import { formatDurationMs } from '@/utils/format'
 
 // Logs of whatever a wizard run provisioned, derived from its step outputs:
 //   waitBuild step              → the fusion-forge build (buildId is published while it still waits)
-//   app step                    → WeaveApp: service = live pod log, job = one log per execution
+//   app step                    → WeaveApp: service = live pod log, job = entrypoints + one log per execution
 //   trigger / batchTrigger step → the Weave runs those triggers created (label fusion-platform.io/trigger)
 // Works in Simple mode — it never links into Weave pages.
 
@@ -157,7 +158,7 @@ function duration(start?: string | null, end?: string | null): string {
       <WeaveAppLogs :app="app" />
     </section>
 
-    <!-- Jobs: one log per execution -->
+    <!-- Jobs: entrypoints (schedule, last run, Run now), then one log per execution -->
     <section v-for="app in jobApps" :key="app.metadata.name" class="logs-section">
       <div class="logs-section__hdr">
         <q-icon name="mdi-briefcase-outline" size="14px" />
@@ -165,6 +166,7 @@ function duration(start?: string | null, end?: string | null): string {
         <span class="fs-mono">{{ app.metadata.name }}</span>
         <span class="state-badge" :class="`state-badge--${app.status?.phase?.toLowerCase()}`">{{ app.status?.phase ?? 'Pending' }}</span>
       </div>
+      <WeaveAppEntrypoints :app="app" @fired="load" />
       <WeaveAppLogs :app="app" />
     </section>
 

@@ -72,6 +72,7 @@ No footer slot — add pagination below the table inside the default slot.
   - `forgeApi.AppBuild`/`VenvBuild.name` is fusion-forge's own build name, NOT the fusion-index artifact name — fusion-index stores app-builds as `app.<name>` and venv-builds as `venv.<name>` (see `fusion-forge/CLAUDE.md`). Anywhere you build a `codeSource.artifactName` from a build object, apply that prefix.
 
 ## Shared utilities & components
+- `src/utils/cron.ts` — `describeCron(expr)` ("Every day at 03:00"), `minuteFields`, `WEEKDAY_NAMES`; shared by `CronPicker` and `WeaveAppEntrypoints` — use it for any schedule display
 - `src/utils/format.ts` — `formatSize(bytes)`: human-readable file size (B / KB / MB / GB); `escapeHtml(s)` for any user/URL text in a `$q.dialog({ html: true })` message
 - `src/components/TagChipInput.vue` — v-model `string[]` chip input; Enter/comma adds, Backspace removes last, × removes specific; validation `/^[a-zA-Z0-9-]+$/` max 64 chars; trailing commas stripped
 - `src/components/JsonEditor.vue` — CodeMirror 6 JSON editor; emits `valid` (false on non-empty invalid JSON); `{ } Format` button pretty-prints; `defineExpose({ format })` for programmatic use; theme via `--fs-*` CSS vars
@@ -151,6 +152,7 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - Links from shared pages into Weave/Forge/Index internals (e.g. WizardRunDetailPage's chain buttons) must be gated on `uiMode.expert`, otherwise a simple user lands on a redirect
 - `ui:expert` is UI-only (no `route_permissions` rule); the BFF `user` role (group `platform-user`) has no forge/index/weave writes — wizard provisioning runs under fusion-wizard's SA. With `group_source: db` the yaml `group_roles` mapping is ignored at runtime — create the `platform-user → user` assignment on the Role Assignments page
 - Wizard run logs: `WizardRunLogsPanel.vue` maps step outputs → log sources (`waitBuild.outputs.buildId` → forge `getAppBuild`/`getAppBuildLogs`, set while the step still waits; `app` → WeaveApp via `getApp`/`getAppLogs`; `trigger`/`batchTrigger` → Weave runs filtered client-side on label `fusion-platform.io/trigger`, weave's list API has no label selector). Needs `weave:monitoring:read` (logs live under `/api/weave/monitor/v1/*`) and `forge:builds:read`. Every wizard except `batch-git-job`/`batchcron-git-job` is WeaveApp-based since fusion-wizard `a9d0ac8`; runs created before that still have the chain/trigger shape
+- Job apps on the wizard run page show `WeaveAppEntrypoints.vue` (schedule in words, last run, Run now) above their executions — the same component as the expert app page. Run now = `POST .../apps/{name}/fire`, BFF permission `weave:apps:fire`, which the `user` role has; `user` deliberately has no `weave:apps:write` (would allow image/spec changes)
 - Any log display: use `LogViewer.vue` (inline) / `LogDialog.vue` (dialog) with a fetch function — keep the fetcher reference stable (it reloads when the prop changes)
 - Wizard runs: everyone sees all runs (no multi-tenancy yet); "Only mine" filters by `createdBy` = `auth.user.sub` (runs created before fusion-wizard stamped the owner show "—" and never match)
 
