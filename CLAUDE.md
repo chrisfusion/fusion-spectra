@@ -114,6 +114,8 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - Dialog-scoped polling: use `watch(dialogOpenRef, open => { if (!open) stopPolling() })` to tie a timer's lifecycle to a `q-dialog`; cleaner than hooking every close path individually
 - `@codemirror/lint` is a separate npm package — install explicitly; `lintGutter` lives there, not in `@codemirror/language`
 - Scoped styles don't cross component boundaries: shared components (`TagChipInput.vue`, `JsonEditor.vue`, `CronPicker.vue`) must define their own scoped CSS classes using the global `--fs-*` vars — they can't reuse a parent page's `.fs-input`/`.fs-btn`-style classes, which are scoped to that page's own `<style>` block
+- `<script setup generic="T">`: `ref<T[]>` doesn't unwrap in the template (vue-tsc errors) — use `shallowRef<T[]>`
+- Shared scoped SCSS: `<style scoped lang="scss">@use '@/css/admin-page';</style>` — the `@` alias resolves in Sass and the rules get scoped to the including component
 
 ## Screenshots
 `screenshots/` — UI screenshots named `YYYY-MM-DD_<description>.png`
@@ -144,6 +146,9 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - Fire Quasar notifications from a test: `document.querySelector('#app').__vue_app__.config.globalProperties.$q.notify({ type: 'positive', message: 'x' })`
 - `JsonEditor` (CodeMirror) in Playwright: click `.cm-content`, `Control+A`, then `keyboard.type(json)` — auto-closed brackets don't corrupt typed JSON
 - WeaveApp fixture for service/runtime-settings E2E: copy `image-site` (nginx, `readOnlyRootFilesystem`, two `writablePaths`, ingress) to a throwaway name via `kubectl get -o json` → new name/ingressName → `kubectl apply`; delete it afterwards. The other live apps are not owned by tests
+- Script `page.locator()` reaches Quasar portals fine (only MCP `browser_snapshot` misses them): `page.locator('.q-dialog').getByRole('button', { name: 'Delete' })` confirms a `$q.dialog`
+- Index E2E fixtures: create via BFF `fetch` (prefix `e2e.<feature>.*` / `e2e-*` types), upload with `FormData` + `Blob`; admin "older than" filters start at 1h, so backdate `created_at` via psql; a PENDING/ERROR upload = `INSERT INTO registry_artifact_file (… status) VALUES (…, 'PENDING')`. Before any bulk Delete All, assert the preview lists only e2e rows; tear fixtures down in `finally`
+- For headed runs, inject a fixed-position caption div per step (`page.evaluate`) so the watcher can follow what is being tested
 
 ## Simple mode / Expert mode
 - Two audiences: experts (full UI) and common users (wizards + runs only). `src/stores/uiMode.ts`: `canExpert` = `ui:expert` permission, `expert` = canExpert && stored preference (`fs-ui-mode` in localStorage). Users without `ui:expert` are always Simple; experts toggle via the top-bar Simple/Expert button
@@ -208,6 +213,12 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - The deployed ConfigMap can be stale vs the source — check with `kubectl get configmap fusion-bff-rbac -n fusion -o jsonpath='{.data.rbac\.yaml}'` before assuming permissions are live
 - `helm upgrade fusion-bff` fails locally with "config.oidcIssuerUrl is required" — use `kubectl set image` + manual rbac ConfigMap patch instead
 - Every API call 403s, BFF log shows `groups:[...]` but `/bff/userinfo` has `roles: []` → `group_role_assignments` is empty (DB wiped/recreated). Restore the `rbac.yaml` `group_roles` test mapping: `kubectl exec -i -n fusion deploy/fusion-index-postgresql -- psql -U fusion -d fusion_bff` + `INSERT INTO group_role_assignments (group_name, role_name, created_by) VALUES ('platform-admin','admin','manual-restore'),('team-data','engineer','manual-restore'),('team-ml','engineer','manual-restore'),('platform-user','user','manual-restore'),('platform-viewer','viewer','manual-restore') ON CONFLICT DO NOTHING;` — no BFF restart needed
+
+## fusion-index deployment (minikube)
+- Build `eval $(minikube docker-env) && docker build -t fusion-index:X.Y.Z ../fusion-index`, deploy `kubectl set image deployment/fusion-index-backend backend=fusion-index:X.Y.Z -n fusion`; DB migrations run on server start (log line `migrations applied`)
+- Check the NEW pod's logs (`kubectl get pod -n fusion -l app.kubernetes.io/name=fusion-index`) — `kubectl logs deploy/…` right after a rollout can pick the old pod
+- DB: `kubectl exec -i -n fusion deploy/fusion-index-postgresql -- psql -U fusion -d fusion_index`; tables `registry_*`; versions have `major/minor/patch` (no `version` column)
+- Index ≥ 0.6.0 runs as nonroot UID 65532: root-owned dirs left on the dev artifacts PVC (`minikube ssh`, `/tmp/hostpath-provisioner/fusion/fusion-index-backend-artifacts`) make uploads 500 with `mkdir /data/artifacts/<id>/…: permission denied` once a new artifact id hits a stale dir — fix is a `chown -R 65532:65532` there (ask the user first; done 2026-10-27)
 
 ## Local DNS for *.fusion.local (minikube)
 - No more manual `/etc/hosts` entries for minikube ingress hosts (`spectra.`, `bff.`, `index.`, `gitea.`,
