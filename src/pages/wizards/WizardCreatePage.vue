@@ -6,6 +6,7 @@ import CronPicker from '@/components/CronPicker.vue'
 import TagChipInput from '@/components/TagChipInput.vue'
 import * as wizardApi from '@/api/wizardApi'
 import * as weaveApi from '@/api/weaveApi'
+import { ApiError } from '@/api/bffClient'
 import { validateAppImage } from '@/utils/imagePolicy'
 import { useImageOverrideOptions } from '@/composables/useImageOverrideOptions'
 import { wizardDisplayMeta, wizardTitleOverrides } from '@/data/wizardDisplayMeta'
@@ -31,6 +32,7 @@ const loadError  = ref<string | null>(null)
 const loading    = ref(true)
 const creating   = ref(false)
 const createError = ref<string | null>(null)
+const conflictRun = ref<string | null>(null)   // existing run blocking the chosen name
 
 // ─── Setup form state ────────────────────────────────────────────────────────
 
@@ -256,15 +258,49 @@ function buildParameters(): Record<string, unknown> {
   return out
 }
 
+// The run is named after the app it creates (every definition has one of these), so the runs
+// overview shows the user's name instead of a generated `<definition>-xxxxx`.
+const RUN_NAME_PARAMS = ['jobName', 'serviceName']
+const runNameParam = computed(() =>
+  definition.value?.spec.parameters.find(p => RUN_NAME_PARAMS.includes(p.name))?.name)
+
+// fusion-wizard answers 409 when a run with that name exists — also a rolled-back one, whose
+// name stays taken until the run is deleted. Look it up to say which case applies.
+async function describeNameConflict(name: string): Promise<string> {
+  const existing = await wizardApi.getRun(name).catch(() => null)
+  if (existing?.status.phase === 'RolledBack')
+    return `A rolled-back run "${name}" still exists — delete it on Wizard Runs to reuse the name, or choose another name.`
+  if (existing)
+    return `"${name}" is already used by an existing ${existing.definition} run (${wizardApi.RUN_PHASE_LABEL[existing.status.phase ?? 'Pending']}) — choose another name.`
+  return `A run named "${name}" already exists — choose another name.`
+}
+
+// A corrected name must not leave the stale conflict banner standing until the next submit.
+watch(() => runNameParam.value && fields[runNameParam.value], () => {
+  if (!conflictRun.value) return
+  conflictRun.value = null
+  createError.value = null
+})
+
 async function startWizard() {
   if (!validateSetup()) return
-  creating.value    = true
-  createError.value = null
+  creating.value     = true
+  createError.value  = null
+  conflictRun.value  = null
+  const parameters = buildParameters()
+  const name = runNameParam.value ? parameters[runNameParam.value] as string | undefined : undefined
   try {
-    const created = await wizardApi.createRun({ definition: defName, parameters: buildParameters() })
+    const created = await wizardApi.createRun({ definition: defName, name, parameters })
     router.push(`/wizards/runs/${encodeURIComponent(created.name)}`)
   } catch (e) {
-    createError.value = e instanceof Error ? e.message : 'Failed to start the wizard'
+    if (e instanceof ApiError && e.status === 409 && name && runNameParam.value) {
+      const msg = await describeNameConflict(name)
+      fieldErrors[runNameParam.value] = msg
+      createError.value = msg
+      conflictRun.value = name
+    } else {
+      createError.value = e instanceof Error ? e.message : 'Failed to start the wizard'
+    }
   } finally {
     creating.value = false
   }
@@ -416,6 +452,10 @@ const pageDescription = computed(() => definition.value?.spec.description)
           <div v-if="createError" class="inline-msg inline-msg--error">
             <q-icon name="mdi-alert-circle-outline" size="13px" />
             {{ createError }}
+            <router-link
+              v-if="conflictRun" class="inline-msg__link"
+              :to="`/wizards/runs/${encodeURIComponent(conflictRun)}`"
+            >Open run</router-link>
           </div>
 
           <div class="form-actions">
@@ -535,6 +575,7 @@ const pageDescription = computed(() => definition.value?.spec.description)
 /* Info / inline messages */
 .inline-msg { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 8px 10px; border-radius: 4px; }
 .inline-msg--error { color: var(--fs-neg, #e57373); background: color-mix(in srgb, var(--fs-neg, #e57373) 10%, transparent); }
+.inline-msg__link { margin-left: auto; color: inherit; font-weight: 600; white-space: nowrap; }
 
 /* Action bar */
 .form-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; }

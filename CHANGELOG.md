@@ -7,6 +7,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.57] — 2026-10-27
+
+### Changed
+- Wizard runs are named after the app from the form (`jobName`/`serviceName`) instead of a generated `<definition>-xxxxx`.
+
+### Added
+- Wizard create: a taken run name shows a field error explaining why (active run, or a rolled-back run that must be deleted first) with an "Open run" link.
+
 ## [0.10.56] — 2026-10-27
 
 ### Added

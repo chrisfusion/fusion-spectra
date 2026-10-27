@@ -41,6 +41,8 @@ also the Deployment name) — no `baseName`, no `imagePullPolicy`, nothing share
 Experts see/edit the app on Weave → Apps (`/pipelines/weave/apps/:name`, "View App" on the run detail page). Needs the weave instance's `imageOverrides.allowedPrefixes`
 (minikube: `nginx:,busybox:`) and `definitions.imageService/imageJob/imageCronJob.enabled=true` on fusion-wizard.
 
+**Run name**: `WizardCreatePage` sends `name` = the `jobName`/`serviceName` parameter (`RUN_NAME_PARAMS`), so runs are named after their app. fusion-wizard answers 409 for any existing run of that name — a rolled-back run keeps the name taken until it's deleted; the page looks the run up and explains which case applies. A new definition needs one of those two params, or it falls back to the generated `<definition>-xxxxx`.
+
 **Cron**: weave needs 6-field cron, seconds first; `CronPicker` emits that. A 5-field schedule creates a trigger weave never
 activates (wizard run still goes Ready) — if a Cron trigger shows no ACTIVE state, check the operator log for
 "expected exactly 6 fields".
