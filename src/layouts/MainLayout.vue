@@ -58,8 +58,12 @@ function onContextSelect(id: ContextId) {
 
       <main class="fs-shell__canvas fs-canvas-bg">
         <router-view v-slot="{ Component }">
+          <!-- One element root for the transition: out-in never finishes leaving a multi-root page
+               (e.g. page div + q-dialog) and the next page never mounts — blank canvas -->
           <transition name="fs-fade" mode="out-in">
-            <component :is="Component" :key="route.path" />
+            <div :key="route.path" class="fs-shell__view">
+              <component :is="Component" />
+            </div>
           </transition>
         </router-view>
       </main>
@@ -99,4 +103,5 @@ function onContextSelect(id: ContextId) {
   overflow-x: hidden;
   min-width: 0;
 }
+.fs-shell__view { height: 100%; }
 </style>

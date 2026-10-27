@@ -53,11 +53,11 @@ async function load() {
     missingApps.value = appNames.value.filter((_, i) => results[i].status === 'rejected')
 
     if (triggerNames.value.length) {
-      const triggers = new Set(triggerNames.value)
-      weaveRuns.value = (await monitorApi.listAllRuns())
-        .filter(r => triggers.has(r.metadata.labels?.[TRIGGER_LABEL] ?? ''))
-        .sort((a, b) => (b.metadata.creationTimestamp ?? '').localeCompare(a.metadata.creationTimestamp ?? ''))
-        .slice(0, RECENT_RUNS)
+      weaveRuns.value = (await monitorApi.listWeaveRuns({
+        labelSelector: `${TRIGGER_LABEL} in (${triggerNames.value.join(',')})`,
+        sort:          '-created',
+        limit:         RECENT_RUNS,
+      })).items ?? []
     } else {
       weaveRuns.value = []
     }

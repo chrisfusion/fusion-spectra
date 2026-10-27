@@ -7,6 +7,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.62] — 2026-10-27
+
+### Added
+- Weave → All Runs (`/pipelines/runs/all`): every WeaveRun filtered, sorted and paged server-side (fusion-weave ≥ 0.7.0 list parameters) — phase chips and chain/trigger drop-downs with counts from `GET /runs/facets`, name search, owner/GitOps source, time window, sortable columns; filters live in the URL.
+- Shared list building blocks: `useListQuery` (URL-backed filters/sort/search), `useContinuePager` + `ListPager` (continue-token paging), `SortTh`, `TimeWindowSelect`, `utils/listQuery.ts`.
+
+### Changed
+- Wizard Runs: filtering, sorting and paging moved to fusion-wizard (≥ 0.3.0) — name search, definition, time window, Only mine, From GitOps, sortable columns, 50 per page; the phase tiles count within the other filters and toggle a phase filter.
+- Weave Apps: server-side search, type, phase, owner/GitOps and "Executing now" filters, sortable by name / last execution / created, paged.
+- Weave Triggers: server-side search, type, chain, state (active/inactive/paused/quarantined) and owner/GitOps filters, sortable by name / last run / created, server paging.
+- App executions (app detail and wizard run logs) come from `GET /apps/{name}/executions` with status/entrypoint filters and paging.
+- Wizard run logs find trigger-created Weave runs with a label selector instead of listing every run.
+- `/pipelines/runs/running` and `/pipelines/runs/failed` redirect to All Runs with a phase preset; the separate Running/Failed pages are gone.
+
+### Fixed
+- Blank canvas after leaving a page with several template roots (app detail, run detail, template lists, help, admin cleanup pages): the route transition now wraps every page in one element, so the next page always mounts.
+- Wizard Runs auto-refresh was shown as on but never started.
+
 ## [0.10.61] — 2026-10-27
 
 ### Changed

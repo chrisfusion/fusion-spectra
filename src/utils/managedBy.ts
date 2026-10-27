@@ -2,7 +2,7 @@
 // "wizard" when fusion-wizard owns it); kubectl/Flux-created objects carry none.
 export const MANAGED_BY_LABEL = 'fusion-platform.io/managed-by'
 
-export type ManagedByFilterValue = '' | 'manual' | 'wizard' | 'none'
+export type ManagedByFilterValue = '' | 'manual' | 'wizard' | 'none' | 'gitops'
 
 export function managedBy(meta: { labels?: Record<string, string> } | undefined): string {
   return meta?.labels?.[MANAGED_BY_LABEL] ?? ''

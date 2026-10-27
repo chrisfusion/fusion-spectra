@@ -1,43 +1,55 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import * as monitorApi from '@/api/weaveMonitorApi'
 import { useRunsPolling } from '@/composables/useRunsPolling'
+import { useListQuery } from '@/composables/useListQuery'
 import ManagedByBadge from '@/components/ManagedByBadge.vue'
 import ManagedByFilter from '@/components/ManagedByFilter.vue'
-import { matchesManagedBy, type ManagedByFilterValue } from '@/utils/managedBy'
+import ListPager from '@/components/ListPager.vue'
+import SortTh from '@/components/SortTh.vue'
+import type { ManagedByFilterValue } from '@/utils/managedBy'
 import { appSource, lastExecution } from '@/utils/weaveApp'
 
 // WeaveApps — single-resource services/jobs, created by the wizards (or the API). Read-only list;
-// image changes and "Run now" live on the detail page.
+// image changes and "Run now" live on the detail page. Filtered, sorted and paged by weave.
 
 const router = useRouter()
 
-const apps        = ref<monitorApi.WeaveApp[]>([])
-const typeFilter  = ref<'' | 'service' | 'job'>('')
-const ownerFilter = ref<ManagedByFilterValue>('')
-const loading     = ref(false)
-const error       = ref<string | null>(null)
+const APP_PHASES = ['Pending', 'Ready', 'Running', 'Invalid']
 
-const filteredApps = computed(() => apps.value
-  .filter(a => !typeFilter.value || a.spec.type === typeFilter.value)
-  .filter(a => matchesManagedBy(a.metadata, ownerFilter.value))
-  .sort((a, b) => (b.metadata.creationTimestamp ?? '').localeCompare(a.metadata.creationTimestamp ?? '')))
+const apps    = ref<monitorApi.WeaveApp[]>([])
+const loading = ref(false)
+const error   = ref<string | null>(null)
+let   loadSeq = 0
+
+const list = useListQuery({ defaultSort: '-created', pageSize: 50, load: loadApps })
+const { qs, qb, setQuery, sortBy, sort, search, pager, hasFilters, clearFilters } = list
 
 async function loadApps() {
+  const seq = ++loadSeq
   loading.value = true
   error.value   = null
   try {
-    apps.value = await monitorApi.listApps()
+    const page = await monitorApi.listApps({
+      ...list.listParams.value,
+      type:    qs('type') ? [qs('type') as 'service' | 'job'] : undefined,
+      phase:   qs('phase') ? [qs('phase')] : undefined,
+      running: qb('running'),
+    })
+    if (seq !== loadSeq) return   // a newer request superseded this one
+    apps.value = page.items ?? []
+    list.setPage({ count: apps.value.length, continue: page.metadata?.continue, remaining: page.metadata?.remainingItemCount })
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to load apps'
+    if (seq === loadSeq) error.value = e instanceof Error ? e.message : 'Failed to load apps'
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 
 const { polling, startPolling, togglePolling } = useRunsPolling(loadApps)
+startPolling()
 
 function phase(a: monitorApi.WeaveApp): string {
   return a.status?.phase ?? 'Pending'
@@ -47,11 +59,6 @@ function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—'
   return new Date(iso).toLocaleString()
 }
-
-onMounted(async () => {
-  await loadApps()
-  startPolling()
-})
 </script>
 
 <template>
@@ -77,31 +84,44 @@ onMounted(async () => {
       </template>
 
       <div class="toolbar">
-        <select v-model="typeFilter" class="type-select">
+        <input v-model="search" class="type-select search-input" placeholder="Search by name…" />
+        <select :value="qs('type')" class="type-select" @change="setQuery({ type: ($event.target as HTMLSelectElement).value })">
           <option value="">All types</option>
           <option value="service">Services</option>
           <option value="job">Jobs</option>
         </select>
-        <ManagedByFilter v-model="ownerFilter" />
-        <span class="total-hint">{{ filteredApps.length }} app{{ filteredApps.length !== 1 ? 's' : '' }}</span>
+        <select :value="qs('phase')" class="type-select" @change="setQuery({ phase: ($event.target as HTMLSelectElement).value })">
+          <option value="">All phases</option>
+          <option v-for="p in APP_PHASES" :key="p" :value="p">{{ p }}</option>
+        </select>
+        <ManagedByFilter
+          :model-value="(qs('source') as ManagedByFilterValue)"
+          server-side
+          @update:model-value="v => setQuery({ source: v })"
+        />
+        <label class="check-toggle" title="Apps with an execution running right now">
+          <input type="checkbox" :checked="qb('running') === true" @change="setQuery({ running: ($event.target as HTMLInputElement).checked ? 'true' : undefined })" />
+          Executing now
+        </label>
+        <button v-if="hasFilters" class="clear-btn" @click="clearFilters">Clear filters</button>
       </div>
 
       <div class="table-wrap">
         <table class="tpl-table">
           <thead>
             <tr>
-              <th>Name</th>
+              <SortTh sort-key="name" :current="sort" @sort="sortBy('name')">Name</SortTh>
               <th>Type</th>
               <th>Source</th>
               <th>Owner</th>
               <th>Phase</th>
-              <th>Last execution</th>
-              <th>Created</th>
+              <SortTh sort-key="lastExecution" :current="sort" @sort="sortBy('lastExecution')">Last execution</SortTh>
+              <SortTh sort-key="created" :current="sort" @sort="sortBy('created')">Created</SortTh>
             </tr>
           </thead>
           <tbody>
             <tr
-              v-for="a in filteredApps"
+              v-for="a in apps"
               :key="a.metadata.name"
               class="clickable-row"
               @click="router.push('/pipelines/weave/apps/' + encodeURIComponent(a.metadata.name))"
@@ -122,12 +142,17 @@ onMounted(async () => {
               </td>
               <td class="col-muted">{{ formatDate(a.metadata.creationTimestamp) }}</td>
             </tr>
-            <tr v-if="!loading && filteredApps.length === 0">
-              <td colspan="7" class="empty-row">No apps found — the Image and Git → Python wizards create them.</td>
+            <tr v-if="!loading && apps.length === 0">
+              <td colspan="7" class="empty-row">
+                <template v-if="hasFilters">No apps match these filters.</template>
+                <template v-else>No apps found — the Image and Git → Python wizards create them.</template>
+              </td>
             </tr>
           </tbody>
         </table>
       </div>
+
+      <ListPager v-bind="pager" noun="apps" @prev="list.prevPage" @next="list.nextPage" />
     </CanvasPanel>
   </div>
 </template>
@@ -144,6 +169,7 @@ onMounted(async () => {
 .toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   padding: 0 0 10px 0;
 }
@@ -159,11 +185,13 @@ onMounted(async () => {
 }
 .type-select:focus { outline: 1px solid var(--fs-accent); }
 
-.total-hint {
-  font-size: 11px;
-  color: var(--fs-text-muted);
-  margin-left: auto;
+.search-input { width: 200px; cursor: text; }
+.check-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--fs-text-muted); cursor: pointer; }
+.clear-btn {
+  margin-left: auto; background: none; border: none; cursor: pointer;
+  font-size: 11.5px; color: var(--fs-accent); font-family: inherit;
 }
+.clear-btn:hover { text-decoration: underline; }
 
 .table-wrap { overflow-x: auto; }
 

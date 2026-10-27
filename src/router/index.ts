@@ -34,8 +34,10 @@ const router = createRouter({
         { path: '/pipelines/weave/apps',            component: () => import('@/pages/pipelines/WeaveAppListPage.vue'),       meta: { context: 'pipelines' } },
         { path: '/pipelines/weave/apps/:name',      component: () => import('@/pages/pipelines/WeaveAppDetailPage.vue'),     meta: { context: 'pipelines' } },
         { path: '/pipelines/weave/triggers/create', component: () => import('@/pages/pipelines/WeaveTriggerCreatePage.vue'), meta: { context: 'pipelines' } },
-        { path: '/pipelines/runs/running',        component: () => import('@/pages/pipelines/WeaveRunsRunningPage.vue'),  meta: { context: 'pipelines' } },
-        { path: '/pipelines/runs/failed',         component: () => import('@/pages/pipelines/WeaveRunsFailedPage.vue'),   meta: { context: 'pipelines' } },
+        { path: '/pipelines/runs/all',            component: () => import('@/pages/pipelines/WeaveRunsListPage.vue'),     meta: { context: 'pipelines' } },
+        // Former Running/Failed pages = phase presets of All Runs
+        { path: '/pipelines/runs/running',        redirect: { path: '/pipelines/runs/all', query: { phase: ['Running', 'Pending'] } } },
+        { path: '/pipelines/runs/failed',         redirect: { path: '/pipelines/runs/all', query: { phase: ['Failed', 'Stopped'], sort: '-completed' } } },
         { path: '/pipelines/runs/:name',          component: () => import('@/pages/pipelines/WeaveRunDetailPage.vue'),    meta: { context: 'pipelines' } },
         { path: '/pipelines/runs',                component: () => import('@/pages/pipelines/WeaveRunsOverviewPage.vue'), meta: { context: 'pipelines' } },
         { path: '/pipelines/services',        component: () => import('@/pages/pipelines/ServiceInstanceListPage.vue'),   meta: { context: 'pipelines' } },

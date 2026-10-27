@@ -1,4 +1,5 @@
 import { bffGet, bffPost, bffPut, bffPatch, bffDelete } from './bffClient'
+import { toQueryString, type ListParams, type ListMeta } from '@/utils/listQuery'
 
 const BASE = '/api/weave/api/v1'
 
@@ -461,8 +462,17 @@ export interface WeaveTrigger {
 export interface WeaveTriggerList {
   apiVersion: string
   kind:       string
-  metadata:   { resourceVersion?: string }
+  metadata:   { resourceVersion?: string } & ListMeta
   items:      WeaveTrigger[]
+}
+
+// Sort keys: name (default), created, lastSchedule.
+export interface TriggerListParams extends ListParams {
+  type?:        WeaveTriggerSpec['type'][]
+  chain?:       string[]
+  paused?:      boolean
+  active?:      boolean
+  quarantined?: boolean
 }
 
 export interface CreateTriggerPayload {
@@ -470,8 +480,8 @@ export interface CreateTriggerPayload {
   spec:     WeaveTriggerSpec
 }
 
-export function listWeaveTriggers(): Promise<WeaveTriggerList> {
-  return bffGet<WeaveTriggerList>(`${BASE}/triggers`)
+export function listWeaveTriggers(params: TriggerListParams = {}): Promise<WeaveTriggerList> {
+  return bffGet<WeaveTriggerList>(`${BASE}/triggers${toQueryString(params)}`)
 }
 
 export function getWeaveTrigger(name: string): Promise<WeaveTrigger> {

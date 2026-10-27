@@ -1,4 +1,5 @@
 import { bffGet, bffPost, bffDelete } from './bffClient'
+import { toQueryString, type ListParams } from '@/utils/listQuery'
 
 const BASE = '/api/wizard/api/v1'
 
@@ -132,19 +133,17 @@ export function createRun(req: CreateRunRequest): Promise<WizardRun> {
   return bffPost(`${BASE}/runs`, req)
 }
 
-export function listRuns(params?: {
-  definition?: string
-  phase?:      string
+// Shared list parameters (source: only gitops is meaningful — WizardRuns Flux applied) plus
+// definition/phase (match any) and createdBy. Sort keys: created (default -created), name,
+// phase, definition. total is the filtered count; continue is set while more pages follow.
+export interface WizardRunListParams extends Omit<ListParams, 'labelSelector'> {
+  definition?: string[]
+  phase?:      RunPhase[]
   createdBy?:  string
-  limit?:      number
-}): Promise<{ items: WizardRun[], total: number }> {
-  const q = new URLSearchParams()
-  if (params?.definition) q.set('definition', params.definition)
-  if (params?.phase)      q.set('phase', params.phase)
-  if (params?.createdBy)  q.set('createdBy', params.createdBy)
-  if (params?.limit)      q.set('limit', String(params.limit))
-  const qs = q.toString()
-  return bffGet(`${BASE}/runs${qs ? '?' + qs : ''}`)
+}
+
+export function listRuns(params: WizardRunListParams = {}): Promise<{ items: WizardRun[], total: number, continue?: string }> {
+  return bffGet(`${BASE}/runs${toQueryString(params)}`)
 }
 
 export function getRun(name: string): Promise<WizardRun> {
@@ -179,13 +178,9 @@ export function bulkRollback(req: BulkRollbackRequest): Promise<BulkRollbackResu
 
 // ─── Resources (ledger) ───────────────────────────────────────────────────────
 
-export function listResources(params?: {
+export function listResources(params: {
   service?: string
   kind?:    string
-}): Promise<{ items: WizardResource[] }> {
-  const q = new URLSearchParams()
-  if (params?.service) q.set('service', params.service)
-  if (params?.kind)    q.set('kind', params.kind)
-  const qs = q.toString()
-  return bffGet(`${BASE}/resources${qs ? '?' + qs : ''}`)
+} = {}): Promise<{ items: WizardResource[] }> {
+  return bffGet(`${BASE}/resources${toQueryString(params)}`)
 }

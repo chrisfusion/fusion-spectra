@@ -1,64 +1,74 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import WizardPhaseBadge from '@/components/WizardPhaseBadge.vue'
+import TimeWindowSelect from '@/components/TimeWindowSelect.vue'
+import ListPager from '@/components/ListPager.vue'
+import SortTh from '@/components/SortTh.vue'
 import * as wizardApi from '@/api/wizardApi'
+import type { RunPhase } from '@/api/wizardApi'
 import { usePermission } from '@/composables/usePermission'
 import { useRunsPolling } from '@/composables/useRunsPolling'
+import { useListQuery } from '@/composables/useListQuery'
 import { useAuthStore } from '@/stores/auth'
+
+// Filtered, sorted and paged by fusion-wizard. No multi-tenancy yet: everyone sees every run;
+// "Only mine" narrows to the creator (?mine=1).
 
 const router = useRouter()
 const $q     = useQuasar()
 const { can } = usePermission()
 const auth    = useAuthStore()
 
-const runs      = ref<wizardApi.WizardRun[]>([])
-const loading   = ref(true)
-const loadError = ref<string | null>(null)
-const actingOn  = ref<Set<string>>(new Set())
-// No multi-tenancy yet: everyone sees every run; "Only mine" narrows to the creator server-side.
-const onlyMine  = ref(false)
-
 const PHASES      = wizardApi.RUN_PHASES
 const PHASE_LABEL = wizardApi.RUN_PHASE_LABEL
 
+const runs        = ref<wizardApi.WizardRun[]>([])
+const definitions = ref<string[]>([])
+const stats       = ref<Partial<Record<RunPhase, number>>>({})
+const loading     = ref(true)
+const loadError   = ref<string | null>(null)
+const actingOn    = ref<Set<string>>(new Set())
+let   loadSeq     = 0
+
+const list = useListQuery({ defaultSort: '-created', pageSize: 50, load: loadRuns })
+const { qs, qa, setQuery, toggleValue, sort, sortBy, search, pager, hasFilters, clearFilters } = list
+
 async function loadRuns() {
+  const seq = ++loadSeq
   loadError.value = null
+  // Every filter but phase — the phase tiles count within it.
+  const base: wizardApi.WizardRunListParams = {
+    ...list.listParams.value,
+    definition: qa('definition'),
+    createdBy:  qs('mine') ? auth.user?.sub : undefined,
+  }
   try {
-    const page = await wizardApi.listRuns({ limit: 200, createdBy: onlyMine.value ? auth.user?.sub : undefined })
-    runs.value = page.items
+    // wizard has no facets endpoint: one limit=1 call per phase reads its filtered total.
+    const [page, ...totals] = await Promise.all([
+      wizardApi.listRuns({ ...base, phase: qa('phase') as RunPhase[] }),
+      ...PHASES.map(p => wizardApi.listRuns({ ...base, phase: [p], sort: undefined, continue: undefined, limit: 1 }).then(r => r.total)),
+    ])
+    if (seq !== loadSeq) return   // a newer request superseded this one
+    runs.value  = page.items ?? []
+    stats.value = Object.fromEntries(PHASES.map((p, i) => [p, totals[i]]))
+    list.setPage({ count: runs.value.length, continue: page.continue, total: page.total })
   } catch (e) {
-    loadError.value = e instanceof Error ? e.message : 'Failed to load wizard runs'
+    if (seq === loadSeq) loadError.value = e instanceof Error ? e.message : 'Failed to load wizard runs'
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
-onMounted(loadRuns)
 
-const { polling, togglePolling } = useRunsPolling(loadRuns)
-
-// ─── Filters (client-side, matches the equivalent weave monitoring pages) ────
-
-const filterDefinition = ref('')
-const filterPhase      = ref('')
-
-const definitions = computed(() =>
-  [...new Set(runs.value.map(r => r.definition))].sort())
-
-const filteredRuns = computed(() => runs.value.filter(r =>
-  (!filterDefinition.value || r.definition === filterDefinition.value) &&
-  (!filterPhase.value || r.status.phase === filterPhase.value)))
-
-const stats = computed(() => {
-  const counts: Record<string, number> = {}
-  for (const r of runs.value) {
-    const p = r.status.phase ?? 'Pending'
-    counts[p] = (counts[p] ?? 0) + 1
-  }
-  return counts
+onMounted(async () => {
+  try { definitions.value = ((await wizardApi.listDefinitions()).items ?? []).map(d => d.name).sort() }
+  catch { /* filter options only */ }
 })
+
+const { polling, startPolling, togglePolling } = useRunsPolling(loadRuns)
+startPolling()
 
 // ─── Actions ────────────────────────────────────────────────────────────────
 
@@ -111,36 +121,49 @@ function confirmDelete(name: string) {
       </template>
 
       <div class="stats-row">
-        <div v-for="p in PHASES" :key="p" class="stat-tile">
+        <button
+          v-for="p in PHASES" :key="p"
+          class="stat-tile" :class="{ 'stat-tile--on': qa('phase').includes(p) }"
+          :title="`Show ${PHASE_LABEL[p]} runs`"
+          @click="toggleValue('phase', p)"
+        >
           <span class="stat-tile__value">{{ stats[p] ?? 0 }}</span>
           <span class="stat-tile__label">{{ PHASE_LABEL[p] }}</span>
-        </div>
+        </button>
       </div>
 
       <div class="filters-row">
-        <select v-model="filterDefinition" class="fs-input fs-select">
+        <input v-model="search" class="fs-input" placeholder="Search by name…" />
+        <select :value="qs('definition')" class="fs-input fs-select" @change="setQuery({ definition: ($event.target as HTMLSelectElement).value })">
           <option value="">All definitions</option>
           <option v-for="d in definitions" :key="d" :value="d">{{ d }}</option>
         </select>
-        <select v-model="filterPhase" class="fs-input fs-select">
-          <option value="">All phases</option>
-          <option v-for="p in PHASES" :key="p" :value="p">{{ PHASE_LABEL[p] }}</option>
-        </select>
+        <TimeWindowSelect :model-value="qs('since')" @update:model-value="v => setQuery({ since: v })" />
         <label class="mine-toggle">
-          <input v-model="onlyMine" type="checkbox" @change="loadRuns" />
+          <input type="checkbox" :checked="!!qs('mine')" @change="setQuery({ mine: ($event.target as HTMLInputElement).checked ? '1' : undefined })" />
           Only mine
         </label>
+        <label class="mine-toggle" title="Runs applied by Flux from a GitOps repo">
+          <input type="checkbox" :checked="qa('source').includes('gitops')" @change="setQuery({ source: ($event.target as HTMLInputElement).checked ? 'gitops' : undefined })" />
+          From GitOps
+        </label>
+        <button v-if="hasFilters" class="clear-btn" @click="clearFilters">Clear filters</button>
       </div>
 
       <table class="runs-table">
         <thead>
           <tr>
-            <th>Name</th><th>Definition</th><th>Phase</th><th>Created By</th><th>Created At</th><th></th>
+            <SortTh sort-key="name" :current="sort" @sort="sortBy('name')">Name</SortTh>
+            <SortTh sort-key="definition" :current="sort" @sort="sortBy('definition', false)">Definition</SortTh>
+            <SortTh sort-key="phase" :current="sort" @sort="sortBy('phase', false)">Phase</SortTh>
+            <th>Created By</th>
+            <SortTh sort-key="created" :current="sort" @sort="sortBy('created')">Created At</SortTh>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           <tr
-            v-for="r in filteredRuns" :key="r.name"
+            v-for="r in runs" :key="r.name"
             class="runs-table__row"
             @click="router.push(`/wizards/runs/${encodeURIComponent(r.name)}`)"
           >
@@ -173,12 +196,13 @@ function confirmDelete(name: string) {
               ><q-icon name="mdi-delete-outline" size="15px" /></button>
             </td>
           </tr>
-          <tr v-if="filteredRuns.length === 0">
+          <tr v-if="!loading && runs.length === 0">
             <td colspan="6" class="runs-table__empty">No wizard runs match these filters.</td>
           </tr>
         </tbody>
       </table>
 
+      <ListPager v-bind="pager" noun="runs" @prev="list.prevPage" @next="list.nextPage" />
     </CanvasPanel>
   </div>
 </template>
@@ -215,10 +239,18 @@ function confirmDelete(name: string) {
   display: flex; flex-direction: column; gap: 2px; min-width: 88px;
   padding: 10px 14px; border: 1px solid var(--fs-border); border-radius: 6px; background: var(--fs-bg-elevated);
 }
+button.stat-tile { font-family: inherit; text-align: left; cursor: pointer; transition: border-color var(--fs-ease), background var(--fs-ease); }
+button.stat-tile:hover { border-color: var(--fs-accent); }
+.stat-tile--on { border-color: var(--fs-accent); background: color-mix(in srgb, var(--fs-accent) 10%, var(--fs-bg-elevated)); }
 .stat-tile__value { font-size: 20px; font-weight: 700; color: var(--fs-text-primary); font-family: var(--fs-font-mono); }
 .stat-tile__label { font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fs-text-muted); }
 
-.filters-row { display: flex; gap: 10px; padding: 0 10px 10px; }
+.filters-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 0 10px 10px; }
+.clear-btn {
+  margin-left: auto; background: none; border: none; cursor: pointer;
+  font-size: 11.5px; color: var(--fs-accent); font-family: inherit;
+}
+.clear-btn:hover { text-decoration: underline; }
 .fs-input {
   background: var(--fs-bg-input, var(--fs-bg-hover));
   border: 1px solid var(--fs-border); border-radius: 4px;

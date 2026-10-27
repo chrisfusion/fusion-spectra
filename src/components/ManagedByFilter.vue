@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import type { ManagedByFilterValue } from '@/utils/managedBy'
 
-defineProps<{ modelValue: ManagedByFilterValue }>()
+// Client-side lists filter on the managed-by label ("Unlabeled" = no label). serverSide lists
+// send the value as the shared `source` list parameter instead, which knows "gitops" (applied
+// by Flux) but cannot express "no label".
+defineProps<{ modelValue: ManagedByFilterValue; serverSide?: boolean }>()
 defineEmits<{ 'update:modelValue': [ManagedByFilterValue] }>()
 </script>
 
@@ -15,7 +18,8 @@ defineEmits<{ 'update:modelValue': [ManagedByFilterValue] }>()
     <option value="">All owners</option>
     <option value="manual">Manual</option>
     <option value="wizard">Wizard</option>
-    <option value="none">Unlabeled</option>
+    <option v-if="serverSide" value="gitops">GitOps</option>
+    <option v-else value="none">Unlabeled</option>
   </select>
 </template>
 

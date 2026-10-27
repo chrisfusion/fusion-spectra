@@ -5,57 +5,68 @@ import { useQuasar } from 'quasar'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import ManagedByBadge from '@/components/ManagedByBadge.vue'
 import ManagedByFilter from '@/components/ManagedByFilter.vue'
-import { matchesManagedBy, type ManagedByFilterValue } from '@/utils/managedBy'
+import ListPager from '@/components/ListPager.vue'
+import SortTh from '@/components/SortTh.vue'
+import type { ManagedByFilterValue } from '@/utils/managedBy'
 import { usePermission } from '@/composables/usePermission'
+import { useListQuery } from '@/composables/useListQuery'
 import * as weaveApi from '@/api/weaveApi'
 
 const router = useRouter()
 const $q     = useQuasar()
 const { can } = usePermission()
 
-const PAGE_SIZE = 20
+const TRIGGER_TYPES: weaveApi.WeaveTriggerSpec['type'][] = ['OnDemand', 'Cron', 'Webhook', 'BatchCron', 'Kafka']
+
+// ?state= maps onto weave's boolean filters
+const STATES: Record<string, { label: string; params: weaveApi.TriggerListParams }> = {
+  active:      { label: 'Active',      params: { active: true } },
+  inactive:    { label: 'Inactive',    params: { active: false } },
+  paused:      { label: 'Paused',      params: { paused: true } },
+  quarantined: { label: 'Quarantined', params: { quarantined: true } },
+}
 
 const loading = ref(false)
 const error   = ref<string | null>(null)
-const result  = ref<weaveApi.WeaveTriggerList | null>(null)
-
-const nameSearch  = ref('')
-const ownerFilter = ref<ManagedByFilterValue>('')
-const currentPage = ref(1)
+const items   = ref<weaveApi.WeaveTrigger[]>([])
+const chains  = ref<string[]>([])
+let   loadSeq = 0
 
 const deletingNames  = ref<Set<string>>(new Set())
 const firingNames    = ref<Set<string>>(new Set())
 const pausingNames   = ref<Set<string>>(new Set())
 const resettingNames = ref<Set<string>>(new Set())
 
+const list = useListQuery({ defaultSort: 'name', pageSize: 20, load: loadTriggers })
+const { qs, setQuery, sort, sortBy, search, pager, hasFilters, clearFilters } = list
+
 async function loadTriggers() {
+  const seq = ++loadSeq
   loading.value = true
   error.value   = null
   try {
-    result.value = await weaveApi.listWeaveTriggers()
+    const res = await weaveApi.listWeaveTriggers({
+      ...list.listParams.value,
+      type:  qs('type') ? [qs('type') as weaveApi.WeaveTriggerSpec['type']] : undefined,
+      chain: qs('chain') ? [qs('chain')] : undefined,
+      ...STATES[qs('state')]?.params,
+    })
+    if (seq !== loadSeq) return   // a newer request superseded this one
+    items.value = res.items ?? []
+    list.setPage({ count: items.value.length, continue: res.metadata?.continue, remaining: res.metadata?.remainingItemCount })
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to load triggers'
+    if (seq === loadSeq) error.value = e instanceof Error ? e.message : 'Failed to load triggers'
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 
-const allItems = computed(() => result.value?.items ?? [])
-
-const filteredItems = computed(() => {
-  const q = nameSearch.value.trim().toLowerCase()
-  return allItems.value.filter(t =>
-    (!q || t.metadata.name.toLowerCase().includes(q)) && matchesManagedBy(t.metadata, ownerFilter.value))
+// Chain filter options; the filter still works from the URL if this fails.
+onMounted(async () => {
+  try { chains.value = ((await weaveApi.listWeaveChains()).items ?? []).map(c => c.metadata.name).sort() }
+  catch { /* options only */ }
 })
-
-const pagedItems = computed(() => {
-  const start = (currentPage.value - 1) * PAGE_SIZE
-  return filteredItems.value.slice(start, start + PAGE_SIZE)
-})
-
-function onSearch() {
-  currentPage.value = 1
-}
+const chainOptions = computed(() => qs('chain') && !chains.value.includes(qs('chain')) ? [qs('chain'), ...chains.value] : chains.value)
 
 function triggerAge(t: weaveApi.WeaveTrigger): string {
   const ts = t.metadata.creationTimestamp
@@ -166,7 +177,6 @@ async function togglePause(t: weaveApi.WeaveTrigger) {
   }
 }
 
-onMounted(loadTriggers)
 </script>
 
 <template>
@@ -190,16 +200,27 @@ onMounted(loadTriggers)
         </button>
       </template>
 
-      <!-- Search -->
+      <!-- Filters -->
       <div class="toolbar">
-        <input
-          v-model="nameSearch"
-          class="fs-input search-input"
-          placeholder="Search by name…"
-          @input="onSearch"
+        <input v-model="search" class="fs-input search-input" placeholder="Search by name…" />
+        <select :value="qs('type')" class="fs-input" @change="setQuery({ type: ($event.target as HTMLSelectElement).value })">
+          <option value="">All types</option>
+          <option v-for="t in TRIGGER_TYPES" :key="t" :value="t">{{ t }}</option>
+        </select>
+        <select :value="qs('chain')" class="fs-input" @change="setQuery({ chain: ($event.target as HTMLSelectElement).value })">
+          <option value="">All chains</option>
+          <option v-for="c in chainOptions" :key="c" :value="c">{{ c }}</option>
+        </select>
+        <select :value="qs('state')" class="fs-input" @change="setQuery({ state: ($event.target as HTMLSelectElement).value })">
+          <option value="">Any state</option>
+          <option v-for="(st, key) in STATES" :key="key" :value="key">{{ st.label }}</option>
+        </select>
+        <ManagedByFilter
+          :model-value="(qs('source') as ManagedByFilterValue)"
+          server-side
+          @update:model-value="v => setQuery({ source: v })"
         />
-        <ManagedByFilter v-model="ownerFilter" @update:model-value="onSearch" />
-        <span class="total-hint">{{ filteredItems.length }} trigger{{ filteredItems.length !== 1 ? 's' : '' }}</span>
+        <button v-if="hasFilters" class="clear-btn" @click="clearFilters">Clear filters</button>
       </div>
 
       <!-- Table -->
@@ -207,19 +228,19 @@ onMounted(loadTriggers)
         <table class="tpl-table">
           <thead>
             <tr>
-              <th>Name</th>
+              <SortTh sort-key="name" :current="sort" @sort="sortBy('name')">Name</SortTh>
               <th>Type</th>
               <th>Chain</th>
               <th>Schedule / Path</th>
               <th>Active</th>
               <th>Owner</th>
-              <th>Last Run</th>
-              <th>Created</th>
+              <SortTh sort-key="lastSchedule" :current="sort" @sort="sortBy('lastSchedule')">Last Run</SortTh>
+              <SortTh sort-key="created" :current="sort" @sort="sortBy('created')">Created</SortTh>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="t in pagedItems" :key="t.metadata.name">
+            <tr v-for="t in items" :key="t.metadata.name">
               <td class="col-name fs-mono">
                 {{ t.metadata.name }}
                 <q-icon
@@ -335,27 +356,14 @@ onMounted(loadTriggers)
                 </button>
               </td>
             </tr>
-            <tr v-if="!loading && pagedItems.length === 0">
-              <td colspan="9" class="empty-row">No triggers found.</td>
+            <tr v-if="!loading && items.length === 0">
+              <td colspan="9" class="empty-row">{{ hasFilters ? 'No triggers match these filters.' : 'No triggers found.' }}</td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <!-- Pagination -->
-      <div v-if="filteredItems.length > PAGE_SIZE" class="pagination-row">
-        <q-pagination
-          v-model="currentPage"
-          :max="Math.ceil(filteredItems.length / PAGE_SIZE)"
-          :max-pages="7"
-          direction-links
-          boundary-links
-          size="sm"
-          color="grey"
-          active-color="primary"
-        />
-        <span class="pagination-hint">{{ filteredItems.length }} total</span>
-      </div>
+      <ListPager v-bind="pager" noun="triggers" @prev="list.prevPage" @next="list.nextPage" />
     </CanvasPanel>
   </div>
 </template>
@@ -372,11 +380,17 @@ onMounted(loadTriggers)
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 10px;
   padding-bottom: 12px;
 }
+.toolbar select { cursor: pointer; }
 .search-input { width: 220px; }
-.total-hint { margin-left: auto; font-size: 11px; color: var(--fs-text-muted); }
+.clear-btn {
+  margin-left: auto; background: none; border: none; cursor: pointer;
+  font-size: 11.5px; color: var(--fs-accent); font-family: inherit;
+}
+.clear-btn:hover { text-decoration: underline; }
 
 .table-wrap { overflow-x: auto; }
 .tpl-table {
@@ -461,15 +475,6 @@ onMounted(loadTriggers)
 .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .icon-btn--fire:hover:not(:disabled)   { color: var(--fs-warn, #ffa726); background: color-mix(in srgb, var(--fs-warn, #ffa726) 10%, transparent); }
 .icon-btn--danger:hover:not(:disabled) { color: var(--fs-neg, #e57373);  background: color-mix(in srgb, var(--fs-neg, #e57373)  10%, transparent); }
-
-.pagination-row {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  padding-top: 12px;
-}
-.pagination-hint { font-size: 11px; color: var(--fs-text-muted); }
 
 .fs-input {
   background: var(--fs-bg-input, var(--fs-bg-hover));

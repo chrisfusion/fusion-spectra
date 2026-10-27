@@ -1,15 +1,52 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import LogViewer from '@/components/LogViewer.vue'
 import LogDialog from '@/components/LogDialog.vue'
+import ListPager from '@/components/ListPager.vue'
+import { useContinuePager } from '@/composables/useContinuePager'
 import * as monitorApi from '@/api/weaveMonitorApi'
 import type { LogSnapshot } from '@/api/weaveMonitorApi'
 import { formatDurationMs } from '@/utils/format'
 
 // Logs of one WeaveApp: service = live pod log inline, job = one log per execution (dialog).
 // Shared by WizardRunLogsPanel and WeaveAppDetailPage; never links into Weave pages.
+// Job executions come filtered and paged from GET /apps/{name}/executions, reloaded whenever the
+// parent passes a fresh app object (its poll).
 
 const props = defineProps<{ app: monitorApi.WeaveApp }>()
+
+const EXEC_PHASES: monitorApi.AppExecutionPhase[] = ['Running', 'Succeeded', 'Failed']
+
+const executions   = ref<monitorApi.WeaveAppExecution[]>([])
+const execPhase    = ref<'' | monitorApi.AppExecutionPhase>('')
+const execEntry    = ref('')
+const execError    = ref<string | null>(null)
+const entrypoints  = computed(() => (props.app.spec.entrypoints ?? []).map(e => e.name))
+let   execSeq      = 0
+
+const paging = useContinuePager(20, loadExecutions)
+
+async function loadExecutions() {
+  if (props.app.spec.type !== 'job') return
+  const seq = ++execSeq
+  try {
+    const page = await monitorApi.listAppExecutions(props.app.metadata.name, {
+      phase:      execPhase.value ? [execPhase.value] : undefined,
+      entrypoint: execEntry.value ? [execEntry.value] : undefined,
+      limit:      20,
+      continue:   paging.token.value,
+    })
+    if (seq !== execSeq) return
+    executions.value = page.items ?? []
+    execError.value  = null
+    paging.setPage({ count: executions.value.length, continue: page.metadata?.continue, remaining: page.metadata?.remainingItemCount })
+  } catch (e) {
+    if (seq === execSeq) execError.value = e instanceof Error ? e.message : 'Failed to load executions'
+  }
+}
+
+watch(() => props.app, loadExecutions, { immediate: true })
+watch([execPhase, execEntry], () => { paging.reset(); loadExecutions() })
 
 // Stable per app name — LogViewer reloads whenever its fetchLogs prop changes, and every poll
 // replaces the app object.
@@ -49,12 +86,23 @@ function duration(start?: string | null, end?: string | null): string {
     </div>
 
     <template v-else>
+      <div class="exec-filters">
+        <select v-model="execPhase" class="exec-select" title="Filter by status">
+          <option value="">All statuses</option>
+          <option v-for="p in EXEC_PHASES" :key="p" :value="p">{{ p }}</option>
+        </select>
+        <select v-if="entrypoints.length > 1" v-model="execEntry" class="exec-select" title="Filter by entrypoint">
+          <option value="">All entrypoints</option>
+          <option v-for="e in entrypoints" :key="e" :value="e">{{ e }}</option>
+        </select>
+      </div>
+      <p v-if="execError" class="logs-note logs-note--error">{{ execError }}</p>
       <table class="logs-table">
         <thead>
           <tr><th>Entrypoint</th><th>Status</th><th>Started</th><th>Duration</th><th>Message</th><th></th></tr>
         </thead>
         <tbody>
-          <tr v-for="ex in app.status?.executions ?? []" :key="ex.jobName">
+          <tr v-for="ex in executions" :key="ex.jobName">
             <td class="fs-mono">{{ ex.entrypoint }}</td>
             <td><span class="state-badge" :class="`state-badge--${ex.phase.toLowerCase()}`">{{ ex.phase }}</span></td>
             <td>{{ formatDate(ex.startTime) }}</td>
@@ -66,11 +114,15 @@ function duration(start?: string | null, end?: string | null): string {
               </button>
             </td>
           </tr>
-          <tr v-if="!(app.status?.executions ?? []).length">
-            <td colspan="6" class="logs-table__empty">No executions yet — scheduled entrypoints show up here once they fire.</td>
+          <tr v-if="!executions.length">
+            <td colspan="6" class="logs-table__empty">
+              <template v-if="execPhase || execEntry">No executions match these filters.</template>
+              <template v-else>No executions yet — scheduled entrypoints show up here once they fire.</template>
+            </td>
           </tr>
         </tbody>
       </table>
+      <ListPager v-bind="paging.pager.value" noun="executions" @prev="paging.prevPage" @next="paging.nextPage" />
       <p class="logs-note">Logs of finished executions are kept for 24 hours; the result stays listed.</p>
     </template>
 
@@ -96,6 +148,12 @@ function duration(start?: string | null, end?: string | null): string {
 .logs-table__msg { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fs-text-muted); }
 .logs-table__actions { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
 .logs-table__empty { text-align: center; color: var(--fs-text-muted); padding: 16px 8px; }
+
+.exec-filters { display: flex; gap: 8px; padding-bottom: 8px; }
+.exec-select {
+  background: var(--fs-bg-surface); border: 1px solid var(--fs-border); border-radius: 4px;
+  color: var(--fs-text-primary); font-size: 12px; padding: 4px 8px; font-family: inherit; cursor: pointer;
+}
 
 .logs-note { margin: 6px 2px 8px; font-size: 11.5px; color: var(--fs-text-muted); }
 .logs-note--error { color: var(--fs-neg, #e57373); }

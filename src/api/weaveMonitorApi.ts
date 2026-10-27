@@ -1,5 +1,6 @@
 import { bffGet, bffPost, bffPut, bffDelete, bffPatch } from './bffClient'
 import type { ImageOverride } from './weaveApi'
+import { toQueryString, type ListParams, type K8sPage } from '@/utils/listQuery'
 
 export type { ImageOverride }
 
@@ -224,8 +225,27 @@ export function getApp(name: string): Promise<WeaveApp> {
   return bffGet<WeaveApp>(`${CRUD_BASE}/apps/${encodeURIComponent(name)}`)
 }
 
-export async function listApps(): Promise<WeaveApp[]> {
-  return (await bffGet<{ items: WeaveApp[] }>(`${CRUD_BASE}/apps`)).items ?? []
+// Sort keys: name (default), created, lastExecution.
+export interface AppListParams extends ListParams {
+  type?:       ('service' | 'job')[]
+  phase?:      string[]
+  codeSource?: boolean
+  running?:    boolean
+}
+
+export function listApps(params: AppListParams = {}): Promise<K8sPage<WeaveApp>> {
+  return bffGet<K8sPage<WeaveApp>>(`${CRUD_BASE}/apps${toQueryString(params)}`)
+}
+
+// A job app's status.executions, filtered/sorted/paged server-side. Sort keys: started
+// (default -started), completed, name, entrypoint; q searches the Job name.
+export interface AppExecutionListParams extends Omit<ListParams, 'source' | 'labelSelector'> {
+  phase?:      AppExecutionPhase[]
+  entrypoint?: string[]
+}
+
+export function listAppExecutions(name: string, params: AppExecutionListParams = {}): Promise<K8sPage<WeaveAppExecution>> {
+  return bffGet<K8sPage<WeaveAppExecution>>(`${CRUD_BASE}/apps/${encodeURIComponent(name)}/executions${toQueryString(params)}`)
 }
 
 // PUT (not PATCH) so weave validates the change and answers 400 right away; the fresh GET carries
@@ -311,12 +331,34 @@ export function setRunImage(runName: string, override: ImageOverride): Promise<W
   return bffPost<WeaveRun>(`${CRUD_BASE}/runs/${encodeURIComponent(runName)}/image`, override)
 }
 
-export interface WeaveRunList {
-  items: WeaveRun[]
+// Sort keys: created (default -created), name, started, completed, duration. The time window
+// applies to status.startTime, else the creation time. Phase Pending includes unreconciled runs.
+export interface WeaveRunListParams extends ListParams {
+  phase?:   RunPhase[]
+  chain?:   string[]
+  trigger?: string[]
+}
+
+export function listWeaveRuns(params: WeaveRunListParams = {}): Promise<K8sPage<WeaveRun>> {
+  return bffGet<K8sPage<WeaveRun>>(`${CRUD_BASE}/runs${toQueryString(params)}`)
 }
 
 export function listAllRuns(): Promise<WeaveRun[]> {
-  return bffGet<WeaveRunList>(`${CRUD_BASE}/runs`).then(r => r.items ?? [])
+  return listWeaveRuns().then(r => r.items ?? [])
+}
+
+// Run counts per phase/chain/trigger/source under the same filters (sort/limit/continue ignored);
+// runs without a trigger are not counted under trigger.
+export interface RunFacets {
+  total:   number
+  phase:   Partial<Record<RunPhase, number>>
+  chain:   Record<string, number>
+  trigger: Record<string, number>
+  source:  Record<string, number>
+}
+
+export function getRunFacets(params: WeaveRunListParams = {}): Promise<RunFacets> {
+  return bffGet<RunFacets>(`${CRUD_BASE}/runs/facets${toQueryString(params)}`)
 }
 
 export function createServiceRun(payload: {
