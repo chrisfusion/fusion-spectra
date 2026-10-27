@@ -6,7 +6,7 @@ import CanvasPanel from '@/components/CanvasPanel.vue'
 import ArtifactRetentionPanel from '@/components/ArtifactRetentionPanel.vue'
 import * as indexApi from '@/api/indexApi'
 import type { Artifact, ArtifactVersion, ArtifactFile, ArtifactTag } from '@/api/indexApi'
-import { formatSize } from '@/utils/format'
+import { formatSize, escapeHtml } from '@/utils/format'
 import { usePermission } from '@/composables/usePermission'
 import { getExtBffDownloadPattern, getExtBffPublicPattern, getExtBffPublicTag } from '@/config/runtime'
 
@@ -244,9 +244,18 @@ async function removeTag(v: ArtifactVersion, tag: string) {
 const deletingVersions = ref<Set<string>>(new Set())
 
 function confirmDeleteVersion(v: ArtifactVersion) {
+  // Retention never deletes tagged versions, but a manual delete does — and fusion-weave
+  // resolves artifacts by tag, so apps tracking that tag fail on their next start/rollout.
+  const tags = (v.tags ?? []).map(t => `<b>${escapeHtml(t.tag)}</b>`)
+  const tagWarning = tags.length
+    ? `<div class="delete-tag-warning">⚠ Tag${tags.length > 1 ? 's' : ''} ${tags.join(', ')} point${tags.length > 1 ? '' : 's'} at this version.`
+      + ` Deleting it removes ${tags.length > 1 ? 'them' : 'it'} too — apps tracking ${tags.length > 1 ? 'these tags' : 'this tag'}`
+      + ` (e.g. fusion-weave) will fail to resolve the artifact on their next start or rollout.`
+      + ` Move ${tags.length > 1 ? 'the tags' : 'the tag'} to another version first if ${tags.length > 1 ? 'they are' : 'it is'} still in use.</div>`
+    : ''
   $q.dialog({
-    title: 'Delete version',
-    message: `Delete version <b>${v.version}</b>? All files in this version will be removed.`,
+    title: tags.length ? 'Delete tagged version' : 'Delete version',
+    message: `Delete version <b>${v.version}</b>? All files in this version will be removed.${tagWarning}`,
     html: true,
     ok:     { label: 'Delete', color: 'negative', flat: true },
     cancel: { label: 'Cancel', flat: true },
@@ -1007,5 +1016,16 @@ async function doDeleteArtifact() {
   word-break: break-all;
   white-space: pre-wrap;
   user-select: all;
+}
+
+/* Tagged-version warning in the delete $q.dialog (portal) */
+.delete-tag-warning {
+  margin-top: 12px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--fs-warn) 45%, transparent);
+  background: color-mix(in srgb, var(--fs-warn) 10%, transparent);
+  font-size: 12.5px;
+  line-height: 1.5;
 }
 </style>

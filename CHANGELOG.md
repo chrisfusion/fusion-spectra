@@ -7,6 +7,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.61] — 2026-10-27
+
+### Changed
+- Artifact detail: deleting a tagged version warns which tags point at it — the delete removes them, and apps tracking such a tag (e.g. fusion-weave) fail to resolve the artifact on their next start or rollout. Retention / bulk deletes never touch tagged versions.
+
 ## [0.10.60] — 2026-10-27
 
 ### Added
