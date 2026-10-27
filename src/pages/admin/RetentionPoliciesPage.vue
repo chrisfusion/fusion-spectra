@@ -4,6 +4,7 @@ import { useQuasar } from 'quasar'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import { usePermission } from '@/composables/usePermission'
 import * as indexApi from '@/api/indexApi'
+import { describeRetention, parseRetentionInput } from '@/utils/retention'
 import type { RetentionPolicy, TypeResponse, Artifact } from '@/api/indexApi'
 
 type Scope = 'types' | 'artifacts'
@@ -84,12 +85,6 @@ const existingTypePolicy = computed(() =>
     ? policies.value.find(p => p.typeId === form.typeId) ?? null
     : null)
 
-function positiveInt(v: string | number): number | null | 'invalid' {
-  if (v === '' || v === null) return null
-  const n = Number(v)
-  return Number.isInteger(n) && n >= 1 ? n : 'invalid'
-}
-
 async function resolveArtifactId(name: string): Promise<number | null> {
   const known = artifactMatches.value.find(a => a.fullName === name)
   if (known) return known.id
@@ -99,9 +94,8 @@ async function resolveArtifactId(name: string): Promise<number | null> {
 
 async function savePolicy() {
   formError.value = ''
-  const keepLast = positiveInt(form.keepLast), maxAgeDays = positiveInt(form.maxAgeDays)
-  if (keepLast === 'invalid' || maxAgeDays === 'invalid') { formError.value = 'Values must be whole numbers ≥ 1'; return }
-  if (keepLast === null && maxAgeDays === null) { formError.value = 'Set keep last, max age, or both'; return }
+  const rule = parseRetentionInput(form.keepLast, form.maxAgeDays)
+  if (typeof rule === 'string') { formError.value = rule; return }
 
   saving.value = true
   try {
@@ -115,7 +109,7 @@ async function savePolicy() {
       id = await resolveArtifactId(name)
       if (id === null) { formError.value = `No artifact named "${name}"`; return }
     }
-    await indexApi.setRetention(form.scope, id, { keepLast, maxAgeDays })
+    await indexApi.setRetention(form.scope, id, rule)
     $q.notify({ type: 'positive', message: 'Retention policy saved' })
     resetForm()
     await loadPolicies()
@@ -136,13 +130,6 @@ function editPolicy(p: RetentionPolicy) {
 function resetForm() {
   Object.assign(form, { typeId: null, artifactName: '', keepLast: '', maxAgeDays: '' })
   formError.value = ''
-}
-
-function describeRule(p: Pick<RetentionPolicy, 'keepLast' | 'maxAgeDays'>): string {
-  const parts: string[] = []
-  if (p.keepLast)   parts.push(`outside the newest ${p.keepLast}`)
-  if (p.maxAgeDays) parts.push(`older than ${p.maxAgeDays} days`)
-  return parts.length ? `Versions ${parts.join(' and ')}` : '—'
 }
 
 onMounted(async () => {
@@ -188,7 +175,7 @@ onMounted(async () => {
               </td>
               <td class="fs-mono">{{ p.keepLast ?? '—' }}</td>
               <td class="fs-mono">{{ p.maxAgeDays ? `${p.maxAgeDays} d` : '—' }}</td>
-              <td class="col-muted">{{ describeRule(p) }}</td>
+              <td class="col-muted">{{ describeRetention(p) }}</td>
               <td class="col-muted">{{ formatDate(p.updatedAt) }}</td>
               <td class="col-actions">
                 <template v-if="can('index:retention:manage', p.artifactId ?? undefined)">

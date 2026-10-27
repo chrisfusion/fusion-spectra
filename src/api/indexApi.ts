@@ -137,8 +137,22 @@ export function deleteVersion(artifactId: number, semver: string): Promise<void>
 
 // ─── Versions ─────────────────────────────────────────────────────────────────
 
-export function listVersions(artifactId: number): Promise<ArtifactVersion[]> {
-  return bffGet<ArtifactVersion[]>(`${BASE}/artifacts/${artifactId}/versions`)
+// filterQS (optional): version-filter query string; deletable=true drops versions a bulk
+// delete would skip (tagged / protected), i.e. exactly what DELETE with the same filter removes.
+export function listVersions(artifactId: number, filterQS = '', deletable = false): Promise<ArtifactVersion[]> {
+  const q = new URLSearchParams(filterQS)
+  if (deletable) q.set('deletable', 'true')
+  const qs = q.toString()
+  return bffGet<ArtifactVersion[]>(`${BASE}/artifacts/${artifactId}/versions${qs ? '?' + qs : ''}`)
+}
+
+// filterQS: a version-filter query string, e.g. an EffectiveRetention.versionFilter.
+// Versions a tag points at and protected artifacts are never deleted (counted as skipped).
+export async function bulkDeleteArtifactVersions(artifactId: number, filterQS: string, dryRun: boolean): Promise<BulkVersionDeleteResult> {
+  const q = new URLSearchParams(filterQS)
+  if (dryRun) q.set('dryRun', 'true')
+  const res = await bffFetch(`${BASE}/artifacts/${artifactId}/versions?${q}`, { method: 'DELETE' })
+  return res.json() as Promise<BulkVersionDeleteResult>
 }
 
 export function getVersion(artifactId: number, semver: string): Promise<ArtifactVersion> {
@@ -332,6 +346,20 @@ export interface RetentionPolicy {
   maxAgeDays:    number | null
   createdAt:     string
   updatedAt:     string
+}
+
+// An artifact's own policy replaces its types' policies; several type policies merge per
+// field to the most conservative value. fromTypes entries carry no typeName.
+export interface EffectiveRetention {
+  source:        'artifact' | 'types' | 'none'
+  rule:          RetentionRule | null
+  own:           RetentionPolicy | null
+  fromTypes:     RetentionPolicy[]
+  versionFilter: string   // query string for the version list / bulk delete; '' when no rule
+}
+
+export function getEffectiveRetention(artifactId: number): Promise<EffectiveRetention> {
+  return bffGet<EffectiveRetention>(`${BASE}/artifacts/${artifactId}/retention`)
 }
 
 export function listRetentionPolicies(): Promise<RetentionPolicy[]> {

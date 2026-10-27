@@ -7,6 +7,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.60] — 2026-10-27
+
+### Added
+- Artifact detail: Retention panel — effective rule (own policy or inherited from the artifact's types, most conservative per field), edit / remove the artifact's own policy, preview of the versions the rule removes now (marked "expires" in the version table, tagged versions kept), and "Apply now" to delete them (`index:versions:delete`). The preview uses read-only calls, so viewers see it too.
+
+### Changed
+- Retention rule text and form validation shared via `src/utils/retention.ts` (Admin → Retention Policies uses it too).
+
 ## [0.10.59] — 2026-10-27
 
 ### Added

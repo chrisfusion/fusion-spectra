@@ -3,6 +3,7 @@ import { ref, nextTick, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import CanvasPanel from '@/components/CanvasPanel.vue'
+import ArtifactRetentionPanel from '@/components/ArtifactRetentionPanel.vue'
 import * as indexApi from '@/api/indexApi'
 import type { Artifact, ArtifactVersion, ArtifactFile, ArtifactTag } from '@/api/indexApi'
 import { formatSize } from '@/utils/format'
@@ -40,6 +41,11 @@ const tagInput       = ref('')
 const tagInlineInput = ref<HTMLInputElement[]>([])
 const tagMutating    = ref<Set<number>>(new Set())
 const tagError       = ref<Record<number, string>>({})
+
+// ─── Retention (ArtifactRetentionPanel) ───────────────────────────────────────
+
+const expiring     = ref<Set<string>>(new Set())   // semvers the retention rule would remove now
+const retentionKey = ref(0)                        // bump after tag/version changes — they alter that set
 
 // ─── Load ─────────────────────────────────────────────────────────────────────
 
@@ -200,6 +206,7 @@ async function confirmTagAdd(v: ArtifactVersion) {
       const idx = row.tags.findIndex(t => t.tag === val && t.id === -1)
       if (idx !== -1) row.tags[idx] = created
     }
+    retentionKey.value++
     const e = { ...tagError.value }
     delete e[v.id]
     tagError.value = e
@@ -220,6 +227,7 @@ async function removeTag(v: ArtifactVersion, tag: string) {
 
   try {
     await indexApi.deleteTag(artifactId, tag)
+    retentionKey.value++
     const e = { ...tagError.value }
     delete e[v.id]
     tagError.value = e
@@ -250,6 +258,7 @@ function confirmDeleteVersion(v: ArtifactVersion) {
       const newMap = { ...filesMap.value }
       delete newMap[v.version]
       filesMap.value = newMap
+      retentionKey.value++
 
       if (versions.value.length === 0) {
         $q.dialog({
@@ -356,6 +365,16 @@ async function doDeleteArtifact() {
       </div>
     </CanvasPanel>
 
+    <!-- Retention panel -->
+    <ArtifactRetentionPanel
+      v-if="artifact"
+      :artifact-id="artifactId"
+      :types="artifact.types ?? []"
+      :refresh-key="retentionKey"
+      @expiring="list => expiring = new Set(list)"
+      @applied="loadVersions"
+    />
+
     <!-- Versions panel -->
     <CanvasPanel
       title="Versions"
@@ -391,6 +410,7 @@ async function doDeleteArtifact() {
             <!-- Version badge -->
             <td>
               <span class="fs-badge fs-badge--accent fs-mono">{{ v.version }}</span>
+              <span v-if="expiring.has(v.version)" class="expires-badge" title="Past the retention rule — removed by Apply now">expires</span>
             </td>
 
             <!-- Tags -->
@@ -653,6 +673,16 @@ async function doDeleteArtifact() {
   font-size: 12px;
   color: var(--fs-accent);
   font-weight: 500;
+}
+
+/* Retention marker on version rows */
+.expires-badge {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 10.5px;
+  color: var(--fs-warn);
+  border: 1px solid var(--fs-warn);
 }
 
 /* Metadata */
