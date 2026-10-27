@@ -33,7 +33,7 @@ The Fusion Platform web UI — a Vue 3 micro-frontend shell that brings together
 
 ### Fusion Index (implemented)
 
-- **Artifact list** — searchable, paginated registry of all artifacts
+- **Artifact list** — name search, type/tag/size/version/file/retention filters, quick views (largest, no versions, failed uploads, missing `latest`), sortable size and version columns; state kept in the URL
 - **Artifact detail** — metadata + version history with per-file download links; inline tag management
 - **Create Artifact wizard** — 3-step: name/description → semver + JSON config → multi-file upload
 - **Add Version wizard** — 2-step: semver + JSON config → multi-file upload
@@ -46,7 +46,10 @@ The Fusion Platform web UI — a Vue 3 micro-frontend shell that brings together
 - **Role Assignments** (`/admin/roles`) — manage group → role mappings backed by BFF DB
 - **Resource Permissions** (`/admin/permissions`) — grant per-resource permissions to users/groups/roles
 - **Artifact Types** (`/admin/types`) — CRUD for artifact type taxonomy
-- **Index Cleanup** / **Forge Cleanup** — orphaned-resource cleanup tools
+- **Index Cleanup** (`/admin/index-cleanup`) — registry health indicators, cleanup of empty/file-less artifacts, file-less versions, failed uploads, unused types; broken-tag list
+- **Version Pruning** (`/admin/version-pruning`) — registry-wide bulk version delete with exact preview and dry-run
+- **Retention Policies** (`/admin/retention`) — keep-last / max-age rules per type or artifact (stored only)
+- **Forge Cleanup** (`/admin/forge-cleanup`) — bulk-delete old builds, zombie build cleanup
 - **Service Status Overrides** (`/admin/health`) — manual overrides for platform service health
 
 ### RBAC

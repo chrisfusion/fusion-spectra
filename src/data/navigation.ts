@@ -245,14 +245,13 @@ export const contexts: Context[] = [
     audience: 'expert',
     label: 'Fusion Index',
     icon: 'mdi-package-variant-closed',
-    rootPath: '/fusion-index',
+    rootPath: '/fusion-index/artifacts',
     groups: [
       {
         id: 'fi-registry',
         label: 'Registry',
         icon: 'mdi-package-variant',
         children: [
-          { id: 'fi-dashboard',     label: 'Dashboard',     icon: 'mdi-view-dashboard-outline',   route: '/fusion-index' },
           { id: 'fi-artifact-list',   label: 'Artifact List',   icon: 'mdi-package-variant-closed', route: '/fusion-index/artifacts' },
           { id: 'fi-artifact-create', label: 'Create Artifact', icon: 'mdi-upload-outline',         route: '/fusion-index/artifacts/create' },
         ]
@@ -331,6 +330,8 @@ export const contexts: Context[] = [
         children: [
           { id: 'artifact-types',  label: 'Artifact Types', icon: 'mdi-tag-multiple-outline',   route: '/admin/types' },
           { id: 'index-cleanup',   label: 'Index Cleanup',  icon: 'mdi-broom',                  route: '/admin/index-cleanup' },
+          { id: 'version-pruning', label: 'Version Pruning', icon: 'mdi-content-cut',           route: '/admin/version-pruning' },
+          { id: 'retention',       label: 'Retention',      icon: 'mdi-calendar-clock-outline', route: '/admin/retention' },
         ]
       }
     ]

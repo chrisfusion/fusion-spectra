@@ -7,6 +7,30 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.59] — 2026-10-27
+
+### Added
+- Artifact list: sortable columns (name, versions, total size, largest version, created) and new Versions / Total size / Largest version columns (fusion-index ≥ 0.6.0).
+- Artifact list filters: type multi-select, has / missing tag, and "More filters" (version count range, created before, min total size, files, failed uploads, retention); active filters as removable chips with "Clear all".
+- Artifact list quick views: Largest, No versions, Versions but no files, Failed uploads, Missing "latest".
+- Artifact list state (filters, sort, page, page size 20/50/100) lives in the URL — back/forward keeps the view and links can be shared; Admin → Index Cleanup health tiles link to the matching filtered list.
+
+### Changed
+- Artifact rows link to the detail page (middle-/ctrl-click opens a new tab); description moves under the name; created time shows the exact timestamp on hover; empty state tells an empty registry from "no match".
+
+### Removed
+- Fusion Index dashboard (`FusionIndexPage`) — `/fusion-index` now redirects to the artifact list.
+
+## [0.10.58] — 2026-10-27
+
+### Added
+- Admin → Index Cleanup: Registry Health strip (fusion-index maintenance metrics, storage per backend), Incomplete Files (failed/interrupted uploads) and Unused Types cleanups, Broken Tags list with per-tag remove.
+- Admin → Version Pruning (`/admin/version-pruning`): registry-wide bulk version delete with keep-last / age / semver range / file / size filters, exact preview (`deletable=true`) and dry-run counts before deleting.
+- Admin → Retention Policies (`/admin/retention`): list, set and delete keep-last / max-age policies per artifact type or artifact (stored only — fusion-index does not apply them).
+
+### Changed
+- Index Cleanup panels are one shared `CleanupPanel.vue` component; admin maintenance pages share `src/css/admin-page.scss`.
+
 ## [0.10.57] — 2026-10-27
 
 ### Changed

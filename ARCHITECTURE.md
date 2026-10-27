@@ -73,10 +73,9 @@ src/
     ├── DataPage.vue            placeholder
     ├── PipelinesPage.vue       placeholder
     ├── MonitoringPage.vue      placeholder
-    ├── FusionIndexPage.vue     dashboard: artifact table + recent versions
     ├── AdminPage.vue           navigation hub: 2-column card grid
     ├── index/
-    │   ├── ArtifactListPage.vue        paginated list, debounced search
+    │   ├── ArtifactListPage.vue        filters/sort/quick views, state in the URL query
     │   ├── ArtifactDetailPage.vue      metadata panel + versions table + inline tags
     │   ├── ArtifactCreatePage.vue      3-step wizard
     │   └── ArtifactVersionCreatePage.vue  2-step wizard

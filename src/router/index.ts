@@ -57,12 +57,13 @@ const router = createRouter({
         { path: '/forge/gitwatchers',            component: () => import('@/pages/forge/GitWatcherListPage.vue'),   meta: { context: 'forge' } },
         { path: '/forge/gitops-builder/create', component: () => import('@/pages/forge/GitOpsBuilderPage.vue'),  meta: { context: 'forge' } },
         { path: '/forge/:pathMatch(.*)*',  component: () => import('@/pages/forge/ForgeIndexPage.vue'),       meta: { context: 'forge' } },
-        { path: '/fusion-index',                   component: () => import('@/pages/FusionIndexPage.vue'),              meta: { context: 'fusion-index' } },
+        // The index dashboard is gone — the artifact list is the context's landing page
+        { path: '/fusion-index',                   redirect: '/fusion-index/artifacts' },
         { path: '/fusion-index/artifacts',         component: () => import('@/pages/index/ArtifactListPage.vue'),       meta: { context: 'fusion-index' } },
         { path: '/fusion-index/artifacts/create',              component: () => import('@/pages/index/ArtifactCreatePage.vue'),        meta: { context: 'fusion-index' } },
         { path: '/fusion-index/artifacts/:id/versions/create', component: () => import('@/pages/index/ArtifactVersionCreatePage.vue'), meta: { context: 'fusion-index' } },
         { path: '/fusion-index/artifacts/:id',                 component: () => import('@/pages/index/ArtifactDetailPage.vue'),         meta: { context: 'fusion-index' } },
-        { path: '/fusion-index/:pathMatch(.*)*',   component: () => import('@/pages/FusionIndexPage.vue'),              meta: { context: 'fusion-index' } },
+        { path: '/fusion-index/:pathMatch(.*)*',   redirect: '/fusion-index/artifacts' },
         { path: '/changelog', component: () => import('@/pages/ChangelogPage.vue'), meta: { context: 'changelog' } },
         { path: '/help',      component: () => import('@/pages/HelpPage.vue'),      meta: { context: 'help' } },
         { path: '/admin/roles',       component: () => import('@/pages/admin/RoleAssignmentsPage.vue'),            meta: { context: 'admin', adminOnly: true } },
@@ -71,6 +72,8 @@ const router = createRouter({
         { path: '/admin/health',         component: () => import('@/pages/admin/ServiceStatusOverridesPage.vue'),  meta: { context: 'admin', adminOnly: true } },
         { path: '/admin/index-cleanup',  component: () => import('@/pages/admin/IndexCleanupPage.vue'),          meta: { context: 'admin', adminOnly: true } },
         { path: '/admin/forge-cleanup',  component: () => import('@/pages/admin/ForgeCleanupPage.vue'),          meta: { context: 'admin', adminOnly: true } },
+        { path: '/admin/version-pruning', component: () => import('@/pages/admin/VersionPruningPage.vue'),       meta: { context: 'admin', adminOnly: true } },
+        { path: '/admin/retention',      component: () => import('@/pages/admin/RetentionPoliciesPage.vue'),     meta: { context: 'admin', adminOnly: true } },
         { path: '/admin/:pathMatch(.*)*', component: () => import('@/pages/AdminPage.vue'),                      meta: { context: 'admin', adminOnly: true } },
       ]
     }

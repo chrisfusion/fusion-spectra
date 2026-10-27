@@ -166,7 +166,7 @@ const quickLinks: QuickLink[] = [
   { icon: 'mdi-pipe',                   label: 'Pipelines',      desc: 'Runs, chains & triggers',      route: '/pipelines'     },
   { icon: 'mdi-monitor-dashboard',      label: 'Monitoring',     desc: 'Health, metrics & alerts',     route: '/monitoring'    },
   { icon: 'mdi-hammer-wrench',          label: 'Forge',          desc: 'Venv builder & git builds',    route: '/forge'         },
-  { icon: 'mdi-package-variant-closed', label: 'Fusion Index',   desc: 'Artifact registry & versions', route: '/fusion-index'  },
+  { icon: 'mdi-package-variant-closed', label: 'Fusion Index',   desc: 'Artifact registry & versions', route: '/fusion-index/artifacts' },
   { icon: 'mdi-shield-crown-outline',   label: 'Admin',          desc: 'Users, roles & system config', route: '/admin', admin: true },
 ]
 

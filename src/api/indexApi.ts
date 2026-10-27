@@ -18,6 +18,9 @@ export interface Artifact {
   fullName:    string
   description: string | null
   types:       TypeResponse[]
+  versionCount?:        number
+  largestVersionBytes?: number
+  totalBytes?:          number
   createdAt:   string
   updatedAt:   string
 }
@@ -39,6 +42,7 @@ export interface ArtifactVersion {
   minor:      number
   patch:      number
   config:     string | null
+  totalBytes?: number
   tags:       ArtifactTag[]
   createdAt:  string
 }
@@ -74,7 +78,7 @@ export interface ArtifactsPage {
   pageSize: number
 }
 
-interface PagedResponse<T> {
+export interface PagedResponse<T> {
   items:    T[]
   total:    number
   page:     number
@@ -83,19 +87,34 @@ interface PagedResponse<T> {
 
 // ─── Artifacts ────────────────────────────────────────────────────────────────
 
-export function listArtifacts(params?: {
-  name?:     string
-  tag?:      string
-  type?:     string[]
-  page?:     number
-  pageSize?: number
-}): Promise<ArtifactsPage> {
+export type ArtifactSort = 'createdAt' | 'name' | 'versionCount' | 'largestVersion' | 'totalSize'
+
+// All filters combine with AND (type itself is OR across its values).
+export interface ArtifactListParams {
+  name?:               string    // full-name prefix
+  tag?:                string
+  missingTag?:         string
+  type?:               string[]
+  olderThan?:          string    // RFC3339
+  minVersions?:        number
+  maxVersions?:        number    // 0 = artifacts without versions
+  hasFiles?:           boolean
+  hasIncompleteFiles?: boolean
+  minTotalBytes?:      number
+  hasRetention?:       boolean
+  sort?:               ArtifactSort
+  order?:              'asc' | 'desc'
+  page?:               number    // 0-based
+  pageSize?:           number
+}
+
+export function listArtifacts(params: ArtifactListParams = {}): Promise<ArtifactsPage> {
   const q = new URLSearchParams()
-  if (params?.name)               q.set('name',     params.name)
-  if (params?.tag)                q.set('tag',      params.tag)
-  if (params?.page !== undefined) q.set('page',     String(params.page))
-  if (params?.pageSize)           q.set('pageSize', String(params.pageSize))
-  params?.type?.forEach(t =>      q.append('type',  t))
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === '') continue
+    if (Array.isArray(v)) v.forEach(x => q.append(k, x))
+    else q.set(k, String(v))
+  }
   const qs = q.toString()
   return bffGet<PagedResponse<Artifact>>(`${BASE}/artifacts${qs ? '?' + qs : ''}`)
 }
@@ -208,7 +227,13 @@ export interface RegistrySnapshot {
   totalStorageBytes:        number
   artifactsWithoutTags:     number
   artifactsWithoutVersions: number
+  artifactsWithoutFiles:    number
+  versionsWithoutFiles:     number
+  brokenTags:               number
+  unusedTypes:              number
+  retentionPolicies:        number
   typeCounts:               MetricsTypeCount[]
+  storageBytesByBackend:    { backend: string; bytes: number }[]
 }
 
 export function getMetrics(): Promise<RegistrySnapshot> {
@@ -224,41 +249,101 @@ export interface BulkDeleteResult {
   skipped: number
 }
 
+// Cleanups that list / bulk-delete by age only: GET and DELETE /admin/<path>?olderThan=
+export type AdminCleanupPath =
+  | 'artifacts/empty' | 'artifacts/no-files' | 'versions/empty' | 'files/incomplete' | 'types/unused'
+
 interface AdminListParams {
   olderThan: string
   page?:     number
   pageSize?: number
 }
 
-function adminQS(p: AdminListParams): string {
+export function adminList<T>(path: AdminCleanupPath, p: AdminListParams): Promise<PagedResponse<T>> {
   const q = new URLSearchParams({ olderThan: p.olderThan })
   if (p.page !== undefined) q.set('page',     String(p.page))
   if (p.pageSize)           q.set('pageSize', String(p.pageSize))
-  return q.toString()
+  return bffGet(`${ADMIN_BASE}/${path}?${q}`)
 }
 
-export function listEmptyArtifacts(p: AdminListParams): Promise<PagedResponse<Artifact>> {
-  return bffGet(`${ADMIN_BASE}/artifacts/empty?${adminQS(p)}`)
-}
-export async function deleteEmptyArtifacts(olderThan: string): Promise<BulkDeleteResult> {
-  const res = await bffFetch(`${ADMIN_BASE}/artifacts/empty?olderThan=${encodeURIComponent(olderThan)}`, { method: 'DELETE' })
+export async function adminDelete(path: AdminCleanupPath, olderThan: string): Promise<BulkDeleteResult> {
+  const res = await bffFetch(`${ADMIN_BASE}/${path}?olderThan=${encodeURIComponent(olderThan)}`, { method: 'DELETE' })
   return res.json() as Promise<BulkDeleteResult>
 }
 
-export function listVersionsWithoutFiles(p: AdminListParams): Promise<PagedResponse<ArtifactVersion>> {
-  return bffGet(`${ADMIN_BASE}/versions/empty?${adminQS(p)}`)
-}
-export async function deleteVersionsWithoutFiles(olderThan: string): Promise<BulkDeleteResult> {
-  const res = await bffFetch(`${ADMIN_BASE}/versions/empty?olderThan=${encodeURIComponent(olderThan)}`, { method: 'DELETE' })
-  return res.json() as Promise<BulkDeleteResult>
+// ─── Version filters / bulk version delete ────────────────────────────────────
+
+// Filters shared by GET /versions and DELETE /admin/versions; all given ones combine with AND.
+export interface VersionFilter {
+  keepLast?:           number
+  olderThan?:          string
+  from?:               string
+  below?:              string
+  hasFiles?:           boolean
+  hasIncompleteFiles?: boolean
+  minBytes?:           number
+  maxBytes?:           number
 }
 
-export function listArtifactsWithoutFiles(p: AdminListParams): Promise<PagedResponse<Artifact>> {
-  return bffGet(`${ADMIN_BASE}/artifacts/no-files?${adminQS(p)}`)
+export interface BulkVersionDeleteResult {
+  deleted:  number
+  skipped:  number
+  dryRun:   boolean
+  versions: { artifactId: number; version: string }[]
 }
-export async function deleteArtifactsWithoutFiles(olderThan: string): Promise<BulkDeleteResult> {
-  const res = await bffFetch(`${ADMIN_BASE}/artifacts/no-files?olderThan=${encodeURIComponent(olderThan)}`, { method: 'DELETE' })
-  return res.json() as Promise<BulkDeleteResult>
+
+function versionFilterQS(f: VersionFilter): URLSearchParams {
+  const q = new URLSearchParams()
+  for (const [k, v] of Object.entries(f)) {
+    if (v !== undefined && v !== '') q.set(k, String(v))
+  }
+  return q
+}
+
+// deletable=true: exactly the versions DELETE /admin/versions with the same filters removes.
+export function listAllVersions(f: VersionFilter, page: number, pageSize: number, deletable = false): Promise<PagedResponse<ArtifactVersion>> {
+  const q = versionFilterQS(f)
+  q.set('page', String(page)); q.set('pageSize', String(pageSize))
+  if (deletable) q.set('deletable', 'true')
+  return bffGet(`${BASE}/versions?${q}`)
+}
+
+export async function bulkDeleteVersions(f: VersionFilter, dryRun: boolean): Promise<BulkVersionDeleteResult> {
+  const q = versionFilterQS(f)
+  if (dryRun) q.set('dryRun', 'true')
+  const res = await bffFetch(`${ADMIN_BASE}/versions?${q}`, { method: 'DELETE' })
+  return res.json() as Promise<BulkVersionDeleteResult>
+}
+
+// ─── Retention policies ───────────────────────────────────────────────────────
+
+export interface RetentionRule {
+  keepLast?:   number | null
+  maxAgeDays?: number | null
+}
+
+export interface RetentionPolicy {
+  id:            number
+  artifactId:    number | null
+  artifactName?: string
+  typeId:        number | null
+  typeName?:     string
+  keepLast:      number | null
+  maxAgeDays:    number | null
+  createdAt:     string
+  updatedAt:     string
+}
+
+export function listRetentionPolicies(): Promise<RetentionPolicy[]> {
+  return bffGet<RetentionPolicy[]>(`${BASE}/retention-policies`)
+}
+
+export function setRetention(scope: 'artifacts' | 'types', id: number, rule: RetentionRule): Promise<RetentionPolicy> {
+  return bffPut<RetentionPolicy>(`${BASE}/${scope}/${id}/retention`, rule)
+}
+
+export function deleteRetention(scope: 'artifacts' | 'types', id: number): Promise<void> {
+  return bffDelete(`${BASE}/${scope}/${id}/retention`)
 }
 
 // ─── Tags ─────────────────────────────────────────────────────────────────────
@@ -269,4 +354,25 @@ export function putTag(artifactId: number, tag: string, version: string): Promis
 
 export function deleteTag(artifactId: number, tag: string): Promise<void> {
   return bffDelete(`${BASE}/artifacts/${artifactId}/tags/${tag}`)
+}
+
+export interface TagListItem {
+  id:           number
+  artifactId:   number
+  artifactName: string
+  tag:          string
+  versionId:    number
+  version:      string
+  broken:       boolean
+  updatedAt:    string
+}
+
+// broken=true: tags whose version has no AVAILABLE file.
+export function listTags(p: { tag?: string; broken?: boolean; page?: number; pageSize?: number }): Promise<PagedResponse<TagListItem>> {
+  const q = new URLSearchParams()
+  if (p.tag)                 q.set('tag',      p.tag)
+  if (p.broken !== undefined) q.set('broken',  String(p.broken))
+  if (p.page !== undefined)  q.set('page',     String(p.page))
+  if (p.pageSize)            q.set('pageSize', String(p.pageSize))
+  return bffGet(`${BASE}/tags?${q}`)
 }
