@@ -33,6 +33,7 @@
 - Run now = PATCH annotation `fusion-platform.io/fire: <entrypoint>` (operator consumes it; skipped while that entrypoint's previous execution still runs). Job apps without an entrypoints list have one entrypoint `main`
 - App image rule = flux `ValidateApp`: empty allowlist = no policy → use `validateAppImage`, not `validateImage` (that one is for overrides, where empty = disabled)
 - The app has no label pointing at its wizard run — the detail page finds it by scanning wizard runs for an `app` step whose `outputs.name` matches
+- Runtime settings = `setAppRuntimeSettings()` (same GET+PUT path as Change image via `updateAppSpec`): `spec.writablePaths` + `spec.service.ingressAnnotations`, edited as JSON, parsed by `parseRuntimeSettings` in `utils/weaveApp.ts`. Annotations only offered when the app has `ingressName`/`ingress` (weave rejects them otherwise) and are additive — a removed key stays on the live Ingress. A fusion-weave binary older than these fields drops them silently on PUT
 
 ## Weave API — CRUD & edit patterns
 - Full CRUD on all four resource types: jobtemplates, servicetemplates, chains, triggers, runs all have `GET / POST / GET :name / PUT :name / PATCH :name / DELETE :name` via `registerCRUD()` — no BFF changes needed for any of these
@@ -66,7 +67,8 @@ Route: `/pipelines/weave/chains/advanced`. 3-step wizard: step 1 Identity (chain
 - Both `fusion-weave-operator` (container: `manager`) and `fusion-weave-api` (container: `api-server`) share one image — build once, update both
 - Build: `eval $(minikube docker-env) && docker build -t fusion-weave-operator:X.Y.Z /path/to/fusion-flux/`
 - Deploy: `kubectl set image deployment/fusion-weave-operator manager=fusion-weave-operator:X.Y.Z -n fusion && kubectl set image deployment/fusion-weave-api api-server=fusion-weave-operator:X.Y.Z -n fusion`
-- Current semver: `0.5.0` (was `latest` — do not revert to `latest`)
+- Current semver: `0.6.2` (2026-10-27; was `latest` — do not revert to `latest`). New flux release = next patch above the last `[x.y.z]` in `../fusion-flux/CHANGELOG.md`
+- New spec fields also need the live CRD schema, or the API server prunes them regardless of the binary — check `kubectl diff -f ../fusion-flux/config/crd/bases/` (empty = up to date) before `kubectl apply`
 - Both deployments are separate `Deployment` objects even though they share one image — a new operator env var (e.g. `EXTERNAL_AUTH_*`) must be set on **both** `fusion-weave-operator` and `fusion-weave-api` independently if the api-server binary also reads it (e.g. to serve it back via a REST endpoint); `kubectl set env` on one does not propagate to the other.
 - **Symptom of a stale/`:latest` binary**: a spec field a Go type clearly declares (e.g. `WeaveJobTemplateSpec.CodeSource`) silently vanishes after POST/PUT — no error anywhere, the object just gets created without it (the old binary's compiled struct predates the field, so `encoding/json` drops the unknown key on decode). Before suspecting CRD-schema pruning or handler logic, check `kubectl get deployment fusion-weave-operator -n fusion -o jsonpath='{.spec.template.spec.containers[0].image}'` against current source.
 

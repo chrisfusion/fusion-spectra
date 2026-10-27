@@ -140,6 +140,8 @@ Used in `ArtifactCreatePage`, `ArtifactVersionCreatePage`, and all weave wizards
 - Log fixtures: `busybox:` jobs print nothing (empty log is expected); `nginx:1.27` via Image → Service gives real log lines; git build fixture `testcases_v2/app-builds/hello-world` is unused by any watcher (safe to roll back), but builds in ~4s — too fast to catch the live BUILDING view
 - Job fixtures must exit: an `nginx:` image as a Job/cron app runs forever (Run now stays disabled while it runs) — use `busybox:1.36` for image-job / image-cron-job E2E (Succeeded in ~4s)
 - Fire Quasar notifications from a test: `document.querySelector('#app').__vue_app__.config.globalProperties.$q.notify({ type: 'positive', message: 'x' })`
+- `JsonEditor` (CodeMirror) in Playwright: click `.cm-content`, `Control+A`, then `keyboard.type(json)` — auto-closed brackets don't corrupt typed JSON
+- WeaveApp fixture for service/runtime-settings E2E: copy `image-site` (nginx, `readOnlyRootFilesystem`, two `writablePaths`, ingress) to a throwaway name via `kubectl get -o json` → new name/ingressName → `kubectl apply`; delete it afterwards. The other live apps are not owned by tests
 
 ## Simple mode / Expert mode
 - Two audiences: experts (full UI) and common users (wizards + runs only). `src/stores/uiMode.ts`: `canExpert` = `ui:expert` permission, `expert` = canExpert && stored preference (`fs-ui-mode` in localStorage). Users without `ui:expert` are always Simple; experts toggle via the top-bar Simple/Expert button

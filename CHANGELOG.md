@@ -7,6 +7,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.55] — 2026-10-27
+
+### Added
+- Weave App detail: shows the app's writable paths (`spec.writablePaths`) and, for service apps, its Ingress annotations (`spec.service.ingressAnnotations`); **Runtime settings** (`weave:apps:write`) edits both as JSON (annotations only for service apps with an ingress), PUT to weave with client-side mountPath checks. Needs fusion-flux with commits `99152d3`/`340c684`.
+
 ## [0.10.54] — 2026-10-21
 
 ### Fixed

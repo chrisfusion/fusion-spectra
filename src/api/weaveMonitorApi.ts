@@ -174,6 +174,20 @@ export interface WeaveAppEntrypoint {
   schedule?: string   // empty = on demand only
 }
 
+// Writable emptyDir for images running with readOnlyRootFilesystem (mountPath absolute, not '/').
+export interface WeaveAppWritablePath {
+  mountPath:  string
+  sizeLimit?: string      // quantity, e.g. 200Mi
+  medium?:    'Memory'
+}
+
+export interface WeaveAppService {
+  ports?:              { port: number; name?: string }[]
+  ingressName?:        string
+  ingress?:            Record<string, unknown>   // full ingress block, not modelled further
+  ingressAnnotations?: Record<string, string>    // additive: a removed key stays on the Ingress
+}
+
 export interface WeaveApp {
   metadata: {
     name: string; creationTimestamp?: string; resourceVersion?: string
@@ -183,9 +197,10 @@ export interface WeaveApp {
     type:             'service' | 'job'
     image:            string
     codeSource?:      { artifactName: string; tag: string }
-    service?:         { ports?: { port: number; name?: string }[]; ingressName?: string }
+    service?:         WeaveAppService
     entrypoints?:     WeaveAppEntrypoint[]
     externalAuthRef?: { mode: 'serviceAccount' | 'oidc'; name: string }
+    writablePaths?:   WeaveAppWritablePath[]
   }
   status?: {
     phase?:             AppPhase
@@ -213,11 +228,32 @@ export async function listApps(): Promise<WeaveApp[]> {
   return (await bffGet<{ items: WeaveApp[] }>(`${CRUD_BASE}/apps`)).items ?? []
 }
 
-// PUT (not PATCH) so weave checks the image against its allowlist and answers 400 right away; the
-// fresh GET carries the resourceVersion PUT needs and every spec field this client doesn't model.
-export async function setAppImage(name: string, image: string): Promise<WeaveApp> {
+// PUT (not PATCH) so weave validates the change and answers 400 right away; the fresh GET carries
+// the resourceVersion PUT needs and every spec field this client doesn't model.
+async function updateAppSpec(name: string, change: (spec: WeaveApp['spec']) => WeaveApp['spec']): Promise<WeaveApp> {
   const app = await getApp(name)
-  return bffPut<WeaveApp>(`${CRUD_BASE}/apps/${encodeURIComponent(name)}`, { ...app, spec: { ...app.spec, image } })
+  return bffPut<WeaveApp>(`${CRUD_BASE}/apps/${encodeURIComponent(name)}`, { ...app, spec: change(app.spec) })
+}
+
+export function setAppImage(name: string, image: string): Promise<WeaveApp> {
+  return updateAppSpec(name, spec => ({ ...spec, image }))
+}
+
+export interface AppRuntimeSettings {
+  writablePaths?:      WeaveAppWritablePath[]
+  ingressAnnotations?: Record<string, string>   // undefined = leave service untouched
+}
+
+// Empty values are sent as absent (omitempty on the weave side).
+export function setAppRuntimeSettings(name: string, settings: AppRuntimeSettings): Promise<WeaveApp> {
+  return updateAppSpec(name, spec => {
+    const next = { ...spec, writablePaths: settings.writablePaths?.length ? settings.writablePaths : undefined }
+    if (settings.ingressAnnotations !== undefined && spec.service) {
+      const ann = Object.keys(settings.ingressAnnotations).length ? settings.ingressAnnotations : undefined
+      next.service = { ...spec.service, ingressAnnotations: ann }
+    }
+    return next
+  })
 }
 
 // Launches one entrypoint of a job app once — the operator consumes the annotation (and skips the

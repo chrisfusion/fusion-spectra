@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import CanvasPanel from '@/components/CanvasPanel.vue'
 import ManagedByBadge from '@/components/ManagedByBadge.vue'
 import WeaveAppLogs from '@/components/WeaveAppLogs.vue'
+import JsonEditor from '@/components/JsonEditor.vue'
 import * as monitorApi from '@/api/weaveMonitorApi'
 import * as wizardApi from '@/api/wizardApi'
 import { usePermission } from '@/composables/usePermission'
@@ -12,12 +13,13 @@ import { useRunsPolling } from '@/composables/useRunsPolling'
 import { useImageOverrideOptions } from '@/composables/useImageOverrideOptions'
 import { validateAppImage } from '@/utils/imagePolicy'
 import { managedBy } from '@/utils/managedBy'
-import { appSource } from '@/utils/weaveApp'
+import { appSource, hasIngress, formatWritablePath, parseRuntimeSettings } from '@/utils/weaveApp'
 import { getServiceUrlPattern } from '@/config/runtime'
 import { escapeHtml } from '@/utils/format'
 
-// One WeaveApp: what it runs, its executions/logs, and the two expert actions — Change image
-// (image apps only; PUT straight to weave) and Run now (job entrypoints, fire annotation).
+// One WeaveApp: what it runs, its executions/logs, and the expert actions — Change image
+// (image apps only; PUT straight to weave), Run now (job entrypoints, fire annotation) and
+// Runtime settings (writablePaths + service ingressAnnotations, edited as JSON).
 // A wizard-created app is changed behind the wizard's back: its ledger still records the old
 // image and a retry of that wizard run may restore it (accepted drift).
 
@@ -80,6 +82,10 @@ const serviceUrl = computed(() => {
   return ingress.value && pattern ? pattern.replace('{name}', ingress.value) : null
 })
 const canChangeImage = computed(() => !!app.value && !app.value.spec.codeSource && can('weave:apps:write'))
+const annotations    = computed(() => Object.entries(app.value?.spec.service?.ingressAnnotations ?? {}))
+// ingressAnnotations is rejected by weave without an ingress, so only such apps get to edit them.
+const withAnnotations = computed(() => !!app.value && isService.value && hasIngress(app.value))
+const isWizardApp     = computed(() => !!wizardRun.value || managedBy(app.value?.metadata) === 'wizard')
 
 function formatDate(iso: string | null | undefined): string {
   return iso ? new Date(iso).toLocaleString() : '—'
@@ -89,7 +95,7 @@ function formatDate(iso: string | null | undefined): string {
 
 function changeImage() {
   if (!app.value) return
-  const driftNote = wizardRun.value || managedBy(app.value.metadata) === 'wizard'
+  const driftNote = isWizardApp.value
     ? '<br><br>This app was created by a wizard run. Retrying that run may set the old image again.'
     : ''
   $q.dialog({
@@ -114,6 +120,42 @@ function changeImage() {
       imageBusy.value = false
     }
   })
+}
+
+// ─── Runtime settings dialog ──────────────────────────────────────────────────
+
+const settingsOpen   = ref(false)
+const settingsJson   = ref('')
+const settingsValid  = ref(true)
+const settingsError  = ref<string | null>(null)
+const settingsSaving = ref(false)
+
+// The error belongs to the text that was saved — clear it as soon as that text changes.
+watch(settingsJson, () => { settingsError.value = null })
+
+function openSettings() {
+  if (!app.value) return
+  const current: Record<string, unknown> = { writablePaths: app.value.spec.writablePaths ?? [] }
+  if (withAnnotations.value) current.ingressAnnotations = app.value.spec.service?.ingressAnnotations ?? {}
+  settingsJson.value  = JSON.stringify(current, null, 2)
+  settingsError.value = null
+  settingsOpen.value  = true
+}
+
+async function saveSettings() {
+  const parsed = parseRuntimeSettings(settingsJson.value, withAnnotations.value)
+  if (typeof parsed === 'string') { settingsError.value = parsed; return }
+  settingsSaving.value = true
+  settingsError.value  = null
+  try {
+    app.value = await monitorApi.setAppRuntimeSettings(appName, parsed)
+    settingsOpen.value = false
+    $q.notify({ type: 'positive', message: `Runtime settings of ${appName} saved` })
+  } catch (e) {
+    settingsError.value = e instanceof Error ? e.message : 'Save failed'
+  } finally {
+    settingsSaving.value = false
+  }
 }
 
 async function runNow(entrypoint: string) {
@@ -198,18 +240,29 @@ function isRunning(entrypoint: string): boolean {
             </dd>
           </template>
 
+          <template v-if="app.spec.writablePaths?.length">
+            <dt>Writable</dt>
+            <dd class="fs-mono">
+              <div v-for="p in app.spec.writablePaths" :key="p.mountPath">{{ formatWritablePath(p) }}</div>
+            </dd>
+          </template>
+
           <dt>Created</dt>
           <dd>{{ formatDate(app.metadata.creationTimestamp) }}</dd>
         </dl>
 
-        <div v-if="canChangeImage" class="action-row">
-          <button class="fs-btn fs-btn--warn" :disabled="imageBusy" @click="changeImage">
+        <div v-if="can('weave:apps:write')" class="action-row">
+          <button v-if="canChangeImage" class="fs-btn fs-btn--warn" :disabled="imageBusy" @click="changeImage">
             <q-spinner v-if="imageBusy" size="14px" style="margin-right:6px" />
             <q-icon v-else name="mdi-docker" size="14px" style="margin-right:4px" />
             Change image
           </button>
+          <button class="fs-btn fs-btn--ghost" @click="openSettings">
+            <q-icon name="mdi-tune-variant" size="14px" style="margin-right:4px" />
+            Runtime settings
+          </button>
         </div>
-        <p v-else-if="app.spec.codeSource" class="col-muted hint">
+        <p v-if="app.spec.codeSource" class="col-muted hint">
           The code version follows the tag <span class="fs-mono">{{ app.spec.codeSource.tag }}</span> in fusion-index — move the tag to deploy another version.
         </p>
       </div>
@@ -231,6 +284,12 @@ function isRunning(entrypoint: string): boolean {
         <template v-if="serviceUrl">
           <dt>URL</dt>
           <dd><a class="link fs-mono" :href="serviceUrl" target="_blank" rel="noopener">{{ serviceUrl }}</a></dd>
+        </template>
+        <template v-if="annotations.length">
+          <dt>Annotations</dt>
+          <dd class="fs-mono annotations">
+            <div v-for="[k, v] in annotations" :key="k"><span class="col-muted">{{ k }}:</span> {{ v }}</div>
+          </dd>
         </template>
       </dl>
 
@@ -273,6 +332,50 @@ function isRunning(entrypoint: string): boolean {
       <WeaveAppLogs :app="app" />
     </CanvasPanel>
   </div>
+
+  <!-- Runtime settings: writablePaths (+ ingressAnnotations for service apps with an ingress) -->
+  <q-dialog v-model="settingsOpen" persistent>
+    <q-card class="app-settings-dialog">
+      <q-card-section class="app-settings-dialog__header">
+        <div class="app-settings-dialog__title">
+          <q-icon name="mdi-tune-variant" size="16px" />
+          Runtime settings · <span class="fs-mono">{{ appName }}</span>
+        </div>
+        <div class="app-settings-dialog__actions">
+          <button class="fs-btn fs-btn--ghost fs-btn--sm" :disabled="settingsSaving" @click="settingsOpen = false">Cancel</button>
+          <button class="fs-btn fs-btn--primary fs-btn--sm" :disabled="settingsSaving || !settingsValid" @click="saveSettings">
+            <q-spinner v-if="settingsSaving" size="12px" style="margin-right:4px" />
+            {{ settingsSaving ? 'Saving…' : 'Save' }}
+          </button>
+        </div>
+      </q-card-section>
+
+      <q-separator />
+
+      <q-card-section class="app-settings-dialog__body">
+        <ul class="app-settings-dialog__hints">
+          <li>
+            <span class="fs-mono">writablePaths</span>: <span class="fs-mono">[{ "mountPath": "/var/cache/nginx", "sizeLimit": "200Mi", "medium": "Memory" }]</span>
+            — writable emptyDirs for images with a read-only root filesystem; <span class="fs-mono">sizeLimit</span> and <span class="fs-mono">medium</span> are optional.
+          </li>
+          <li v-if="withAnnotations">
+            <span class="fs-mono">ingressAnnotations</span>: <span class="fs-mono">{ "key": "value" }</span> on this app's Ingress, overriding the cluster-wide ones.
+            Removing a key does <strong>not</strong> remove it from the existing Ingress.
+          </li>
+          <li v-if="isWizardApp">This app was created by a wizard run. Retrying that run may undo these settings.</li>
+        </ul>
+        <JsonEditor
+          v-model="settingsJson"
+          min-height="180px"
+          max-height="45vh"
+          @valid="settingsValid = $event"
+        />
+        <div v-if="settingsError" class="app-settings-dialog__error">
+          <q-icon name="mdi-alert-circle-outline" size="13px" /> {{ settingsError }}
+        </div>
+      </q-card-section>
+    </q-card>
+  </q-dialog>
 </template>
 
 <style scoped>
@@ -416,4 +519,55 @@ function isRunning(entrypoint: string): boolean {
 }
 .icon-btn:hover   { color: var(--fs-text-primary); background: var(--fs-bg-hover); }
 .icon-btn--active { color: var(--fs-accent); }
+
+.annotations div { word-break: break-all; }
+</style>
+
+<style>
+/* q-dialog is a portal — unscoped, prefixed by the dialog class */
+.app-settings-dialog {
+  width: 640px;
+  max-width: 96vw;
+  background: var(--fs-bg-surface);
+  color: var(--fs-text-primary);
+}
+.app-settings-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px !important;
+}
+.app-settings-dialog__title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.app-settings-dialog__actions { display: flex; align-items: center; gap: 6px; }
+.app-settings-dialog__body { padding: 12px 16px !important; }
+.app-settings-dialog__hints {
+  margin: 0 0 10px;
+  padding-left: 18px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--fs-text-muted);
+}
+.app-settings-dialog__hints .fs-mono { font-family: var(--fs-font-mono); color: var(--fs-text-primary); }
+.app-settings-dialog__error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--fs-neg, #e57373);
+}
+.app-settings-dialog .fs-btn {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.app-settings-dialog .fs-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.app-settings-dialog .fs-btn--ghost { background: transparent; color: var(--fs-text-muted); border: 1px solid var(--fs-border); }
+.app-settings-dialog .fs-btn--ghost:hover:not(:disabled) { color: var(--fs-text-primary); background: var(--fs-bg-hover); }
+.app-settings-dialog .fs-btn--primary { background: var(--fs-accent); color: #fff; border: 1px solid var(--fs-accent); }
 </style>
